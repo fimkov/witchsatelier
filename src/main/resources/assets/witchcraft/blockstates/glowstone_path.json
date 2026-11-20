@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "witchcraft:block/glowstone_path"
+    },
+    "lit=true": {
+      "model": "witchcraft:block/glowstone_path_lit"
+    }
+  }
+}

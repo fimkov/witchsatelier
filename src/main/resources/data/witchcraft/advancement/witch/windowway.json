@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:spruce_door"
+    },
+    "title": {
+      "translate": "advancements.witchcraft.windowway.title"
+    },
+    "description": {
+      "translate": "advancements.witchcraft.windowway.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "windowway": {
+      "trigger": "witchcraft:magic",
+      "conditions": {
+        "event": "windowway"
+      }
+    }
+  },
+  "parent": "witchcraft:witch/nested",
+  "rewards": {
+    "experience": 80
+  }
+}

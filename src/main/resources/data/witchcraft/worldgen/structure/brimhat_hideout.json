@@ -1,0 +1,8 @@
+{
+  "type": "witchcraft:witch_place",
+  "kind": "brimhat_hideout",
+  "biomes": "#witchcraft:has_structure/brimhat_hideout",
+  "step": "surface_structures",
+  "spawn_overrides": {},
+  "terrain_adaptation": "none"
+}

@@ -1,0 +1,35 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchcraft:beast_warding_tower"
+    },
+    "title": {
+      "translate": "advancements.witchcraft.contraption.title"
+    },
+    "description": {
+      "translate": "advancements.witchcraft.contraption.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchcraft:beast_warding_tower",
+              "witchcraft:washing_barrel",
+              "witchcraft:vapor_bubble",
+              "witchcraft:snugstone"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchcraft:witch/conjuring_ink"
+}

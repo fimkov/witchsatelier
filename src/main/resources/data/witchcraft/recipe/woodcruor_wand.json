@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "  W",
+    "SW ",
+    "S  "
+  ],
+  "key": {
+    "W": {
+      "item": "witchcraft:woodcruor"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "witchcraft:woodcruor_wand",
+    "count": 1
+  }
+}

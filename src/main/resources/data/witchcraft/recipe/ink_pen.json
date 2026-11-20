@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["  F", " N ", "S  "],
+  "key": {
+    "F": { "item": "minecraft:feather" },
+    "N": { "item": "minecraft:iron_nugget" },
+    "S": { "item": "minecraft:stick" }
+  },
+  "result": { "id": "witchcraft:ink_pen", "count": 1 }
+}

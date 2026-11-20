@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:blaze_powder"
+    },
+    "title": {
+      "translate": "advancements.witchcraft.pillar_of_flame.title"
+    },
+    "description": {
+      "translate": "advancements.witchcraft.pillar_of_flame.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "form_beam": {
+      "trigger": "witchcraft:magic",
+      "conditions": {
+        "event": "form_beam"
+      }
+    }
+  },
+  "parent": "witchcraft:witch/first_glyph"
+}

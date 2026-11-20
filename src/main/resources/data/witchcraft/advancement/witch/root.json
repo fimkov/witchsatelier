@@ -1,0 +1,33 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchcraft:ink_pen"
+    },
+    "title": {
+      "translate": "advancements.witchcraft.root.title"
+    },
+    "description": {
+      "translate": "advancements.witchcraft.root.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false,
+    "background": "minecraft:textures/block/calcite.png"
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchcraft:ink_pen",
+              "witchcraft:woodcruor_wand"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

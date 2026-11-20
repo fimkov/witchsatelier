@@ -1,0 +1,8 @@
+{
+  "type": "witchcraft:witch_place",
+  "kind": "atelier",
+  "biomes": "#witchcraft:has_structure/atelier",
+  "step": "surface_structures",
+  "spawn_overrides": {},
+  "terrain_adaptation": "none"
+}

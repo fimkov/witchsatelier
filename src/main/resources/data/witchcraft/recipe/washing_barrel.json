@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:barrel"
+    },
+    {
+      "item": "minecraft:water_bucket"
+    },
+    {
+      "item": "witchcraft:lasting_ink"
+    }
+  ],
+  "result": {
+    "id": "witchcraft:washing_barrel",
+    "count": 1
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchcraft:woodcruor"
+    },
+    "title": {
+      "translate": "advancements.witchcraft.woodcruor.title"
+    },
+    "description": {
+      "translate": "advancements.witchcraft.woodcruor.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchcraft:woodcruor"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchcraft:witch/silverwood"
+}

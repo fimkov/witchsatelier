@@ -1,0 +1,29 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "witchcraft:item/woodcruor_wand_3d"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "minecraft:item/generated",
+      "textures": {
+        "layer0": "witchcraft:item/woodcruor_wand",
+        "layer1": "witchcraft:item/ink_pen_nib"
+      }
+    },
+    "ground": {
+      "parent": "minecraft:item/generated",
+      "textures": {
+        "layer0": "witchcraft:item/woodcruor_wand",
+        "layer1": "witchcraft:item/ink_pen_nib"
+      }
+    },
+    "fixed": {
+      "parent": "minecraft:item/generated",
+      "textures": {
+        "layer0": "witchcraft:item/woodcruor_wand",
+        "layer1": "witchcraft:item/ink_pen_nib"
+      }
+    }
+  }
+}

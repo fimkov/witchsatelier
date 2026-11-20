@@ -1,0 +1,10 @@
+{
+  "parent": "minecraft:block/cauldron",
+  "textures": {
+    "particle": "witchcraft:block/void_basin_side",
+    "top": "witchcraft:block/void_basin_top",
+    "bottom": "witchcraft:block/void_basin_bottom",
+    "side": "witchcraft:block/void_basin_side",
+    "inside": "witchcraft:block/void_basin_inner"
+  }
+}

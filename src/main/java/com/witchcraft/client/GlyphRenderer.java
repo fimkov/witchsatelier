@@ -1,0 +1,237 @@
+package com.witchcraft.client;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.witchcraft.glyph.GlyphService;
+import com.witchcraft.glyph.surface.InkStroke;
+import com.witchcraft.glyph.surface.StrokeState;
+import com.witchcraft.glyph.surface.SurfacePlane;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import org.joml.Matrix4f;
+
+/** Draws ink lines as thin quads lying on the block faces. */
+public final class GlyphRenderer {
+    private static final double OFFSET = 0.0025;
+    private static final double MAX_DIST_SQR = 96 * 96;
+    private static final int SPENT = 0x8C5A5A60;
+
+    private GlyphRenderer() {}
+
+    static void onRenderLevel(RenderLevelStageEvent e) {
+        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
+        float pt = e.getPartialTick().getGameTimeDeltaPartialTick(false);
+        ClientDrawing.sample(pt);
+
+        Minecraft mc = Minecraft.getInstance();
+        Vec3 cam = e.getCamera().getPosition();
+        PoseStack ps = e.getPoseStack();
+        ps.pushPose();
+        Matrix4f pose = ps.last().pose();
+        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        VertexConsumer vc = buffers.getBuffer(RenderType.debugQuads());
+
+        double time = (mc.level != null ? mc.level.getGameTime() : 0) + pt;
+        float w = (float) GlyphService.INK_WIDTH;
+        java.util.UUID me = mc.player != null ? mc.player.getUUID() : null;
+        // the guide first and lowest: ink drawn over it lies on top of it
+        TraceGuide.render(vc, pose, cam, w);
+        for (ClientGlyphs.Entry en : ClientGlyphs.INSTANCE.all()) {
+            InkStroke s = en.stroke();
+            // invisible ink: only its author sees the lines (a running spell still glows)
+            if (s.ink().invisible && s.state() != StrokeState.ACTIVE && !s.author().equals(me)) continue;
+            SurfacePlane plane = en.plane();
+            double[] uv = en.abs();
+            if (plane.toWorld(uv[0], uv[1], 0).distanceToSqr(cam) > MAX_DIST_SQR) continue;
+            switch (s.state()) {
+                case IDLE -> drawStroke(vc, pose, cam, plane, uv, s.size(), w, s.ink().color, OFFSET);
+                case SPENT -> drawStroke(vc, pose, cam, plane, uv, s.size(), w, SPENT, OFFSET);
+                case ACTIVE -> {
+                    if ((s.color() >>> 24 & 0xFF) == 1) {
+                        // a snare, awake and waiting: just a slow, faint breath of light in its lines
+                        double breath = 0.5 + 0.5 * Math.sin(time * 0.07 + s.id());
+                        drawStroke(vc, pose, cam, plane, uv, s.size(), w * 2.6f, withAlpha(s.color() & 0xFFFFFF, (int) (14 + 26 * breath)), OFFSET * 0.6);
+                        drawStroke(vc, pose, cam, plane, uv, s.size(), w, withAlpha(mix(s.ink().color, s.color() & 0xFFFFFF, 0.15 + 0.15 * breath), 255), OFFSET * 1.4);
+                        break;
+                    }
+                    // the glow fades as the spell's time runs out and flickers in its last seconds
+                    double left = en.duration() > 0 ? Math.max(0, (en.until() - time) / en.duration()) : 1;
+                    double life = 0.25 + 0.75 * left;
+                    if (left < 0.2) life *= 0.6 + 0.4 * Math.abs(Math.sin(time * 0.9));
+                    double pulse = 0.75 + 0.25 * Math.sin(time * 0.25 + s.id());
+                    int glow = withAlpha(s.color(), (int) (80 * pulse * life));
+                    int core = withAlpha(mix(s.ink().color, brighten(s.color(), pulse), life), 255);
+                    // ignition: the light runs along each line from where it began, a bright spark at its front
+                    double since = time - (en.until() - en.duration());
+                    // (if the clock was set back the glyph is simply shown alight)
+                    double lit = en.duration() > 0 && since >= 0 ? Math.min(1, since / IGNITE) : 1;
+                    if (lit >= 1) {
+                        drawStroke(vc, pose, cam, plane, uv, s.size(), w * 3.5f, glow, OFFSET * 0.6);
+                        drawStroke(vc, pose, cam, plane, uv, s.size(), w, core, OFFSET * 1.4);
+                    } else {
+                        ignite(vc, pose, cam, plane, uv, s.size(), w, glow, core, withAlpha(s.ink().color, 255), lit);
+                    }
+                }
+            }
+        }
+
+        // lines just finished, until the server's ink for them comes back
+        for (ClientDrawing.Sent sent : ClientDrawing.sent()) {
+            if (sent.n() > 0) drawStroke(vc, pose, cam, sent.plane(), sent.uv(), sent.n(), w, sent.color(), OFFSET * 1.2);
+        }
+
+        SurfacePlane drawing = ClientDrawing.plane();
+        int n = ClientDrawing.pointCount();
+        if (drawing != null && n > 0) {
+            double[] uv = new double[n * 2];
+            for (int i = 0; i < n; i++) { uv[i * 2] = ClientDrawing.u(i); uv[i * 2 + 1] = ClientDrawing.v(i); }
+            if (ClientDrawing.imagining()) {
+                // only imagined: pale light hanging a little over the surface, and the whole ring faintly ahead of it
+                double lift = 0.14;
+                var c = ClientDrawing.imaginedCircle();
+                if (c != null) {
+                    int seg = 96;
+                    double[] ring = new double[(seg + 1) * 2];
+                    for (int i = 0; i <= seg; i++) {
+                        double a = Math.PI * 2 * i / seg;
+                        ring[i * 2] = c.center().x() + Math.cos(a) * c.radius();
+                        ring[i * 2 + 1] = c.center().y() + Math.sin(a) * c.radius();
+                    }
+                    drawStroke(vc, pose, cam, drawing, ring, seg + 1, w * 0.6f, 0x28B8A8FF, lift);
+                }
+                drawStroke(vc, pose, cam, drawing, uv, n, w * 3f, 0x309A84FF, lift);
+                drawStroke(vc, pose, cam, drawing, uv, n, w * 0.8f, 0xB0D8CCFF, lift + 0.002);
+            } else {
+                drawStroke(vc, pose, cam, drawing, uv, n, w, ClientDrawing.currentInk().color, OFFSET * 1.2);
+            }
+        }
+        var hover = ClientDrawing.hover();
+        boolean aimingRag = false;
+        if (drawing == null) {
+            SurfacePlane[] pl = new SurfacePlane[1];
+            hover = ClientDrawing.ragHover(pl);
+            drawing = pl[0];
+            aimingRag = hover != null;
+        }
+        if (drawing != null && hover != null) {
+            if (ClientDrawing.erasingNow() || aimingRag) {
+                // rubbing out: a circle as wide as what the rag (or the pen) actually wipes
+                double r = ClientDrawing.eraseRadius();
+                double[] c = new double[34 * 2];
+                for (int i = 0; i < 34; i++) {
+                    double a = i * Math.PI * 2 / 33;
+                    c[i * 2] = hover.x() + Math.cos(a) * r;
+                    c[i * 2 + 1] = hover.y() + Math.sin(a) * r;
+                }
+                drawStroke(vc, pose, cam, drawing, c, 34, w * 0.5f, 0xC0FFFFFF, OFFSET * 2);
+            } else {
+                // pen tip: a small hollow square under the cursor
+                double h = 0.06;
+                double[] box = {hover.x() - h, hover.y() - h, hover.x() + h, hover.y() - h, hover.x() + h, hover.y() + h,
+                        hover.x() - h, hover.y() + h, hover.x() - h, hover.y() - h};
+                drawStroke(vc, pose, cam, drawing, box, 5, w * 0.5f, 0xE0FFFFFF, OFFSET * 2);
+            }
+        }
+
+        buffers.endBatch(RenderType.debugQuads());
+        ps.popPose();
+    }
+
+    /** Ticks it takes the light to run the length of a line when a glyph comes alive. */
+    private static final double IGNITE = 16;
+
+    private static void ignite(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n, float w,
+                               int glow, int core, int ink, double frac) {
+        double total = 0;
+        for (int i = 1; i < n; i++) total += Math.hypot(uv[i * 2] - uv[i * 2 - 2], uv[i * 2 + 1] - uv[i * 2 - 1]);
+        double front = total * (frac * frac * (3 - 2 * frac)); // eases in and out
+        double acc = 0;
+        int cut = n;
+        double fu = uv[0], fv = uv[1];
+        for (int i = 1; i < n; i++) {
+            double seg = Math.hypot(uv[i * 2] - uv[i * 2 - 2], uv[i * 2 + 1] - uv[i * 2 - 1]);
+            if (acc + seg >= front) {
+                double t = seg > 0 ? (front - acc) / seg : 0;
+                fu = uv[i * 2 - 2] + (uv[i * 2] - uv[i * 2 - 2]) * t;
+                fv = uv[i * 2 - 1] + (uv[i * 2 + 1] - uv[i * 2 - 1]) * t;
+                cut = i;
+                break;
+            }
+            acc += seg;
+        }
+        // the lit part, the front point, and the still dark rest
+        double[] litPts = new double[(cut + 1) * 2];
+        System.arraycopy(uv, 0, litPts, 0, cut * 2);
+        litPts[cut * 2] = fu;
+        litPts[cut * 2 + 1] = fv;
+        drawStroke(vc, pose, cam, plane, litPts, cut + 1, w * 3.5f, glow, OFFSET * 0.6);
+        drawStroke(vc, pose, cam, plane, litPts, cut + 1, w, core, OFFSET * 1.4);
+        if (cut < n) {
+            double[] rest = new double[(n - cut + 1) * 2];
+            rest[0] = fu;
+            rest[1] = fv;
+            System.arraycopy(uv, cut * 2, rest, 2, (n - cut) * 2);
+            drawStroke(vc, pose, cam, plane, rest, n - cut + 1, w, ink, OFFSET);
+            double h = w * 2.2;
+            double[] spark = {fu - h, fv, fu, fv - h, fu + h, fv, fu, fv + h, fu - h, fv};
+            drawStroke(vc, pose, cam, plane, spark, 5, w * 1.6f, 0xF0FFFFFF, OFFSET * 2);
+        }
+    }
+
+    static void drawStroke(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n,
+                                   float width, int argb, double offset) {
+        int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+        double hw = width / 2.0;
+        if (n == 1) {
+            quad(vc, pose, cam, plane, uv[0] - hw, uv[1] - hw, uv[0] + hw, uv[1] - hw, uv[0] + hw, uv[1] + hw, uv[0] - hw, uv[1] + hw, offset, r, g, b, a);
+            return;
+        }
+        for (int i = 1; i < n; i++) {
+            double u0 = uv[(i - 1) * 2], v0 = uv[(i - 1) * 2 + 1], u1 = uv[i * 2], v1 = uv[i * 2 + 1];
+            double du = u1 - u0, dv = v1 - v0;
+            double len = Math.sqrt(du * du + dv * dv);
+            if (len < 1e-5) continue;
+            du /= len;
+            dv /= len;
+            // extend each segment by half a width at both ends so the joints have no gaps
+            double su = u0 - du * hw, sv = v0 - dv * hw, eu = u1 + du * hw, ev = v1 + dv * hw;
+            double nu = -dv * hw, nv = du * hw;
+            quad(vc, pose, cam, plane, su + nu, sv + nv, eu + nu, ev + nv, eu - nu, ev - nv, su - nu, sv - nv, offset, r, g, b, a);
+        }
+    }
+
+    private static void quad(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane,
+                             double u0, double v0, double u1, double v1, double u2, double v2, double u3, double v3,
+                             double offset, int r, int g, int b, int a) {
+        vertex(vc, pose, cam, plane.toWorld(u0, v0, offset), r, g, b, a);
+        vertex(vc, pose, cam, plane.toWorld(u1, v1, offset), r, g, b, a);
+        vertex(vc, pose, cam, plane.toWorld(u2, v2, offset), r, g, b, a);
+        vertex(vc, pose, cam, plane.toWorld(u3, v3, offset), r, g, b, a);
+    }
+
+    /** Positions are made camera-relative in double precision before going to float. */
+    private static void vertex(VertexConsumer vc, Matrix4f pose, Vec3 cam, Vec3 p, int r, int g, int b, int a) {
+        vc.addVertex(pose, (float) (p.x - cam.x), (float) (p.y - cam.y), (float) (p.z - cam.z)).setColor(r, g, b, a);
+    }
+
+    private static int withAlpha(int argb, int alpha) {
+        return (Math.max(0, Math.min(255, alpha)) << 24) | (argb & 0xFFFFFF);
+    }
+
+    private static int mix(int a, int b, double t) {
+        int r = (int) (((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
+        int g = (int) (((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
+        int bl = (int) ((a & 0xFF) * (1 - t) + (b & 0xFF) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    private static int brighten(int argb, double f) {
+        int r = (int) Math.min(255, ((argb >> 16) & 0xFF) * (0.7 + 0.5 * f));
+        int g = (int) Math.min(255, ((argb >> 8) & 0xFF) * (0.7 + 0.5 * f));
+        int b = (int) Math.min(255, (argb & 0xFF) * (0.7 + 0.5 * f));
+        return (argb & 0xFF000000) | (r << 16) | (g << 8) | b;
+    }
+}

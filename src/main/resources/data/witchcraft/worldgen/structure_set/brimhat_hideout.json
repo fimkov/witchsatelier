@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "witchcraft:brimhat_hideout",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 16,
+    "separation": 6,
+    "salt": 33920417
+  }
+}

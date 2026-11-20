@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " A ",
+    "GIG",
+    " A "
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    },
+    "G": {
+      "item": "minecraft:gold_nugget"
+    },
+    "I": {
+      "item": "witchcraft:conjuring_ink"
+    }
+  },
+  "result": {
+    "id": "witchcraft:light_tracer_bangle",
+    "count": 2
+  }
+}

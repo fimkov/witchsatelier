@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "witchcraft:block/washing_barrel"
+    },
+    "lit=true": {
+      "model": "witchcraft:block/washing_barrel_lit"
+    }
+  }
+}
