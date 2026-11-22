@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [" L ", "PPP", " S "],
+  "key": {
+    "L": { "item": "minecraft:leather" },
+    "P": { "item": "minecraft:paper" },
+    "S": { "item": "minecraft:string" }
+  },
+  "result": { "id": "witchsatelier:palm_quire", "count": 1 }
+}

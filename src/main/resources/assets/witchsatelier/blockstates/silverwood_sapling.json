@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "stage=0": {
+      "model": "witchsatelier:block/silverwood_sapling"
+    },
+    "stage=1": {
+      "model": "witchsatelier:block/silverwood_sapling"
+    }
+  }
+}

@@ -1,8 +1,0 @@
-{
-  "variants": {
-    "facing=north": { "model": "witchcraft:block/sealchair" },
-    "facing=east": { "model": "witchcraft:block/sealchair" },
-    "facing=south": { "model": "witchcraft:block/sealchair" },
-    "facing=west": { "model": "witchcraft:block/sealchair" }
-  }
-}

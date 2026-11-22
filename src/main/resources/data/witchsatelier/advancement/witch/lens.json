@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:arcane_lens"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.lens.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.lens.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "cast_amplified": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "cast_amplified"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/nested"
+}

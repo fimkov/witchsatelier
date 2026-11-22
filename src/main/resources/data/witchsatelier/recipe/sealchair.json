@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "P  ",
+    "PSP",
+    "L L"
+  ],
+  "key": {
+    "P": {
+      "tag": "minecraft:planks"
+    },
+    "S": {
+      "item": "witchsatelier:conjuring_ink"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:sealchair",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

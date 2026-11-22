@@ -1,54 +1,47 @@
 # Witch's Atelier
 
-A magic mod for Minecraft (NeoForge 1.21.1), inspired by the system in Witch Hat Atelier: you do not pick a spell from a menu, you **draw** it. Nothing happens until the ring is closed.
+Draw your spells. A magic mod for Minecraft inspired by Witch Hat Atelier: ink a sigil, signs around it, close the ring.
 
-## Running
+Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wiki/)
+
+## Features
+
+**Drawing magic**
+- Draw glyphs by hand on any block face (floors, walls, ceilings, across several blocks), on paper, in a Palm Quire, on boots and on artifacts.
+- The spell wakes the moment the ring closes, and stops when the ring is broken, rubbed out or the block under it is gone.
+- 8 sigils (Fire, Water, Earth, Wind, Light, Crystal, Wind Underfoot, Aeriforms) and 25 signs; reversed signs give the opposite effect.
+- How it is drawn matters: a bigger ring makes a bigger, stronger spell, a lopsided layout bends it, a careless hand misfires.
+- Nested rings, linked glyphs, a quick-close key for prepared pages and an imagined-ring technique.
+- 38 grimoire spells, from Pillar of Flame and Wall Breaker to Windowway portals, Birds of Light and Rain of Light.
+
+**Glyphs that last**
+- Continuous spells work for as long as the glyph is whole.
+- Rain washes ordinary ink and feet scuff glyphs on the floor; the ink thins, runs and smears before it breaks.
+- Repetition keeps a glyph mended.
+
+**Inks and tools**
+- Conjuring, waterproof, invisible and lasting inks brewed from Silverwood, plus forbidden blood ink.
+- Ink Pen and inkwell, Woodcruor Wand (chalk on stone), Searneedle (burns into metal), a rag to erase.
+- Silverwood trees, and library ruins with grimoires and prepared pages.
+
+**Artifacts**
+- 15 artifacts, crafted dormant and woken by drawing their glyph, traced from a faint guide.
+- Washing Barrel, Raincleaver, Glowstone Path, Arcane Lens, Dragon Teacup, Sealchair, Beast Warding Tower, Snugstone, Vapor Bubble, Mirror Mantle, Wingcloak, Tent Staff, Light Tracer Bangle, Capture Pennant and the Void Basin, which drops you into a world of stars.
+- Sylph shoes: draw the flight glyph on your boots, click your heels and fly until water washes it off.
+- A witch's outfit: hat, mantle, robe, stockings and boots.
+
+**The Pact**
+- Brimhats cast real glyphs; the Stranger trades inks, pens and Silverwood.
+- Forbidden magic, and magic made where villagers can see it, draw the Knights Moralis, who keep hunting until the debt is paid.
+
+**Compatibility**
+- Create Aeronautics: a levitation glyph on a ship's underside flies the ship.
+- EMI and JEI: recipes, info pages and an Awakening category with each artifact's glyph.
+
+## Build
 
 ```bash
-./gradlew runClient
+./gradlew build
 ```
 
-Recognizer tests and in-world game tests:
-
-```bash
-./gradlew test
-```
-
-```bash
-./gradlew runGameTestServer
-```
-
-## How to cast (what already works)
-
-1. Take an **Ink Pen** (the "Tools" tab, or craft it: conjuring ink + iron nugget + feather).
-2. Hold **right click** while looking at any block face (floor, wall, ceiling) and move your view: a line of ink stays behind. A glyph may span several blocks of one plane.
-3. Draw a **sigil in the centre**, **signs around it**, and finally **close the ring**. The spell fires the moment the ring closes.
-4. **Shift + right click** erases ink. Rub out part of the ring or break a block under it, and the spell goes out.
-
-Signs are drawn with their "top" pointing outwards, away from the centre; a reversed sign gives the opposite effect.
-
-| What to draw | What happens |
-|---|---|
-| Fire + Column ×4 | a pillar of flame that sets everything in the beam alight |
-| Water + Column | a water jet: pushes, puts out fire, turns lava into obsidian |
-| Wind + Column | an updraft that throws things up |
-| Light + Column | a beam of light that outlines mobs and lights the way |
-| Earth + Column | a stone pillar made of the surface's own material (temporary) |
-| Earth + Crush (on a wall) | Wall Breaker: the wall crumbles |
-| Earth + reversed Crush | Integration: what crumbled is put back together |
-| Fire / Wind + Bolt | a volley of fireballs / wind charges |
-| any element + Dispersion | spills out around the glyph |
-| + Levitation / Float | lifts whoever stands over the glyph (reversed: presses them down) |
-| + Pull | pulls in (reversed: pushes away; turned along the ring: swirls) |
-| + Rain | a rain of the element over the area |
-| Repetition in the centre | mends tools in hand; items on the ground do not despawn |
-| an empty closed ring | a burst of the ink's energy (without breaking blocks) |
-
-**How well it is drawn shapes the result.** A bigger ring is a stronger and larger spell. A rounder ring, neater signs and a more symmetric layout make it stand up to wear for longer. If there are more signs on one side, the effect leans that way. A careless glyph may misfire or be read as a different sign.
-
-## What's next
-- drawing on items: paper, Palm Quire, **armour**, cloaks (a separate canvas in a GUI)
-- pens for different surfaces: Woodcruor Wand (chalk on stone), Searneedle (burning into metal)
-- Silverwood and true conjuring ink, additives (invisibility, waterproofing)
-- nested rings, linked glyphs, two halves of a ring on two items (switches)
-- artifacts (contraptions), learning signs, forbidden magic and the Knights Moralis
+Run the client with `./gradlew runClient`, tests with `./gradlew test` and `./gradlew runGameTestServer`.

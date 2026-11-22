@@ -1,0 +1,24 @@
+{
+  "type": "witchsatelier:spell_loot",
+  "conditions": [
+    {
+      "condition": "minecraft:any_of",
+      "terms": [
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/stronghold_library"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "witchsatelier:chests/atelier"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "witchsatelier:chests/library"
+        }
+      ]
+    }
+  ],
+  "grimoire_chance": 0.35,
+  "page_chance": 0.5
+}

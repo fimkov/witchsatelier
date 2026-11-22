@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "witchcraft:silverwood_log",
-    "witchcraft:sealchair"
+    "witchsatelier:silverwood_log",
+    "witchsatelier:sealchair"
   ]
 }

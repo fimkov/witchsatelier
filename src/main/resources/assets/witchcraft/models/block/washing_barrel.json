@@ -1,8 +1,0 @@
-{
-  "parent": "minecraft:block/cube_bottom_top",
-  "textures": {
-    "side": "witchcraft:block/washing_barrel_side",
-    "bottom": "witchcraft:block/washing_barrel_bottom",
-    "top": "witchcraft:block/washing_barrel_top"
-  }
-}

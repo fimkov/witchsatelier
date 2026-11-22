@@ -1,8 +1,0 @@
-{
-  "type": "witchcraft:witch_place",
-  "kind": "library_ruin",
-  "biomes": "#witchcraft:has_structure/library_ruin",
-  "step": "surface_structures",
-  "spawn_overrides": {},
-  "terrain_adaptation": "none"
-}

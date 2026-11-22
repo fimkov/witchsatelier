@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "witchsatelier:witch_mantle"
+    },
+    {
+      "item": "minecraft:glass_pane"
+    },
+    {
+      "item": "minecraft:ink_sac"
+    },
+    {
+      "item": "witchsatelier:invisible_ink"
+    }
+  ],
+  "result": {
+    "id": "witchsatelier:mirror_mantle",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": { "parent": "witchsatelier:item/capture_pennant_3d" },
+  "perspectives": {
+    "gui": { "parent": "witchsatelier:item/capture_pennant_icon" },
+    "fixed": { "parent": "witchsatelier:item/capture_pennant_icon" },
+    "ground": { "parent": "witchsatelier:item/capture_pennant_icon" }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:witch_boots"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.sylph_shoes.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.sylph_shoes.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "cast_boots": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "cast_boots"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/first_glyph",
+  "rewards": {
+    "experience": 40
+  }
+}

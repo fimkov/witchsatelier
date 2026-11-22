@@ -76,10 +76,12 @@ neoForge {
         // Builds test scenes in a copy of a world, takes screenshots of them and quits (see VisualCheck)
         visualCheck {
             client()
-            systemProperty 'witchcraft.visualcheck', project.findProperty('shots') ?: 'all'
-            systemProperty 'witchcraft.fxoff', project.findProperty('fxoff') ?: ''
+            systemProperty 'witchsatelier.visualcheck', project.findProperty('shots') ?: 'all'
+            systemProperty 'witchsatelier.fxoff', project.findProperty('fxoff') ?: ''
             // only ever the test world: the harness refuses to touch any other
             programArguments.addAll '--quickPlaySingleplayer', project.findProperty('world') ?: 'WitchcraftVisualTest'
+            // the same size on screen or off it (tools/visualcheck.sh runs it in a headless gamescope)
+            programArguments.addAll '--width', '1920', '--height', '1200'
         }
 
         server {
@@ -223,8 +225,8 @@ idea {
 tasks.named('test', Test).configure {
     useJUnitPlatform()
     // ./gradlew test -Pdrawings=<dir> analyses glyphs dumped from a real game
-    if (project.hasProperty('drawings')) systemProperty 'witchcraft.drawings', project.property('drawings')
-    if (project.hasProperty('ranks')) systemProperty 'witchcraft.ranks', 'true'
+    if (project.hasProperty('drawings')) systemProperty 'witchsatelier.drawings', project.property('drawings')
+    if (project.hasProperty('ranks')) systemProperty 'witchsatelier.ranks', 'true'
     testLogging {
         events 'failed'
         showStandardStreams = true

@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "witchsatelier:block/arcane_lens",
+      "y": 0
+    },
+    "facing=east": {
+      "model": "witchsatelier:block/arcane_lens",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "witchsatelier:block/arcane_lens",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "witchsatelier:block/arcane_lens",
+      "y": 270
+    }
+  }
+}

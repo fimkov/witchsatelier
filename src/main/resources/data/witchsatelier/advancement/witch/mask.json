@@ -1,0 +1,32 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:brimhat_mask"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.mask.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.mask.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchsatelier:brimhat_mask"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/brimhat"
+}

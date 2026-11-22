@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:flower_pot"
+    },
+    {
+      "item": "minecraft:bone_meal"
+    },
+    {
+      "item": "witchsatelier:conjuring_ink"
+    },
+    {
+      "item": "minecraft:lapis_lazuli"
+    }
+  ],
+  "result": {
+    "id": "witchsatelier:dragon_teacup",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

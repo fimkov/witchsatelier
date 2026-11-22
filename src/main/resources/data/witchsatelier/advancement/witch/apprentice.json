@@ -1,0 +1,30 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:apprentice_hat"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.apprentice.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.apprentice.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "hat": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "witchsatelier:apprentice_hat"
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/root"
+}

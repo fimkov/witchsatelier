@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:water_bucket"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.water.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.water.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "element_water": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "element_water"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/first_glyph"
+}

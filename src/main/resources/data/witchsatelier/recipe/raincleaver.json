@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " P ",
+    " I ",
+    "WSW"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:prismarine_shard"
+    },
+    "I": {
+      "item": "minecraft:iron_sword"
+    },
+    "W": {
+      "item": "witchsatelier:waterproof_ink"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:raincleaver",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

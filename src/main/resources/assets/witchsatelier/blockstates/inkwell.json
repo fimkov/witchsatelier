@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "fill=0": {
+      "model": "witchsatelier:block/inkwell_fill0"
+    },
+    "fill=1": {
+      "model": "witchsatelier:block/inkwell_fill1"
+    },
+    "fill=2": {
+      "model": "witchsatelier:block/inkwell_fill2"
+    },
+    "fill=3": {
+      "model": "witchsatelier:block/inkwell_fill3"
+    }
+  }
+}

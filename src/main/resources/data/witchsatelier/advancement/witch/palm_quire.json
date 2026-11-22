@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:palm_quire"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.palm_quire.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.palm_quire.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "cast_page": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "cast_page"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/first_glyph"
+}

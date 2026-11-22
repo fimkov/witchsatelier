@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "dancing=false,facing=north": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 0
+    },
+    "dancing=false,facing=east": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 90
+    },
+    "dancing=false,facing=south": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 180
+    },
+    "dancing=false,facing=west": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 270
+    },
+    "dancing=true,facing=north": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 0
+    },
+    "dancing=true,facing=east": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 90
+    },
+    "dancing=true,facing=south": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 180
+    },
+    "dancing=true,facing=west": {
+      "model": "witchsatelier:block/dragon_teacup",
+      "y": 270
+    }
+  }
+}

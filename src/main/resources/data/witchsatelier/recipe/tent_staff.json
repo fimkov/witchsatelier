@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "  H",
+    "IS ",
+    "S  "
+  ],
+  "key": {
+    "H": {
+      "item": "minecraft:iron_nugget"
+    },
+    "I": {
+      "item": "witchsatelier:conjuring_ink"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:tent_staff",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

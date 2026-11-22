@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "BLB",
+    "BHB",
+    "BBB"
+  ],
+  "key": {
+    "B": {
+      "item": "minecraft:bricks"
+    },
+    "L": {
+      "item": "minecraft:lantern"
+    },
+    "H": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:beast_warding_tower",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

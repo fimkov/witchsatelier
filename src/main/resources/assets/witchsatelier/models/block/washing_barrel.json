@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "witchsatelier:block/washing_barrel_side",
+    "bottom": "witchsatelier:block/washing_barrel_bottom",
+    "top": "witchsatelier:block/washing_barrel_top"
+  }
+}

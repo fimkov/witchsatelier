@@ -1,0 +1,201 @@
+{
+  "bird_call": {
+    "subtitle": "subtitles.witchsatelier.bird_call",
+    "sounds": [
+      {
+        "name": "witchsatelier:bird_call_0"
+      },
+      {
+        "name": "witchsatelier:bird_call_1"
+      },
+      {
+        "name": "witchsatelier:bird_call_2"
+      }
+    ]
+  },
+  "brimhat_cast": {
+    "subtitle": "subtitles.witchsatelier.brimhat_cast",
+    "sounds": [
+      {
+        "name": "witchsatelier:brimhat_cast_0"
+      },
+      {
+        "name": "witchsatelier:brimhat_cast_1"
+      }
+    ]
+  },
+  "glyph_hum": {
+    "subtitle": "subtitles.witchsatelier.glyph_hum",
+    "sounds": [
+      {
+        "name": "witchsatelier:glyph_hum"
+      }
+    ]
+  },
+  "knight_bind": {
+    "subtitle": "subtitles.witchsatelier.knight_bind",
+    "sounds": [
+      {
+        "name": "witchsatelier:knight_bind"
+      }
+    ]
+  },
+  "page_tear": {
+    "subtitle": "subtitles.witchsatelier.page_tear",
+    "sounds": [
+      {
+        "name": "witchsatelier:page_tear_0"
+      },
+      {
+        "name": "witchsatelier:page_tear_1"
+      }
+    ]
+  },
+  "petrify": {
+    "subtitle": "subtitles.witchsatelier.petrify",
+    "sounds": [
+      {
+        "name": "witchsatelier:petrify"
+      }
+    ]
+  },
+  "quill_scratch": {
+    "subtitle": "subtitles.witchsatelier.quill_scratch",
+    "sounds": [
+      {
+        "name": "witchsatelier:quill_scratch_0"
+      },
+      {
+        "name": "witchsatelier:quill_scratch_1"
+      },
+      {
+        "name": "witchsatelier:quill_scratch_2"
+      },
+      {
+        "name": "witchsatelier:quill_scratch_3"
+      }
+    ]
+  },
+  "ring_ignite": {
+    "subtitle": "subtitles.witchsatelier.ring_ignite",
+    "sounds": [
+      {
+        "name": "witchsatelier:ring_ignite_0"
+      },
+      {
+        "name": "witchsatelier:ring_ignite_1"
+      },
+      {
+        "name": "witchsatelier:ring_ignite_2"
+      }
+    ]
+  },
+  "seal_restore": {
+    "subtitle": "subtitles.witchsatelier.seal_restore",
+    "sounds": [
+      {
+        "name": "witchsatelier:seal_restore"
+      }
+    ]
+  },
+  "water_rush": {
+    "subtitle": "subtitles.witchsatelier.water_rush",
+    "sounds": [
+      {
+        "name": "witchsatelier:water_rush"
+      }
+    ]
+  },
+  "windowway": {
+    "subtitle": "subtitles.witchsatelier.windowway",
+    "sounds": [
+      {
+        "name": "witchsatelier:windowway"
+      }
+    ]
+  },
+  "element_fire": {
+    "subtitle": "subtitles.witchsatelier.element_fire",
+    "sounds": [
+      {
+        "name": "witchsatelier:element_fire_0"
+      },
+      {
+        "name": "witchsatelier:element_fire_1"
+      }
+    ]
+  },
+  "element_water": {
+    "subtitle": "subtitles.witchsatelier.element_water",
+    "sounds": [
+      {
+        "name": "witchsatelier:element_water_0"
+      },
+      {
+        "name": "witchsatelier:element_water_1"
+      }
+    ]
+  },
+  "element_earth": {
+    "subtitle": "subtitles.witchsatelier.element_earth",
+    "sounds": [
+      {
+        "name": "witchsatelier:element_earth_0"
+      },
+      {
+        "name": "witchsatelier:element_earth_1"
+      }
+    ]
+  },
+  "element_wind": {
+    "subtitle": "subtitles.witchsatelier.element_wind",
+    "sounds": [
+      {
+        "name": "witchsatelier:element_wind_0"
+      },
+      {
+        "name": "witchsatelier:element_wind_1"
+      }
+    ]
+  },
+  "element_light": {
+    "subtitle": "subtitles.witchsatelier.element_light",
+    "sounds": [
+      {
+        "name": "witchsatelier:element_light_0"
+      },
+      {
+        "name": "witchsatelier:element_light_1"
+      }
+    ]
+  },
+  "cloth_rustle": {
+    "subtitle": "subtitles.witchsatelier.cloth_rustle",
+    "sounds": [
+      {
+        "name": "witchsatelier:cloth_rustle_0",
+        "volume": 0.6
+      },
+      {
+        "name": "witchsatelier:cloth_rustle_1",
+        "volume": 0.6
+      },
+      {
+        "name": "witchsatelier:cloth_rustle_2",
+        "volume": 0.6
+      },
+      {
+        "name": "witchsatelier:cloth_rustle_3",
+        "volume": 0.6
+      }
+    ]
+  },
+  "bad_apple": {
+    "sounds": [
+      {
+        "name": "witchsatelier:bad_apple",
+        "stream": true
+      }
+    ]
+  }
+}

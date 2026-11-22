@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "FMF",
+    "PIP"
+  ],
+  "key": {
+    "F": {
+      "item": "minecraft:feather"
+    },
+    "M": {
+      "item": "witchsatelier:witch_mantle"
+    },
+    "P": {
+      "item": "minecraft:phantom_membrane"
+    },
+    "I": {
+      "item": "witchsatelier:conjuring_ink"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:wingcloak",
+    "count": 1,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

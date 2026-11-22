@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:grimoire"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.nested.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.nested.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "cast_nested": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "cast_nested"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/pillar_of_flame",
+  "rewards": {
+    "experience": 50
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "witchsatelier:block/beast_warding_tower"
+    },
+    "lit=true": {
+      "model": "witchsatelier:block/beast_warding_tower_lit"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:blackened_silverwood_twig"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.silverwood.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.silverwood.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchsatelier:blackened_silverwood_twig"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/root"
+}

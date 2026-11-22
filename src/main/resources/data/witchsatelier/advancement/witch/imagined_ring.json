@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:grimoire"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.imagined_ring.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.imagined_ring.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "imagined_ring": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "imagined_ring"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/first_glyph",
+  "rewards": {
+    "experience": 20
+  }
+}

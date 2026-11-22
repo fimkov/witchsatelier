@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "witchsatelier:block/sealchair" },
+    "facing=east": { "model": "witchsatelier:block/sealchair" },
+    "facing=south": { "model": "witchsatelier:block/sealchair" },
+    "facing=west": { "model": "witchsatelier:block/sealchair" }
+  }
+}

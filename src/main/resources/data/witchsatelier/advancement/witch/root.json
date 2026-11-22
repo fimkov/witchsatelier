@@ -1,0 +1,33 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:ink_pen"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.root.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.root.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false,
+    "background": "minecraft:textures/block/calcite.png"
+  },
+  "criteria": {
+    "got": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "witchsatelier:ink_pen",
+              "witchsatelier:woodcruor_wand"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

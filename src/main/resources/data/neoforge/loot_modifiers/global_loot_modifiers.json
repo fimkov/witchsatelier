@@ -1,8 +1,7 @@
 {
   "replace": false,
   "entries": [
-    "witchcraft:ruins_spells",
-    "witchcraft:library_spells",
-    "witchcraft:hideout_spells"
+    "witchsatelier:ruins_spells",
+    "witchsatelier:library_spells"
   ]
 }

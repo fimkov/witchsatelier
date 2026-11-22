@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:cobblestone"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.forbidden.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.forbidden.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "petrify": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "petrify"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/brimhat"
+}

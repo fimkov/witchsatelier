@@ -1,0 +1,33 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:witch_hat"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.real_witch.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.real_witch.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "hat": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "witchsatelier:witch_hat"
+          }
+        ]
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/apprentice",
+  "rewards": {
+    "experience": 60
+  }
+}
