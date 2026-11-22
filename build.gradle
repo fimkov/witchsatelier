@@ -32,7 +32,7 @@ repositories {
     maven {
         // JEI (optional: info pages for our items when it is installed)
         url = 'https://maven.blamejared.com'
-        content { includeGroup 'mezz.jei' }
+        content { includeGroup 'mezz.jei'; includeGroup 'net.mezzdev.config' }
     }
     maven {
         // EMI (optional: the same info pages when EMI is installed)
@@ -82,6 +82,20 @@ neoForge {
             programArguments.addAll '--quickPlaySingleplayer', project.findProperty('world') ?: 'WitchcraftVisualTest'
             // the same size on screen or off it (tools/visualcheck.sh runs it in a headless gamescope)
             programArguments.addAll '--width', '1920', '--height', '1200'
+        }
+
+        // Multiplayer smoke test: start runSmokeServer, then runSmokeClient joins it (see dev/SmokeServer, client/dev/SmokeClient)
+        smokeServer {
+            server()
+            gameDirectory = project.file('run-smoke')
+            programArgument '--nogui'
+            systemProperty 'witchsatelier.smoke', '1'
+        }
+        smokeClient {
+            client()
+            gameDirectory = project.file('run-smoke-client')
+            systemProperty 'witchsatelier.smoke', '1'
+            programArguments.addAll '--quickPlayMultiplayer', 'localhost:25570', '--username', 'SmokeTester', '--width', '1280', '--height', '800'
         }
 
         server {
@@ -184,6 +198,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
+            mod_authors            : mod_authors,
     ]
     inputs.properties replaceProperties
     expand replaceProperties
@@ -231,5 +246,19 @@ tasks.named('test', Test).configure {
         events 'failed'
         showStandardStreams = true
         exceptionFormat = 'full'
+    }
+}
+
+// The release jar leaves out the development-only screenshot and film harness.
+tasks.named('jar', Jar) {
+    exclude 'com/fimkov/witchsatelier/client/dev/**'
+    exclude 'com/fimkov/witchsatelier/dev/**'
+    exclude 'com/fimkov/witchsatelier/compat/SableFilm*'
+}
+
+// For checking the JEI integration in a dev run: ./gradlew runVisualCheck -Pjei (never part of the release).
+if (project.hasProperty('jei')) {
+    dependencies {
+        localRuntime "mezz.jei:jei-1.21.1-neoforge:19.70.0.469"
     }
 }

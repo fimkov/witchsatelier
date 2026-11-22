@@ -45,9 +45,8 @@ public class StrangerEntity extends WanderingTrader {
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!level().isClientSide && hand == InteractionHand.MAIN_HAND && !player.getPersistentData().getBoolean(GIFT_TAG)) {
             player.getPersistentData().putBoolean(GIFT_TAG, true);
-            // the first glyph is always the birds of light
-            // and, at the very end, a page that should never have been in it
-            give(player, GlyphLibrary.grimoireBook(random, 5, "birds_of_light", "pillar_of_flame", "lantern", "wind_underfoot", "spilling_water", "petrification"));
+            // a primer: how glyphs work, and three to start with; the rest is out there to be found
+            give(player, GlyphLibrary.volumeBook(GlyphLibrary.PRIMER, random));
             give(player, new ItemStack(ModItems.INK_PEN.get()));
             give(player, new ItemStack(ModItems.CONJURING_INK.get()));
             level().playSound(null, getX(), getY(), getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.NEUTRAL, 1f, 0.6f);
@@ -72,12 +71,13 @@ public class StrangerEntity extends WanderingTrader {
     @Override
     protected void updateTrades() {
         MerchantOffers offers = getOffers();
-        ItemStack book = GlyphLibrary.grimoireBook(random, 4 + random.nextInt(3));
+        ItemStack book = GlyphLibrary.randomVolume(random);
         ItemStack page = GlyphLibrary.preparedPageItem(random);
         ItemStack page2 = GlyphLibrary.preparedPageItem(random);
         for (MerchantOffer o : List.of(
                 new MerchantOffer(new ItemCost(Items.EMERALD, 12), book, 1, 10, 0.05f),
                 new MerchantOffer(new ItemCost(Items.EMERALD, 8), GlyphLibrary.contraptionsBook(), 1, 8, 0.05f),
+                new MerchantOffer(new ItemCost(Items.EMERALD, 16), GlyphLibrary.volumeBook(GlyphLibrary.RING_NOTES, random), 1, 12, 0.05f),
                 new MerchantOffer(new ItemCost(Items.EMERALD, 2), page, 3, 2, 0.05f),
                 new MerchantOffer(new ItemCost(Items.EMERALD, 2), page2, 3, 2, 0.05f),
                 new MerchantOffer(new ItemCost(Items.EMERALD, 4), new ItemStack(ModItems.INK_PEN.get()), 2, 4, 0.05f),

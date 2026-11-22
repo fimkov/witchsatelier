@@ -619,11 +619,22 @@ public final class GlyphGameTests {
                 if (st.is(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get())) {
                     books++;
                     var gp = st.get(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get());
-                    if (gp == null || gp.page(2).isEmpty()) h.fail("grimoire without glyphs");
                     var names = st.get(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get());
-                    if (names == null || !"basics".equals(names.get(0)) || !"imagined_ring".equals(names.get(1)) || names.get(2).isEmpty()) h.fail("grimoire pages should say what they show: " + names);
-                    var r = com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer.analyze(com.fimkov.witchsatelier.glyph.page.PageService.pointsOf(gp.page(2)), com.fimkov.witchsatelier.glyph.page.PageService.PAGE_INK);
-                    if (r.ring() == null || !r.closed()) h.fail("a grimoire's glyph should be complete");
+                    if (gp == null || names == null || names.size() != gp.pages().size()) h.fail("every page of a book should say what it shows: " + names);
+                    // a book is one of the volumes, whole: no blank pages, every glyph entry drawn
+                    for (int p = 0; p < names.size(); p++) {
+                        if (names.get(p).isEmpty()) h.fail("blank page " + p + " in " + names);
+                        if (com.fimkov.witchsatelier.glyph.page.GlyphLibrary.byName(names.get(p)) != null && gp.page(p).isEmpty()) h.fail("glyph " + names.get(p) + " not drawn");
+                    }
+                    if (com.fimkov.witchsatelier.glyph.page.GlyphLibrary.VOLUMES.stream().noneMatch(v -> v.entries().equals(names))
+                            && !com.fimkov.witchsatelier.glyph.page.GlyphLibrary.RING_NOTES.entries().equals(names)
+                            && !com.fimkov.witchsatelier.glyph.page.GlyphLibrary.FORBIDDEN_BOOK.entries().equals(names)) h.fail("not one of the volumes: " + names);
+                    if (st.get(net.minecraft.core.component.DataComponents.ITEM_NAME) == null) h.fail("a volume should have its own title");
+                    for (int p = 0; p < names.size(); p++) {
+                        if (com.fimkov.witchsatelier.glyph.page.GlyphLibrary.byName(names.get(p)) == null) continue;
+                        var r = com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer.analyze(com.fimkov.witchsatelier.glyph.page.PageService.pointsOf(gp.page(p)), com.fimkov.witchsatelier.glyph.page.PageService.PAGE_INK);
+                        if (r.ring() == null || !r.closed()) h.fail("a grimoire's glyph should be complete: " + names.get(p));
+                    }
                 }
                 if (st.is(com.fimkov.witchsatelier.registry.ModItems.TORN_PAGE.get())) {
                     pages++;
@@ -778,29 +789,84 @@ public final class GlyphGameTests {
                 .thenSucceed();
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200)
+    /** Petrification takes everything round it, walls and creatures alike; Integration gives it all back. */
+    @GameTest(template = "empty", timeoutTicks = 300, batch = "petrification") // its own batch: the stone spreads past the test's edge
     public static void petrificationMakesStatuesAndIntegrationRevives(GameTestHelper h) {
         floor(h);
         Object[] t = top(h, new BlockPos(5, 0, 5));
         SurfacePlane plane = (SurfacePlane) t[0];
         Pt c = (Pt) t[1];
-        Pig pig = h.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(5, 1, 5));
+        BlockPos wall = new BlockPos(5, 1, 8), plank = new BlockPos(2, 1, 5);
+        h.setBlock(wall, Blocks.COBBLESTONE_WALL);
+        h.setBlock(plank, Blocks.OAK_PLANKS);
+        Pig pig = h.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(7, 1, 5));
         ServerPlayer player = h.makeMockServerPlayerInLevel();
         GlyphService.inscribe(h.getLevel(), plane, new GlyphSketch(c, 1.4).ring(0, 362).sigil(Sigil.EARTH, 0.8)
                 .signs(SignType.EYE, 4, Orientation.OUTWARD, 0.4, 45).strokes, null);
+        var stone = com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get();
         h.startSequence()
                 .thenExecuteAfter(2, () -> {
                     var s = spellsOn(h, plane);
                     if (s.isEmpty() || s.get(0).program.form() != SpellProgram.Form.PETRIFY) h.fail("expected petrification, got " + (s.isEmpty() ? "nothing" : s.get(0).program.summary()));
                 })
-                .thenWaitUntil(() -> { if (pig.isAlive()) h.fail("the pig should turn to stone"); })
+                .thenWaitUntil(() -> {
+                    if (pig.isAlive()) h.fail("the pig should turn to stone");
+                    if (!h.getBlockState(wall).is(stone) || !h.getBlockState(plank).is(stone)) h.fail("the stone should take the wall and the plank");
+                })
                 .thenExecute(() -> {
-                    h.assertBlockPresent(com.fimkov.witchsatelier.registry.ModBlocks.STATUE.get(), new BlockPos(5, 1, 5));
+                    h.assertBlockPresent(com.fimkov.witchsatelier.registry.ModBlocks.STATUE.get(), new BlockPos(7, 1, 5));
+                    if (h.getBlockState(new BlockPos(5, 0, 5)).is(stone)) h.fail("the glyph's own ground should be spared");
+                    if (!h.getBlockState(new BlockPos(5, 0, 1)).is(stone)) h.fail("the floor further out should be taken");
                     for (var s : spellsOn(h, plane)) GlyphService.stop(h.getLevel(), s);
-                    int back = com.fimkov.witchsatelier.block.StatueBlock.revive(h.getLevel(), h.absoluteVec(new Vec3(5.5, 1, 5.5)), 3);
+                    // what a glyph of Integration in the middle does
+                    Vec3 mid = h.absoluteVec(new Vec3(5.5, 1, 5.5));
+                    int blocks = com.fimkov.witchsatelier.block.PetrifiedBlock.restore(h.getLevel(), mid, 14);
+                    int back = com.fimkov.witchsatelier.block.StatueBlock.revive(h.getLevel(), mid, 14);
                     if (back != 1) h.fail("integration should bring the pig back, revived " + back);
+                    if (blocks < 20) h.fail("integration should give the blocks back, restored " + blocks);
+                    h.assertBlockPresent(Blocks.COBBLESTONE_WALL, wall);
+                    h.assertBlockPresent(Blocks.OAK_PLANKS, plank);
+                    h.assertBlockPresent(Blocks.STONE, new BlockPos(5, 0, 1));
                     com.fimkov.witchsatelier.entity.Taboo.add(player, 40);
                     if (com.fimkov.witchsatelier.entity.Taboo.of(player) < com.fimkov.witchsatelier.entity.Taboo.HUNTED) h.fail("forbidden magic should be counted");
+                })
+                .thenSucceed();
+    }
+
+    /** The biggest petrification (a ball ten blocks round) must not stall the server: no tick of its growth may take long. */
+    @GameTest(template = "empty", timeoutTicks = 300, batch = "petrification_big")
+    public static void theBiggestPetrificationKeepsTheServerResponsive(GameTestHelper h) {
+        floor(h);
+        Object[] t = top(h, new BlockPos(5, 0, 5));
+        SurfacePlane plane = (SurfacePlane) t[0];
+        Pt c = (Pt) t[1];
+        // a house of blocks around it, so there is more than air to take
+        for (int x = 1; x <= 9; x++) for (int y = 1; y <= 4; y++) for (int z : new int[]{1, 9}) h.setBlock(new BlockPos(x, y, z), Blocks.OAK_PLANKS);
+        GlyphService.inscribe(h.getLevel(), plane, new GlyphSketch(c, 3.2).ring(0, 362).sigil(Sigil.EARTH, 1.6)
+                .signs(SignType.EYE, 4, Orientation.OUTWARD, 0.8, 45).strokes, null);
+        var server = h.getLevel().getServer();
+        long[] worst = {0};
+        int[] watched = {0};
+        h.startSequence()
+                .thenExecuteFor(90, () -> {
+                    // the tick just finished
+                    long[] times = server.getTickTimesNanos();
+                    long last = times[(server.getTickCount() + times.length - 1) % times.length];
+                    // the first ticks load and build the test's ground, which is not the spell's doing
+                    if (watched[0]++ >= 8) worst[0] = Math.max(worst[0], last);
+                })
+                .thenExecute(() -> {
+                    int crystal = 0;
+                    BlockPos o = h.absolutePos(new BlockPos(5, 1, 5));
+                    for (BlockPos p : BlockPos.betweenClosed(o.offset(-11, -11, -11), o.offset(11, 11, 11)))
+                        if (h.getLevel().getBlockState(p).is(com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get())) crystal++;
+                    com.fimkov.witchsatelier.WitchsAtelier.LOGGER.info("[perf] biggest petrification: {} crystal blocks, worst tick {} ms over {} ticks",
+                            crystal, worst[0] / 1_000_000.0, watched[0]);
+                    if (crystal < 2000) h.fail("expected a ball of ten blocks round, got " + crystal + " crystal blocks");
+                    // a whole tick is 50 ms: the spell may take some of it, never all
+                    if (worst[0] > 50_000_000L) h.fail("a tick took " + worst[0] / 1_000_000 + " ms");
+                    for (var sp : spellsOn(h, plane)) GlyphService.stop(h.getLevel(), sp);
+                    com.fimkov.witchsatelier.block.PetrifiedBlock.restore(h.getLevel(), Vec3.atCenterOf(o), 14);
                 })
                 .thenSucceed();
     }

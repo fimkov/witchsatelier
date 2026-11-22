@@ -220,6 +220,8 @@ public class BrimhatEntity extends Monster {
         if (recentlyHit && random.nextFloat() < 0.07f) spawnAtLocation(new ItemStack(ModItems.BRIMHAT_MASK.get()));
         if (recentlyHit && random.nextFloat() < 0.04f) spawnAtLocation(new ItemStack(ModItems.BRIMHAT_MANTLE.get()));
         if (random.nextFloat() < 0.15f) spawnAtLocation(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.forbiddenPageItem(random));
+        if (recentlyHit && random.nextFloat() < 0.03f)
+            spawnAtLocation(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.FORBIDDEN_BOOK, random));
     }
 
     @Override

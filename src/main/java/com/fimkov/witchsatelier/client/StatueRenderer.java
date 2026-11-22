@@ -14,9 +14,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
 
-/** Draws a petrified creature exactly as it stood, every surface of it stone. */
+/** Draws a petrified creature exactly as it stood, every surface of it glowing crystal. */
 public class StatueRenderer implements BlockEntityRenderer<StatueBlock.Entity> {
-    private static final ResourceLocation STONE = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/statue_stone.png");
+    private static final ResourceLocation STONE = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/statue_crystal.png");
 
     public StatueRenderer(BlockEntityRendererProvider.Context ctx) {}
 
@@ -38,12 +38,12 @@ public class StatueRenderer implements BlockEntityRenderer<StatueBlock.Entity> {
             }
         }
         EntityRenderDispatcher d = mc.getEntityRenderDispatcher();
-        // every layer of the creature (skin, armour, glowing eyes) is drawn in the same grey stone
+        // every layer of the creature (skin, armour, glowing eyes) is drawn in the same crystal, lit from within
         MultiBufferSource stone = type -> buffers.getBuffer(RenderType.entityCutoutNoCull(STONE));
         boolean shadow = mc.options.entityShadows().get();
         d.setRenderShadow(false);
         try {
-            d.render(be.shown, 0.5, 0, 0.5, be.yaw(), 0, pose, stone, light);
+            d.render(be.shown, 0.5, 0, 0.5, be.yaw(), 0, pose, stone, net.minecraft.client.renderer.LightTexture.FULL_BRIGHT);
         } finally {
             d.setRenderShadow(shadow);
         }

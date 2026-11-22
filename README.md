@@ -28,7 +28,7 @@ Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wi
 - 15 artifacts, crafted dormant and woken by drawing their glyph, traced from a faint guide.
 - Washing Barrel, Raincleaver, Glowstone Path, Arcane Lens, Dragon Teacup, Sealchair, Beast Warding Tower, Snugstone, Vapor Bubble, Mirror Mantle, Wingcloak, Tent Staff, Light Tracer Bangle, Capture Pennant and the Void Basin, which drops you into a world of stars.
 - Sylph shoes: draw the flight glyph on your boots, click your heels and fly until water washes it off.
-- A witch's outfit: hat, mantle, robe, stockings and boots.
+- A witch's outfit: hat, mantle, robe and boots.
 
 **The Pact**
 - Brimhats cast real glyphs; the Stranger trades inks, pens and Silverwood.

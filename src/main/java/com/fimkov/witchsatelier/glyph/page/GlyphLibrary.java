@@ -260,11 +260,60 @@ public final class GlyphLibrary {
             pages.add(draw(r, rnd, false, InkType.LASTING));
             names.add(r.name());
         }
-        while (pages.size() < PageKind.GRIMOIRE.pages) { pages.add(Page.EMPTY); names.add(""); }
         net.minecraft.world.item.ItemStack book = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get());
         book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
         book.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(names));
         return book;
+    }
+
+    /**
+     * One of the old books a witch can come across. Each is its own: a title, and a handful of entries on one theme
+     * (glyph recipes, or text pages such as {@link #BASICS}), with no blank pages. Nobody finds every glyph in one book.
+     */
+    public record Volume(String id, List<String> entries) {
+        /** The book's name: {@code item.witchsatelier.grimoire.<id>}. */
+        public String titleKey() {
+            return "item.witchsatelier.grimoire." + id;
+        }
+    }
+
+    /**
+     * The first book, the one the Stranger gives: how glyphs work and three glyphs to start with, and at the very end,
+     * in blood ink, a page that should never have been in it (as in the book a stranger once gave a girl named Coco).
+     */
+    public static final Volume PRIMER = new Volume("primer", List.of(BASICS, "lantern", "birds_of_light", "pillar_of_flame", "petrification"));
+    /** A thin notebook on the one technique: seeing the ring before drawing it. Reading it teaches it. */
+    public static final Volume RING_NOTES = new Volume("imagined_ring", List.of(IMAGINED_RING));
+    /** A black-bound book of what the Pact forbids. */
+    public static final Volume FORBIDDEN_BOOK = new Volume("forbidden", List.of("forbidden_magic", "the_pact", "blood_ink", "petrification", "brimhats", "knights_moralis"));
+    /** The books found in libraries and sold by the Stranger, each on its own theme. */
+    public static final List<Volume> VOLUMES = List.of(
+            new Volume("flame", List.of("fan_of_flame", "fire_bolts", "warming_hearth", "snare_of_flame", "steam_pillar")),
+            new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep")),
+            new Volume("earth", List.of("stone_breaker", "bed_of_sand", "earthen_wall", "rising_earth", "mire", "quickening_soil")),
+            new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step")),
+            new Volume("light", List.of("great_lantern", "rain_of_light", "sunlit_spill", "lance_of_light", "beacon_of_birds")),
+            new Volume("rings_within_rings", List.of("everburning_pillar", "sentinel_bolts", "pillar_and_volley", "crystal_ward", "binding_threads")),
+            new Volume("odd_signs", List.of("windowway", "night_eye", "veil_of_unseeing", "puppet_dance")));
+
+    /** The book itself: each glyph entry drawn complete, to copy from; text entries face a blank page. */
+    public static net.minecraft.world.item.ItemStack volumeBook(Volume v, RandomSource rnd) {
+        List<Page> pages = new ArrayList<>();
+        for (String e : v.entries()) {
+            Recipe r = byName(e);
+            Page picture = r == null ? Illustrations.of(e, rnd) : null;
+            pages.add(r != null ? draw(r, rnd, false, FORBIDDEN.contains(r) ? InkType.BLOOD : InkType.LASTING) : picture != null ? picture : Page.EMPTY);
+        }
+        net.minecraft.world.item.ItemStack book = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get());
+        book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
+        book.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(v.entries()));
+        book.set(net.minecraft.core.component.DataComponents.ITEM_NAME, net.minecraft.network.chat.Component.translatable(v.titleKey()));
+        return book;
+    }
+
+    /** One of the themed books, at random. */
+    public static net.minecraft.world.item.ItemStack randomVolume(RandomSource rnd) {
+        return volumeBook(VOLUMES.get(rnd.nextInt(VOLUMES.size())), rnd);
     }
 
     /** Pages of the Book of Contraptions: what witches make for everyone else, and the tools they draw with. */

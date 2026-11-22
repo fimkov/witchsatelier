@@ -35,7 +35,12 @@ bin/
 ### Minecraft Modding ###
 run/
 run-gametest/
+run-smoke/
+run-smoke-client/
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### Python ###
+__pycache__/

@@ -47,7 +47,6 @@ public final class ModItems {
     public static final DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> WITCH_HAT = attire("witch_hat", com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style.WITCH_HAT);
     public static final DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> WITCH_ROBE = attire("witch_robe", com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style.ROBE);
     public static final DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> WITCH_MANTLE = attire("witch_mantle", com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style.MANTLE);
-    public static final DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> WITCH_STOCKINGS = attire("witch_stockings", com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style.STOCKINGS);
     public static final DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> WITCH_BOOTS = attire("witch_boots", com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style.BOOTS);
 
     private static DeferredItem<com.fimkov.witchsatelier.item.attire.WitchAttireItem> attire(String name, com.fimkov.witchsatelier.item.attire.WitchAttireItem.Style style) {
@@ -111,10 +110,11 @@ public final class ModItems {
                 out.accept(WOODCRUOR_WAND.get());
                 out.accept(SEARNEEDLE.get());
                 out.accept(PALM_QUIRE.get());
-                out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(net.minecraft.util.RandomSource.create(7), 7,
-                        "pillar_of_flame", "wind_underfoot", "birds_of_light", "spilling_water", "stone_breaker", "windowway", "bed_of_sand"));
-                out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(net.minecraft.util.RandomSource.create(8), 7,
-                        "beacon_of_birds", "fire_bolts", "gathering_wind", "rain_of_light", "lantern", "water_jet", "tidal_ring"));
+                var rnd = net.minecraft.util.RandomSource.create(7);
+                out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.PRIMER, rnd));
+                for (var v : com.fimkov.witchsatelier.glyph.page.GlyphLibrary.VOLUMES) out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(v, rnd));
+                out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.RING_NOTES, rnd));
+                out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.FORBIDDEN_BOOK, rnd));
                 out.accept(RAG.get());
                 out.accept(com.fimkov.witchsatelier.glyph.page.GlyphLibrary.contraptionsBook());
                 out.accept(STRANGER_SPAWN_EGG.get());
@@ -142,7 +142,6 @@ public final class ModItems {
                 out.accept(WITCH_HAT.get());
                 out.accept(WITCH_ROBE.get());
                 out.accept(WITCH_MANTLE.get());
-                out.accept(WITCH_STOCKINGS.get());
                 out.accept(WITCH_BOOTS.get());
                 out.accept(SILVERWOOD_SAPLING.get());
                 out.accept(SILVERWOOD_LOG.get());

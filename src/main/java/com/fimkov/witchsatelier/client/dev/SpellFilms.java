@@ -74,7 +74,7 @@ final class SpellFilms {
     private static VisualCheck.Shot recipeFilm(GlyphLibrary.Recipe r) {
         String name = r.name();
         boolean wall = name.equals("stone_breaker");
-        boolean night = r.sigil() == Sigil.LIGHT || name.equals("night_eye");
+        boolean night = r.sigil() == Sigil.LIGHT || name.equals("night_eye") || name.equals("petrification");
         double radius = r.band() != null ? 2.3 : 1.6;
         Glyph[] glyph = new Glyph[1];
         Consumer<ServerLevel> setup = l -> {
@@ -101,6 +101,9 @@ final class SpellFilms {
             // seen by one standing at the glyph, looking out into the dark: it goes light as by day
             return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 222.62, 2.6), 0, 6, false, LENGTH, during);
         }
+        if (name.equals("petrification"))
+            // from further back: the stone reaches as far as the usual camera
+            return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 227.0, 12.5), 180, 22, false, 260, during);
         return film(name, setup, during, LENGTH);
     }
 
@@ -420,6 +423,31 @@ final class SpellFilms {
     /** What a spell needs around it to show what it does. */
     private static void props(ServerLevel l, String name) {
         switch (name) {
+            case "petrification" -> {
+                // a cottage behind the glyph, a garden in front, and the people who live there
+                for (int x = -6; x <= 6; x++) for (int z = -8; z <= 6; z++) l.setBlock(B.offset(x, 0, z), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+                for (int x = -3; x <= 3; x++) for (int z = -7; z <= -3; z++) {
+                    l.setBlock(B.offset(x, 0, z), Blocks.SPRUCE_PLANKS.defaultBlockState(), 3);
+                    for (int y = 1; y <= 3; y++) {
+                        boolean edge = x == -3 || x == 3 || z == -7 || z == -3;
+                        boolean door = z == -3 && x == 0 && y <= 2, window = edge && y == 2 && (x == -2 || x == 2 || (z == -5 && Math.abs(x) == 3));
+                        l.setBlock(B.offset(x, y, z), !edge || door ? Blocks.AIR.defaultBlockState() : window ? Blocks.GLASS_PANE.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState(), 3);
+                    }
+                    l.setBlock(B.offset(x, 4, z), Blocks.SPRUCE_SLAB.defaultBlockState(), 3);
+                }
+                l.setBlock(B.offset(-2, 1, -6), Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
+                l.setBlock(B.offset(2, 1, -6), Blocks.BOOKSHELF.defaultBlockState(), 3);
+                for (int x = -5; x <= 5; x++) if (Math.abs(x) > 1) l.setBlock(B.offset(x, 1, 4), Blocks.OAK_FENCE.defaultBlockState(), 3);
+                for (int[] f : new int[][]{{-4, 2}, {-2, 3}, {3, 2}, {5, 0}, {-5, -1}, {4, -2}})
+                    l.setBlock(B.offset(f[0], 1, f[1]), (f[0] % 2 == 0 ? Blocks.POPPY : Blocks.CORNFLOWER).defaultBlockState(), 3);
+                for (int[] v : new int[][]{{0, -5}, {2, 1}}) {
+                    var villager = EntityType.VILLAGER.create(l);
+                    if (villager == null) continue;
+                    villager.moveTo(B.getX() + 0.5 + v[0], B.getY() + 1, B.getZ() + 0.5 + v[1], 180, 0);
+                    villager.setNoAi(true);
+                    l.addFreshEntity(villager);
+                }
+            }
             case "quickening_soil" -> {
                 for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) l.setBlock(B.offset(x, 0, z), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
                 for (int x = -4; x <= 4; x++) for (int z : new int[]{-4, 3}) {
@@ -461,6 +489,12 @@ final class SpellFilms {
 
     /** Things that happen while a spell runs: a pig steps on a snare, pigs fall onto a soft landing. */
     private static void events(ServerLevel l, String name, int t) {
+        if (name.equals("petrification") && t == 170) {
+            // and then Integration, drawn on the stone, gives it all back
+            SurfacePlane floor = SurfacePlane.of(B.offset(3, 0, 2), Direction.UP);
+            GlyphService.inscribe(l, floor, new GlyphSketch(floor.toUV(Vec3.atCenterOf(B.offset(3, 0, 2)).add(0, 0.5, 0)), 1.2).ring(0, 362)
+                    .sigil(Sigil.EARTH, 0.8).signs(SignType.CRUSH, 4, Orientation.INWARD, 0.45, 45).strokes, null);
+        }
         if (name.equals("snare_of_flame") && t == 90) {
             var pigs = l.getEntitiesOfClass(net.minecraft.world.entity.animal.Pig.class, new AABB(B).inflate(8));
             pigs.stream().filter(p -> p.distanceToSqr(Vec3.atCenterOf(B)) > 4).findFirst()

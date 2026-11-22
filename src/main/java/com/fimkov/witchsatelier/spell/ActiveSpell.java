@@ -226,7 +226,9 @@ public final class ActiveSpell {
             ticksLeft = 1;
         } else if (program.form() == Form.RESTORE) {
             Earthworks.restore(level, program.origin(), program.radius() * 2 + 4 + program.power() * 0.1);
-            if (com.fimkov.witchsatelier.block.StatueBlock.revive(level, program.origin(), program.radius() * 2 + 3) > 0 && caster != null) {
+            // and whatever petrification took: a glyph of Integration in the middle of it gives it all back
+            com.fimkov.witchsatelier.block.PetrifiedBlock.restore(level, program.origin(), program.radius() * 3 + 10);
+            if (com.fimkov.witchsatelier.block.StatueBlock.revive(level, program.origin(), program.radius() * 3 + 10) > 0 && caster != null) {
                 Player who = level.getPlayerByUUID(caster);
                 if (who != null) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(who, "revive");
             }
@@ -609,6 +611,7 @@ public final class ActiveSpell {
                 e.hurtMarked = true;
             }
             if (!p.inverted()) e.resetFallDistance();
+            if (e instanceof net.minecraft.server.level.ServerPlayer sp) Airborne.hold(sp);
             if (p.vortex() != 0) swirl(e, o, n, p.vortex() * 0.15);
         }
     }
@@ -820,34 +823,47 @@ public final class ActiveSpell {
 
     private final java.util.Map<Integer, Integer> stoneGaze = new java.util.HashMap<>();
 
+    /** How far petrification has spread from its glyph so far, in blocks. */
+    private double stoneFront;
+
     /**
-     * Petrification. Grey dust spirals up out of the glyph; whatever living thing stands before it slows,
-     * stiffens and, after two seconds of it, is stone. Players are only held fast; creatures become statues.
+     * Petrification. Stone grown through with crystal spreads out from the glyph as a widening sphere and takes
+     * everything it reaches, living or not: walls, floors, furniture, and every creature, which stiffens and is a
+     * statue. A bigger ring takes more. Players are only held fast. The glyph's own ground is spared, so it keeps
+     * working until it has spread as far as it can.
      */
     private void petrify(ServerLevel level) {
         SpellProgram p = program;
-        double r = Math.max(2.5, p.radius() * 1.8) + p.power() * 0.05;
+        double reach = Math.min(10, 2.5 + p.radius() * 2.5 + p.power() * 0.05);
         Vec3 o = p.origin();
-        fxLength = (float) r;
-        var dust = new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, Blocks.STONE.defaultBlockState());
+        fxLength = (float) Math.max(1, stoneFront);
+        var dust = new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get().defaultBlockState());
         for (int i = 0; i < 4; i++) {
-            double a = age * 0.25 + i * Math.PI / 2, d = (age % 20) / 20.0 * r;
+            double a = age * 0.25 + i * Math.PI / 2, d = Math.max(0.5, stoneFront) * ((age % 20) / 20.0);
             Vec3 at = o.add(ring(p, a).scale(d)).add(p.normal().scale(0.2 + (age % 20) * 0.05));
             level.sendParticles(dust, at.x, at.y, at.z, 1, 0.05, 0.05, 0.05, 0);
         }
         if (age % 20 == 1) level.playSound(null, o.x, o.y, o.z, SoundEvents.GRINDSTONE_USE, SoundSource.HOSTILE, 0.5f, 0.4f);
         if (age < 10) return;
-        AABB area = new AABB(o, o.add(p.normal().scale(3))).inflate(r);
+        // the front moves out a block every five ticks
+        if (age % 5 == 0 && stoneFront < reach) {
+            double from = stoneFront;
+            stoneFront = Math.min(reach, stoneFront + 1);
+            spreadStone(level, o, from, stoneFront);
+            if (stoneFront >= reach) spikes(level, o, reach);
+            level.playSound(null, o.x, o.y, o.z, SoundEvents.AMETHYST_CLUSTER_PLACE, SoundSource.HOSTILE, 0.9f, 0.5f + (float) (stoneFront / reach) * 0.3f);
+        }
+        double r = stoneFront + 0.5;
         boolean brimhatCast = caster != null && level.getEntity(caster) instanceof com.fimkov.witchsatelier.entity.BrimhatEntity;
-        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area, e -> e.isAlive() && !e.isSpectator())) {
+        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(r), e -> e.isAlive() && !e.isSpectator())) {
             if (caster != null && e.getUUID().equals(caster)) continue;
             if (brimhatCast && e instanceof com.fimkov.witchsatelier.entity.BrimhatEntity) continue; // they do not stone their own
-            if (e.position().distanceTo(o) > r + 1) continue;
+            if (e.getBoundingBox().getCenter().distanceTo(o) > r) continue;
             int t = stoneGaze.merge(e.getId(), 1, Integer::sum);
-            e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, Math.min(6, t / 6), false, false));
+            e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, Math.min(6, t / 3), false, false));
             e.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, 20, 2, false, false));
             if (t % 4 == 0) level.sendParticles(dust, e.getX(), e.getY() + e.getBbHeight() * level.random.nextDouble(), e.getZ(), 3, 0.25, 0.1, 0.25, 0.02);
-            if (t >= 40 && e instanceof net.minecraft.world.entity.Mob mob && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss)
+            if (t >= 20 && e instanceof net.minecraft.world.entity.Mob mob && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss)
                     && !(e instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon)) {
                 if (com.fimkov.witchsatelier.block.StatueBlock.petrify(level, mob) && caster != null) {
                     Player who = level.getPlayerByUUID(caster);
@@ -855,6 +871,49 @@ public final class ActiveSpell {
                 }
                 stoneGaze.remove(e.getId());
             }
+        }
+    }
+
+    /**
+     * Fills with crystal everything whose centre lies between {@code from} and {@code to} blocks from {@code o}, the
+     * air included. Left as it is: the glyph's own ground and the space just over it (or the spell would bury its
+     * own glyph), and the room each creature stands in until it is a statue, so nothing is buried alive.
+     */
+    private void spreadStone(ServerLevel level, Vec3 o, double from, double to) {
+        BlockPos c = BlockPos.containing(o);
+        int r = (int) Math.ceil(to) + 1;
+        BlockPos ground = plane != null ? BlockPos.containing(o.subtract(plane.normal().scale(0.3))) : null;
+        Vec3 n = plane != null ? plane.normal() : null;
+        double keep = program.radius() + 0.8;
+        List<AABB> living = level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(to + 2), e -> e.isAlive() && !e.isSpectator())
+                .stream().map(e -> e.getBoundingBox().inflate(0.3)).toList();
+        int taken = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
+            double d = Math.sqrt(pos.distToCenterSqr(o));
+            if (d <= from || d > to) continue;
+            if (ground != null) {
+                Vec3 rel = Vec3.atCenterOf(pos).subtract(Vec3.atCenterOf(ground));
+                double along = rel.dot(n);
+                if (along > -0.5 && along < 2.5 && rel.subtract(n.scale(along)).length() <= keep) continue;
+            }
+            AABB cell = new AABB(pos);
+            if (level.getBlockState(pos).isAir() && living.stream().anyMatch(cell::intersects)) continue;
+            if (com.fimkov.witchsatelier.block.PetrifiedBlock.petrify(level, pos) && taken++ % 7 == 0)
+                level.sendParticles(ParticleTypes.END_ROD, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 1, 0.4, 0.4, 0.4, 0.02);
+        }
+    }
+
+    /** Once it has grown as far as it will, long shards stand out of it all round, pointing away from the middle. */
+    private void spikes(ServerLevel level, Vec3 o, double reach) {
+        BlockPos c = BlockPos.containing(o);
+        int r = (int) Math.ceil(reach) + 1;
+        var crystal = com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get();
+        for (BlockPos pos : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
+            double d = Math.sqrt(pos.distToCenterSqr(o));
+            if (d < reach - 1.2 || d > reach || !level.getBlockState(pos).is(crystal) || level.random.nextFloat() > 0.45f) continue;
+            Vec3 out = Vec3.atCenterOf(pos).subtract(o);
+            net.minecraft.core.Direction dir = net.minecraft.core.Direction.getNearest(out.x, out.y, out.z);
+            com.fimkov.witchsatelier.block.PetrifiedBlock.spike(level, pos.relative(dir), dir);
         }
     }
 
@@ -1193,6 +1252,7 @@ public final class ActiveSpell {
                 // in water the soles' glyph does nothing (and unless its ink is waterproof the water takes it: see
                 // PageService.washBoots, which also ends this spell)
                 if (w.isInWater()) return true;
+                if (w instanceof net.minecraft.server.level.ServerPlayer sp) Airborne.hold(sp);
                 if (p.inverted()) {
                     // feather: fall slowly, land softly, jump a little higher
                     if (v.y < -0.12) w.setDeltaMovement(v.x, v.y * 0.6 - 0.02, v.z);

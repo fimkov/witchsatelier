@@ -10,15 +10,12 @@
         },
         {
           "condition": "neoforge:loot_table_id",
-          "loot_table_id": "witchsatelier:chests/atelier"
-        },
-        {
-          "condition": "neoforge:loot_table_id",
           "loot_table_id": "witchsatelier:chests/library"
         }
       ]
     }
   ],
   "grimoire_chance": 0.35,
-  "page_chance": 0.5
+  "page_chance": 0.5,
+  "forbidden_chance": 0.04
 }

@@ -62,7 +62,9 @@ public final class ClientSetup {
 
     public static void init(IEventBus modBus) {
         ModNetwork.client = ClientGlyphs.INSTANCE;
-        com.fimkov.witchsatelier.client.dev.VisualCheck.init();
+        // the screenshot harness is only in development builds (the release jar leaves client/dev out)
+        if (System.getProperty("witchsatelier.visualcheck") != null) com.fimkov.witchsatelier.client.dev.VisualCheck.init();
+        if (System.getProperty("witchsatelier.smoke") != null) com.fimkov.witchsatelier.client.dev.SmokeClient.init();
         com.fimkov.witchsatelier.item.PalmQuireItem.clientOpener = hand -> net.minecraft.client.Minecraft.getInstance().setScreen(new PageScreen(hand));
         IEventBus game = NeoForge.EVENT_BUS;
         game.addListener(ClientDrawing::onInteract);
@@ -118,7 +120,6 @@ public final class ClientSetup {
             }, ModItems.CAPTURE_PENNANT.get());
             e.registerItem(armorModel(com.fimkov.witchsatelier.client.model.WitchModels.HAT), ModItems.WITCH_HAT.get(), ModItems.APPRENTICE_HAT.get());
             e.registerItem(armorModel(com.fimkov.witchsatelier.client.model.WitchModels.CAPELET), ModItems.WITCH_ROBE.get());
-            e.registerItem(armorModel(com.fimkov.witchsatelier.client.model.WitchModels.SKIRT), ModItems.WITCH_STOCKINGS.get());
             e.registerItem(armorModel(com.fimkov.witchsatelier.client.model.WitchModels.MANTLE), ModItems.WITCH_MANTLE.get(), ModItems.MIRROR_MANTLE.get(), ModItems.BRIMHAT_MANTLE.get(), ModItems.WINGCLOAK.get());
         });
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(SoaringClient::onClientTick);
@@ -155,7 +156,6 @@ public final class ClientSetup {
             e.registerLayerDefinition(KnightMoralisRenderer.GEAR, KnightMoralisRenderer::gear);
             e.registerLayerDefinition(SealchairRenderer.LAYER, SealchairRenderer::layer);
             e.registerLayerDefinition(com.fimkov.witchsatelier.client.model.WitchModels.CAPELET, com.fimkov.witchsatelier.client.model.WitchModels::capelet);
-            e.registerLayerDefinition(com.fimkov.witchsatelier.client.model.WitchModels.SKIRT, com.fimkov.witchsatelier.client.model.WitchModels::skirt);
             e.registerLayerDefinition(com.fimkov.witchsatelier.client.model.WitchModels.MANTLE, com.fimkov.witchsatelier.client.model.WitchModels::mantle);
         });
     }

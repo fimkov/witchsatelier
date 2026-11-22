@@ -26,7 +26,6 @@ public class WitchAttireItem extends ArmorItem {
         BRIMHAT_MANTLE(Type.CHESTPLATE, "brimhat_mantle"),
         /** Coco and Tartah's wingcloak: a flight glyph in the lining, and one to keep the rain off. */
         WINGCLOAK(Type.CHESTPLATE, "wingcloak"),
-        STOCKINGS(Type.LEGGINGS, "witch_skirt"),
         BOOTS(Type.BOOTS, null);
 
         public final Type type;

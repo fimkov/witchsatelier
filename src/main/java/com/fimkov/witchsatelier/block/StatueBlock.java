@@ -75,8 +75,9 @@ public class StatueBlock extends BaseEntityBlock {
             be.setChanged();
             level.sendBlockUpdated(at, be.getBlockState(), be.getBlockState(), 3);
         }
-        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.STONE.defaultBlockState()), mob.getX(), mob.getY() + mob.getBbHeight() / 2,
+        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ModBlocks.PETRIFIED.get().defaultBlockState()), mob.getX(), mob.getY() + mob.getBbHeight() / 2,
                 mob.getZ(), 30, 0.3, mob.getBbHeight() / 3, 0.3, 0.1);
+        level.sendParticles(ParticleTypes.END_ROD, mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ(), 12, 0.3, mob.getBbHeight() / 3, 0.3, 0.03);
         level.playSound(null, at, com.fimkov.witchsatelier.registry.ModSounds.PETRIFY.get(), SoundSource.HOSTILE, 1.2f, 1f);
         level.playSound(null, at, SoundEvents.BASALT_BREAK, SoundSource.HOSTILE, 1f, 0.5f);
         mob.discard();
@@ -88,7 +89,7 @@ public class StatueBlock extends BaseEntityBlock {
         int n = 0;
         BlockPos c = BlockPos.containing(center);
         int r = (int) Math.ceil(range);
-        for (BlockPos p : BlockPos.betweenClosed(c.offset(-r, -2, -r), c.offset(r, 3, r))) {
+        for (BlockPos p : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
             if (p.distToCenterSqr(center) > range * range || !(level.getBlockEntity(p) instanceof Entity be) || be.data == null) continue;
             BlockPos at = p.immutable();
             CompoundTag data = be.data;

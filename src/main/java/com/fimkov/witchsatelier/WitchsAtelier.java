@@ -28,6 +28,10 @@ public final class WitchsAtelier {
         modBus.addListener(com.fimkov.witchsatelier.registry.ModEntities::attributes);
         modBus.addListener(com.fimkov.witchsatelier.registry.ModEntities::spawnPlacements);
         NeoForge.EVENT_BUS.addListener(com.fimkov.witchsatelier.entity.Taboo::onPlayerTick);
+        NeoForge.EVENT_BUS.addListener(com.fimkov.witchsatelier.spell.Airborne::onPlayerTick);
+        // development only: the multiplayer smoke test (the release jar leaves dev/ out)
+        if (System.getProperty("witchsatelier.smoke") != null && net.neoforged.fml.loading.FMLEnvironment.dist.isDedicatedServer())
+            com.fimkov.witchsatelier.dev.SmokeServer.init();
         NeoForge.EVENT_BUS.addListener(com.fimkov.witchsatelier.entity.Taboo::onDeath);
         ModItems.ITEMS.register(modBus);
         com.fimkov.witchsatelier.loot.SpellLootModifier.SERIALIZERS.register(modBus);

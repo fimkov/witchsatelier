@@ -45,9 +45,9 @@ public class SpellLootModifier extends LootModifier {
     @Override
     protected ObjectArrayList<ItemStack> doApply(ObjectArrayList<ItemStack> loot, LootContext ctx) {
         var rnd = ctx.getRandom();
-        if (rnd.nextFloat() < grimoireChance) {
-            loot.add(GlyphLibrary.grimoireBook(rnd, 2 + rnd.nextInt(4)));
-        }
+        // one of the themed books; more rarely the notes on the imagined ring
+        if (rnd.nextFloat() < grimoireChance) loot.add(GlyphLibrary.randomVolume(rnd));
+        if (rnd.nextFloat() < grimoireChance * 0.4f) loot.add(GlyphLibrary.volumeBook(GlyphLibrary.RING_NOTES, rnd));
         if (rnd.nextFloat() < pageChance) {
             int n = 1 + rnd.nextInt(3);
             for (int i = 0; i < n; i++) {
@@ -55,6 +55,7 @@ public class SpellLootModifier extends LootModifier {
             }
         }
         if (rnd.nextFloat() < forbiddenChance) loot.add(GlyphLibrary.forbiddenPageItem(rnd));
+        if (rnd.nextFloat() < forbiddenChance * 0.25f) loot.add(GlyphLibrary.volumeBook(GlyphLibrary.FORBIDDEN_BOOK, rnd));
         return loot;
     }
 

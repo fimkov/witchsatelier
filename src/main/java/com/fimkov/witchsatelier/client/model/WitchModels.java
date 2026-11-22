@@ -16,12 +16,11 @@ import net.minecraft.resources.ResourceLocation;
  * edit the generator, not this file.
  * <p>
  * Cloth and cones are rings of thin panels whose outlines are cut out of the texture: the pointed hat is an
- * 8-sided cone with its tip bent back, capes and skirts are bells of 12 panels.
+ * 8-sided cone with its tip bent back, capes are bells of 12 panels.
  */
 public final class WitchModels {
     public static final ModelLayerLocation HAT = loc("pointed_hat");
     public static final ModelLayerLocation CAPELET = loc("capelet");
-    public static final ModelLayerLocation SKIRT = loc("skirt");
     public static final ModelLayerLocation MANTLE = loc("mantle");
 
     private WitchModels() {}
@@ -118,27 +117,6 @@ public final class WitchModels {
         PartDefinition tassel_l = tie_l.addOrReplaceChild("tassel_l", CubeListBuilder.create().texOffs(4, 0).addBox(-1, 0, -1, 2, 2, 2), PartPose.offsetAndRotation(0f, 6f, 0f, 0f, 0f, 0f));
         PartDefinition tie_r = body.addOrReplaceChild("tie_r", CubeListBuilder.create().texOffs(12, 0).addBox(-0.5f, 0, -0.5f, 1, 6, 1), PartPose.offsetAndRotation(-9.4f, 4.5f, 0.4f, 0f, 0f, -0.1f));
         PartDefinition tassel_r = tie_r.addOrReplaceChild("tassel_r", CubeListBuilder.create().texOffs(16, 0).addBox(-1, 0, -1, 2, 2, 2), PartPose.offsetAndRotation(0f, 6f, 0f, 0f, 0f, 0f));
-        return LayerDefinition.create(mesh, 128, 128);
-    }
-
-    public static LayerDefinition skirt() {
-        MeshDefinition mesh = emptyHumanoid();
-        PartDefinition root = mesh.getRoot();
-        PartDefinition right_leg = root.addOrReplaceChild("right_leg", CubeListBuilder.create().texOffs(0, 16).addBox(-2f, 0f, -2f, 4, 12, 4, new CubeDeformation(0.25f)), PartPose.offset(-1.9f, 12, 0));
-        PartDefinition left_leg = root.addOrReplaceChild("left_leg", CubeListBuilder.create().texOffs(16, 48).addBox(-2f, 0f, -2f, 4, 12, 4, new CubeDeformation(0.25f)), PartPose.offset(1.9f, 12, 0));
-        PartDefinition body = root.getChild("body");
-        body.addOrReplaceChild("skirt_0", CubeListBuilder.create().texOffs(0, 0).addBox(-3, 0, 0, 6, 8, 0.02f), PartPose.offsetAndRotation(0f, 10.4f, -2.608f, -0.2917f, 0f, 0f));
-        body.addOrReplaceChild("skirt_1", CubeListBuilder.create().texOffs(12, 0).addBox(-2, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(2.2699f, 10.4f, -2.2586f, -0.286f, -0.3203f, 0f));
-        body.addOrReplaceChild("skirt_2", CubeListBuilder.create().texOffs(22, 0).addBox(-2, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(3.9316f, 10.4f, -1.304f, -0.2821f, -0.7829f, 0f));
-        body.addOrReplaceChild("skirt_3", CubeListBuilder.create().texOffs(32, 0).addBox(-2, 0, 0, 4, 8, 0.02f), PartPose.offsetAndRotation(4.5399f, 10.4f, 0f, -0.2917f, -1.5708f, 0f));
-        body.addOrReplaceChild("skirt_4", CubeListBuilder.create().texOffs(40, 0).addBox(-3, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(3.9316f, 10.4f, 1.304f, 2.8595f, -0.7829f, 3.1416f));
-        body.addOrReplaceChild("skirt_5", CubeListBuilder.create().texOffs(50, 0).addBox(-3, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(2.2699f, 10.4f, 2.2586f, 2.8556f, -0.3203f, 3.1416f));
-        body.addOrReplaceChild("skirt_6", CubeListBuilder.create().texOffs(60, 0).addBox(-3, 0, 0, 6, 8, 0.02f), PartPose.offsetAndRotation(0f, 10.4f, 2.608f, 2.8499f, 0f, 3.1416f));
-        body.addOrReplaceChild("skirt_7", CubeListBuilder.create().texOffs(72, 0).addBox(-2, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(-2.2699f, 10.4f, 2.2586f, 2.8556f, 0.3203f, 3.1416f));
-        body.addOrReplaceChild("skirt_8", CubeListBuilder.create().texOffs(82, 0).addBox(-2, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(-3.9316f, 10.4f, 1.304f, 2.8595f, 0.7829f, 3.1416f));
-        body.addOrReplaceChild("skirt_9", CubeListBuilder.create().texOffs(92, 0).addBox(-2, 0, 0, 4, 8, 0.02f), PartPose.offsetAndRotation(-4.5399f, 10.4f, 0f, -0.2917f, 1.5708f, 0f));
-        body.addOrReplaceChild("skirt_10", CubeListBuilder.create().texOffs(100, 0).addBox(-3, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(-3.9316f, 10.4f, -1.304f, -0.2821f, 0.7829f, 0f));
-        body.addOrReplaceChild("skirt_11", CubeListBuilder.create().texOffs(110, 0).addBox(-3, 0, 0, 5, 8, 0.02f), PartPose.offsetAndRotation(-2.2699f, 10.4f, -2.2586f, -0.286f, 0.3203f, 0f));
         return LayerDefinition.create(mesh, 128, 128);
     }
 

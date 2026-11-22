@@ -15,13 +15,15 @@ public final class SoaringClient {
     private SoaringClient() {}
 
     private static int airborne;
+    /** The climb or descent the flyer is easing towards, kept apart from what gravity does to the motion between ticks. */
+    private static double rise;
 
     public static void onClientTick(ClientTickEvent.Pre e) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer p = mc.player;
-        if (p == null || mc.level == null || p.isPassenger() || p.isInWater() || p.getAbilities().flying) { airborne = 0; return; }
+        if (p == null || mc.level == null || p.isPassenger() || p.isInWater() || p.getAbilities().flying) { airborne = 0; rise = 0; return; }
         double speed = SpellFxClient.soarSpeed(p);
-        if (speed <= 0) { airborne = 0; return; }
+        if (speed <= 0) { airborne = 0; rise = 0; return; }
         float forward = p.input.forwardImpulse, left = p.input.leftImpulse;
         double vertical = (p.input.jumping ? 1 : 0) - (p.input.shiftKeyDown ? 1 : 0);
         // down on the ground again: the flight is over, as creative flight ends on landing
@@ -37,9 +39,14 @@ public final class SoaringClient {
         if (flat.lengthSqr() > 1) flat = flat.normalize();
         Vec3 want = new Vec3(flat.x * speed, vertical * speed * 0.75, flat.z * speed);
         Vec3 v = p.getDeltaMovement();
-        // ease towards what the keys ask, and make up in advance for the air's drag and the pull of the ground
-        Vec3 next = v.add(want.subtract(v).scale(0.3));
-        p.setDeltaMovement(next.x / 0.91, next.y + 0.08, next.z / 0.91);
+        // a bump against the ground or a ceiling stops the climb or the dive
+        if (p.verticalCollision) rise = 0;
+        // ease towards what the keys ask. A tick moves by the motion as it is set here, and only afterwards does
+        // the game take off the air's drag and gravity: the drag is made up in advance, and the climb is kept here
+        // rather than read back, so gravity never builds up (nor is it over-corrected into a slow rise)
+        double nx = v.x + (want.x - v.x) * 0.3, nz = v.z + (want.z - v.z) * 0.3;
+        rise += (want.y - rise) * 0.3;
+        p.setDeltaMovement(nx / 0.91, rise, nz / 0.91);
         p.resetFallDistance();
     }
 }

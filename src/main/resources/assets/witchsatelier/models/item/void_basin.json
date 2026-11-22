@@ -1,1 +1,6 @@
-{"parent": "witchsatelier:block/void_basin"}
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "witchsatelier:item/void_basin"
+  }
+}

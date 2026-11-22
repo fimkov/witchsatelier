@@ -1,1 +1,6 @@
-{"parent": "witchsatelier:block/dragon_teacup"}
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "witchsatelier:item/dragon_teacup"
+  }
+}

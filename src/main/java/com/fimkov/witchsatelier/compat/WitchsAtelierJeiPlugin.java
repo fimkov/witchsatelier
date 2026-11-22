@@ -18,6 +18,14 @@ public class WitchsAtelierJeiPlugin implements IModPlugin {
         return ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "jei");
     }
 
+    /** The running JEI, for the screenshot harness to open a page with. */
+    public static mezz.jei.api.runtime.IJeiRuntime runtime;
+
+    @Override
+    public void onRuntimeAvailable(mezz.jei.api.runtime.IJeiRuntime rt) {
+        runtime = rt;
+    }
+
     @Override
     public void registerCategories(mezz.jei.api.registration.IRecipeCategoryRegistration reg) {
         reg.addRecipeCategories(new AwakeningJeiCategory(reg.getJeiHelpers().getGuiHelper()));

@@ -24,6 +24,15 @@ public class GrimoireItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         if (level.isClientSide) PalmQuireItem.clientOpener.accept(hand);
+        else if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            // opened at the imagined ring (the thin notebook has nothing else): reading it teaches it
+            ItemStack stack = player.getItemInHand(hand);
+            var names = stack.get(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get());
+            var gp = stack.get(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get());
+            int at = gp == null ? 0 : gp.current();
+            if (names != null && at >= 0 && at < names.size() && com.fimkov.witchsatelier.glyph.page.GlyphLibrary.IMAGINED_RING.equals(names.get(at)))
+                com.fimkov.witchsatelier.glyph.Techniques.learnImaginedRing(sp);
+        }
         player.playSound(net.minecraft.sounds.SoundEvents.BOOK_PAGE_TURN, 0.8f, 0.8f);
         return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
     }

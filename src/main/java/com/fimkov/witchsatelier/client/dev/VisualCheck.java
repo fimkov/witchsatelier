@@ -203,7 +203,7 @@ public final class VisualCheck {
             clear(l, BASE, 18);
             platform(l, BASE, 12);
             Item[][] sets = {
-                    {ModItems.WITCH_HAT.get(), ModItems.WITCH_ROBE.get(), ModItems.WITCH_STOCKINGS.get(), ModItems.WITCH_BOOTS.get()},
+                    {ModItems.WITCH_HAT.get(), ModItems.WITCH_ROBE.get(), null, ModItems.WITCH_BOOTS.get()},
                     {ModItems.APPRENTICE_HAT.get(), ModItems.WINGCLOAK.get(), null, null},
                     {ModItems.BRIMHAT_MASK.get(), ModItems.BRIMHAT_MANTLE.get(), null, null},
                     {null, ModItems.MIRROR_MANTLE.get(), null, null},
@@ -239,7 +239,22 @@ public final class VisualCheck {
         visitShots();
         imaginedShot();
         appleShots();
+        // the themed books, open: volume_<id>_<page>
+        for (String[] v : new String[][]{{"forbidden", "0"}, {"forbidden", "1"}, {"forbidden", "2"}, {"forbidden", "3"}, {"forbidden", "4"}, {"forbidden", "5"}, {"flame", "1"}, {"imagined_ring", "0"}, {"primer", "0"}}) {
+            SHOTS.add(new Shot("volume_" + v[0] + "_" + v[1], 30, l -> {
+                ServerPlayer p = player(l.getServer());
+                if (p == null) return;
+                var vol = v[0].equals("forbidden") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.FORBIDDEN_BOOK
+                        : v[0].equals("imagined_ring") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.RING_NOTES
+                        : v[0].equals("primer") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.PRIMER
+                        : com.fimkov.witchsatelier.glyph.page.GlyphLibrary.VOLUMES.stream().filter(x -> x.id().equals(v[0])).findFirst().orElseThrow();
+                p.setItemSlot(EquipmentSlot.MAINHAND, com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(vol, net.minecraft.util.RandomSource.create(3)));
+            }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
+        }
         // the recipe viewer's Awakening pages (EMI is in the dev run)
+        SHOTS.add(new Shot("wiki_icons_black", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
+        SHOTS.add(new Shot("wiki_icons_white", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
+        SHOTS.add(new Shot("jei_awakening", 60, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
         SHOTS.add(new Shot("emi_awakening", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
         // a dormant artifact on the canvas: the glyph it wants shows faintly, to be traced
         for (String what : new String[]{"raincleaver", "boots"}) {
@@ -482,8 +497,14 @@ public final class VisualCheck {
         if (timer == 20 && now.name().startsWith("canvas_") && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
             mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.OFF_HAND));
         }
+        if (timer == 20 && now.name().startsWith("wiki_icons_")) mc.setScreen(new IconSheetScreen(now.name().endsWith("black") ? 0xFF000000 : 0xFFFFFFFF));
+        if (timer == 30 && now.name().equals("jei_awakening") && net.neoforged.fml.ModList.get().isLoaded("jei")) JeiShot.open();
         if (timer == 20 && now.name().equals("emi_awakening") && net.neoforged.fml.ModList.get().isLoaded("emi"))
             dev.emi.emi.api.EmiApi.displayRecipeCategory(com.fimkov.witchsatelier.compat.AwakeningEmiRecipe.CATEGORY);
+        if (timer == 30 && now.name().startsWith("volume_") && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
+            String[] parts = now.name().split("_");
+            mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.MAIN_HAND, Integer.parseInt(parts[parts.length - 1])));
+        }
         if (timer == 30 && (now.name().equals("birdpage") || now.name().startsWith("flip_")) && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
             mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.MAIN_HAND, 2));
         }

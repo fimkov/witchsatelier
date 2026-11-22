@@ -40,5 +40,6 @@
     }
   ],
   "grimoire_chance": 0.06,
-  "page_chance": 0.22
+  "page_chance": 0.22,
+  "forbidden_chance": 0.08
 }

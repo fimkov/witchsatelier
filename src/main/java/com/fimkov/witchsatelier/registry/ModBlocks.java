@@ -80,6 +80,17 @@ public final class ModBlocks {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.fimkov.witchsatelier.block.StatueBlock.Entity>> STATUE_BE =
             BLOCK_ENTITIES.register("statue", () -> BlockEntityType.Builder.of(com.fimkov.witchsatelier.block.StatueBlock.Entity::new, STATUE.get()).build(null));
 
+    /** What petrification swept over: stone grown through with crystal, remembering what it was. */
+    public static final DeferredBlock<com.fimkov.witchsatelier.block.PetrifiedBlock> PETRIFIED = BLOCKS.registerBlock("petrified_stone",
+            com.fimkov.witchsatelier.block.PetrifiedBlock::new, BlockBehaviour.Properties.ofFullCopy(Blocks.CALCITE).strength(1.2f, 6f).sound(SoundType.AMETHYST).lightLevel(s -> 7)
+                    .noOcclusion().isViewBlocking((s, l, p) -> false).isSuffocating((s, l, p) -> false).isRedstoneConductor((s, l, p) -> false));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.fimkov.witchsatelier.block.PetrifiedBlock.Entity>> PETRIFIED_BE =
+            BLOCK_ENTITIES.register("petrified_stone", () -> BlockEntityType.Builder.of(com.fimkov.witchsatelier.block.PetrifiedBlock.Entity::new, PETRIFIED.get()).build(null));
+
+    /** Crystal grown on top of petrified stone. */
+    public static final DeferredBlock<com.fimkov.witchsatelier.block.PetrifiedClusterBlock> PETRIFIED_CLUSTER = BLOCKS.registerBlock("petrified_cluster",
+            com.fimkov.witchsatelier.block.PetrifiedClusterBlock::new, BlockBehaviour.Properties.ofFullCopy(Blocks.SMALL_AMETHYST_BUD).noCollission().noOcclusion().strength(0.3f).lightLevel(s -> 9));
+
     /** The ground of the starfall beyond the Void Basin: stars to stand on. */
     public static final DeferredBlock<com.fimkov.witchsatelier.block.StarBlock> STAR_BLOCK = BLOCKS.registerBlock("star_block",
             com.fimkov.witchsatelier.block.StarBlock::new, BlockBehaviour.Properties.ofFullCopy(Blocks.BEDROCK).lightLevel(s -> 6).sound(net.minecraft.world.level.block.SoundType.AMETHYST));
