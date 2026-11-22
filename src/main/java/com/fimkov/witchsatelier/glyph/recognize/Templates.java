@@ -6,14 +6,7 @@ import com.fimkov.witchsatelier.glyph.model.SignType;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Template shapes for sigils and signs, drawn after the fan wiki's reference images
- * Signs are defined with their "top" pointing OUTWARD (+y),
- * away from the glyph centre. Sigils are defined upright.
- */
 public final class Templates {
-
-    /** One recognisable symbol. Exactly one of {@code sigil} / {@code sign} is set. */
     public record Template(String id, Sigil sigil, SignType sign, boolean reversed, List<List<Pt>> strokes, Pt[] cloud) {
         static Template sigil(Sigil s, Shapes shape) {
             List<List<Pt>> st = shape.build();
@@ -31,11 +24,10 @@ public final class Templates {
     public static final List<Template> SIGNS = new ArrayList<>();
 
     static {
-        // ---------- sigils ----------
         SIGILS.add(Template.sigil(Sigil.FIRE, Shapes.of()
                 .polygon(-0.7, -0.4, 0.7, -0.4, 0, 0.8)
                 .line(0, 0.8, 0, -1)));
-        // hand-drawn fire: a rounded flame/dome over a base line, the stem through it
+
         SIGILS.add(Template.sigil(Sigil.FIRE, Shapes.of()
                 .arc(0, -0.4, 0.75, 0, 180)
                 .line(-0.75, -0.4, 0.75, -0.4)
@@ -54,7 +46,7 @@ public final class Templates {
                 .line(0, 0.6, 0, -0.9)
                 .dot(-0.95, 0.05)
                 .dot(0.95, 0.05)));
-        // hand-drawn earth: the V taken out to the ends of the bar, a downward triangle on its stem
+
         SIGILS.add(Template.sigil(Sigil.EARTH, Shapes.of()
                 .polygon(-0.8, 0.6, 0.8, 0.6, 0, -0.22)
                 .line(0, 0.6, 0, -0.95)
@@ -65,7 +57,7 @@ public final class Templates {
                 .arc(0, -0.3, 0.3, 90, -180)
                 .line(-1, 0.4, -0.55, 0.15).line(-1, 0, -0.5, 0).line(-1, -0.4, -0.55, -0.15)
                 .line(1, 0.4, 0.55, 0.15).line(1, 0, 0.5, 0).line(1, -0.4, 0.55, -0.15)));
-        // the way most people draw it: a tall S with longer rays fanning out on both sides
+
         SIGILS.add(Template.sigil(Sigil.WIND, Shapes.of()
                 .arc(0, 0.32, 0.28, 0, 270)
                 .arc(0, -0.32, 0.28, 90, -180)
@@ -85,14 +77,12 @@ public final class Templates {
                 .line(-1, 0, -0.45, 0).poly(-0.62, 0.17, -0.45, 0, -0.62, -0.17)
                 .line(1, 0, 0.45, 0).poly(0.62, 0.17, 0.45, 0, 0.62, -0.17)
                 .dot(-0.75, 0.6).dot(0.75, -0.6)));
-        // an apple: a round body dented at the top, a stem and a leaf
+
         SIGILS.add(Template.sigil(Sigil.APPLE, Shapes.of().polygon(appleBody(true)).line(0, 0.4, 0.1, 0.95).drop(0.27, 0.78, 0.12, 15)));
         SIGILS.add(Template.sigil(Sigil.CRYSTAL, Shapes.of()
                 .line(-1, -0.5, 0.5, 1).line(-1, -1, 1, 1).line(-0.5, -1, 1, 0.5)
                 .line(-1, 0.5, 0.5, -1).line(-1, 1, 1, -1).line(-0.5, 1, 1, -0.5)));
 
-        // ---------- signs (top = outward) ----------
-        // Column: a stem with a short bar; the bar faces OUTWARD (fan wiki). Drawn in several proportions.
         sign(SignType.COLUMN, Shapes.of().line(0, -1, 0, 1).line(-0.5, 1, 0.5, 1));
         sign(SignType.COLUMN, Shapes.of().line(0, -0.8, 0, 0.8).line(-0.8, 0.8, 0.8, 0.8));
         sign(SignType.COLUMN, Shapes.of().line(0, -0.6, 0, 0.6).line(-1, 0.6, 1, 0.6));
@@ -120,27 +110,25 @@ public final class Templates {
                 .line(-0.3, -0.45, -0.45, -0.85).line(0, -0.5, 0, -0.95).line(0.3, -0.45, 0.45, -0.85));
         sign(SignType.VISION, Shapes.of().line(-1, 0, 1, 0).line(0, -1, 0, 1).line(-0.7, -0.7, 0.7, 0.7).line(-0.7, 0.7, 0.7, -0.7));
         sign(SignType.WEAVE, Shapes.of().arc(0, 0.1, 0.8, -60, 240).line(-0.4, -0.59, -0.75, -0.9).line(0.4, -0.59, 0.75, -0.9));
-        // Enlarge: corner brackets pointing outward = grow. The inward version (shrink) looks the same under a
-        // 180 degree turn, so it gets its own reversed template.
+
         sign(SignType.ENLARGE, false, enlarge(true));
         sign(SignType.ENLARGE, true, enlarge(false));
         sign(SignType.RAIN, Shapes.of()
                 .polygon(0, 1, 0.3, 0.3, 1, 0, 0.3, -0.3, 0, -1, -0.3, -0.3, -1, 0, -0.3, 0.3)
                 .line(0.45, 0.45, 0.75, 0.75).line(-0.45, 0.45, -0.75, 0.75)
                 .line(0.45, -0.45, 0.75, -0.75).line(-0.45, -0.45, -0.75, -0.75));
-        // a bird in flight seen from below: wings swept up in one curve over the body, head forward, tail forked
+
         sign(SignType.BIRD, Shapes.of()
                 .arc(0, -0.35, 0.95, 20, 160)
                 .line(0, 0.95, 0, -0.55)
                 .poly(-0.32, -0.95, 0, -0.55, 0.32, -0.95));
-        // steps: a little stair climbing to the right, for something stepping onto the glyph
+
         sign(SignType.TREAD, Shapes.of().poly(-0.9, -0.9, -0.9, -0.3, -0.3, -0.3, -0.3, 0.3, 0.3, 0.3, 0.3, 0.9, 0.9, 0.9));
         sign(SignType.DANCING_PUPPET, Shapes.of()
                 .circle(0, 0.75, 0.2).circle(0, -0.75, 0.2).circle(0.75, 0, 0.2).circle(-0.75, 0, 0.2)
                 .arc(0, 0, 0.75, 15, 75).arc(0, 0, 0.75, 105, 165).arc(0, 0, 0.75, 195, 255).arc(0, 0, 0.75, 285, 345));
     }
 
-    /** Outline of an apple as x y pairs: round, a little wide, dented where the stem goes in and a little below. */
     private static double[] appleBody(boolean dented) {
         int n = 36;
         double[] xy = new double[n * 2];
@@ -158,9 +146,8 @@ public final class Templates {
         Shapes s = Shapes.of();
         for (int qx = -1; qx <= 1; qx += 2) {
             for (int qy = -1; qy <= 1; qy += 2) {
-                // vertex of the bracket sits at the outer corner (grow) or the inner corner (shrink)
                 double vx = outward ? qx * 1.0 : qx * 0.25, vy = outward ? qy * 1.0 : qy * 0.25;
-                double dir = outward ? -1 : 1; // arms run back towards / away from the centre
+                double dir = outward ? -1 : 1;
                 s.poly(vx + dir * qx * 0.55, vy, vx, vy, vx, vy + dir * qy * 0.55);
                 double ix = vx + dir * qx * 0.18, iy = vy + dir * qy * 0.18;
                 s.poly(ix + dir * qx * 0.37, iy, ix, iy, ix, iy + dir * qy * 0.37);

@@ -3,6 +3,7 @@ package com.fimkov.witchsatelier.network;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.fimkov.witchsatelier.windowway.PortalFrame;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -10,9 +11,10 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-/** All WitchsAtelier network messages. */
 public final class Payloads {
     private Payloads() {}
 
@@ -54,9 +56,6 @@ public final class Payloads {
         }
     };
 
-    // ---------------- client -> server ----------------
-
-    /** A finished pen stroke: float offsets from an integer anchor (keeps precision far from the origin). */
     public record DrawStroke(SurfacePlane plane, int au, int av, float[] rel) implements CustomPacketPayload {
         public static final Type<DrawStroke> TYPE = typeOf("draw_stroke");
         public static final StreamCodec<ByteBuf, DrawStroke> CODEC = StreamCodec.composite(
@@ -76,8 +75,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Rub out ink around a point. */
-    /** @param radius how wide to rub (the rag's radius is adjustable; the server clamps it) */
     public record EraseAt(SurfacePlane plane, double u, double v, float radius) implements CustomPacketPayload {
         public static final Type<EraseAt> TYPE = typeOf("erase_at");
         public static final StreamCodec<ByteBuf, EraseAt> CODEC = StreamCodec.composite(
@@ -91,7 +88,6 @@ public final class Payloads {
     static final StreamCodec<ByteBuf, InteractionHand> HAND = ByteBufCodecs.BOOL.map(
             b -> b ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND, h -> h == InteractionHand.OFF_HAND);
 
-    /** A stroke on a page of the paper / book / palm quire held in {@code hand}, in page units (-1..1). */
     public record PageStroke(InteractionHand hand, int page, float[] pts) implements CustomPacketPayload {
         public static final Type<PageStroke> TYPE = typeOf("page_stroke");
         public static final StreamCodec<ByteBuf, PageStroke> CODEC = StreamCodec.composite(
@@ -106,6 +102,16 @@ public final class Payloads {
         public static final StreamCodec<ByteBuf, PageErase> CODEC = StreamCodec.composite(
                 HAND, PageErase::hand, ByteBufCodecs.VAR_INT, PageErase::page, ByteBufCodecs.FLOAT, PageErase::u,
                 ByteBufCodecs.FLOAT, PageErase::v, PageErase::new);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    public record PageNote(InteractionHand hand, int page, String title, String notes) implements CustomPacketPayload {
+        public static final Type<PageNote> TYPE = typeOf("page_note");
+        public static final StreamCodec<ByteBuf, PageNote> CODEC = StreamCodec.composite(
+                HAND, PageNote::hand, ByteBufCodecs.VAR_INT, PageNote::page,
+                ByteBufCodecs.stringUtf8(256), PageNote::title, ByteBufCodecs.stringUtf8(2048), PageNote::notes, PageNote::new);
 
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
@@ -129,7 +135,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** The quick-close key: finish the ring on the current page in hand. */
     public record QuickClose() implements CustomPacketPayload {
         public static final Type<QuickClose> TYPE = typeOf("quick_close");
         public static final StreamCodec<ByteBuf, QuickClose> CODEC = StreamCodec.unit(new QuickClose());
@@ -137,8 +142,6 @@ public final class Payloads {
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
-
-    // ---------------- server -> client ----------------
 
     public record StrokesAdded(SurfacePlane plane, List<InkStroke> strokes) implements CustomPacketPayload {
         public static final Type<StrokesAdded> TYPE = typeOf("strokes_added");
@@ -151,14 +154,13 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** How worn each point of these strokes now is, one byte a point (see InkWear); an empty array means unworn. */
     public record StrokeWear(long[] ids, List<byte[]> wear) implements CustomPacketPayload {
         public static final Type<StrokeWear> TYPE = typeOf("stroke_wear");
         public static final StreamCodec<ByteBuf, StrokeWear> CODEC = new StreamCodec<>() {
             @Override
             public StrokeWear decode(ByteBuf buf) {
                 long[] ids = LONGS.decode(buf);
-                List<byte[]> w = new java.util.ArrayList<>(ids.length);
+                List<byte[]> w = new ArrayList<>(ids.length);
                 for (int i = 0; i < ids.length; i++) {
                     int n = buf.readInt();
                     if (n < 0 || n > InkStroke.MAX_POINTS) throw new IllegalArgumentException("wear too long: " + n);
@@ -191,7 +193,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** @param ticksLeft for ACTIVE: how long the spell still runs (the glyph fades out over this time) */
     public record StrokeStates(long[] ids, byte state, int color, int ticksLeft) implements CustomPacketPayload {
         public static final Type<StrokeStates> TYPE = typeOf("stroke_states");
         public static final StreamCodec<ByteBuf, StrokeStates> CODEC = StreamCodec.composite(
@@ -202,8 +203,7 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Visual state of a running spell, sent every tick to players nearby. ticksLeft 0 = it ended. */
-    public record SpellFx(long id, int color, byte form, boolean handheld, java.util.UUID caster,
+    public record SpellFx(long id, int color, byte form, boolean handheld, UUID caster,
                           double ox, double oy, double oz, float nx, float ny, float nz, float dx, float dy, float dz,
                           float radius, float length, float width, int ticksLeft, int duration, int mods) implements CustomPacketPayload {
         public static final Type<SpellFx> TYPE = typeOf("spell_fx");
@@ -215,7 +215,7 @@ public final class Payloads {
             buf.writeFloat(f.dx); buf.writeFloat(f.dy); buf.writeFloat(f.dz);
             buf.writeFloat(f.radius); buf.writeFloat(f.length); buf.writeFloat(f.width);
             buf.writeInt(f.ticksLeft); buf.writeInt(f.duration); buf.writeInt(f.mods);
-        }, buf -> new SpellFx(buf.readLong(), buf.readInt(), buf.readByte(), buf.readBoolean(), new java.util.UUID(buf.readLong(), buf.readLong()),
+        }, buf -> new SpellFx(buf.readLong(), buf.readInt(), buf.readByte(), buf.readBoolean(), new UUID(buf.readLong(), buf.readLong()),
                 buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
                 buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
                 buf.readInt(), buf.readInt(), buf.readInt()));
@@ -224,7 +224,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Where a bird of light is and where it is going (sent every tick while it flies). */
     public record BirdFx(long spell, int bird, int color, float x, float y, float z, float vx, float vy, float vz, int age, int life)
             implements CustomPacketPayload {
         public static final Type<BirdFx> TYPE = typeOf("bird_fx");
@@ -240,7 +239,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** A Capture Pennant's banner streaming out from {@code caster} to {@code target} (-1: at nothing, to x y z). */
     public record PennantFx(int caster, int target, float x, float y, float z, int hold) implements CustomPacketPayload {
         public static final Type<PennantFx> TYPE = typeOf("pennant_fx");
         public static final StreamCodec<ByteBuf, PennantFx> CODEC = StreamCodec.of((buf, f) -> {
@@ -252,7 +250,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Where the player pinned a grimoire page's glyph to trace it (or that they let it go). */
     public record TracePin(boolean pinned, SurfacePlane plane, double u, double v, double turn, double scale) implements CustomPacketPayload {
         public static final Type<TracePin> TYPE = typeOf("trace_pin");
         public static final StreamCodec<ByteBuf, TracePin> CODEC = StreamCodec.of((buf, f) -> {
@@ -265,7 +262,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Techniques the player has learned from books (sent on joining and when one is learned). */
     public record Techniques(boolean imaginedRing) implements CustomPacketPayload {
         public static final Type<Techniques> TYPE = typeOf("techniques");
         public static final StreamCodec<ByteBuf, Techniques> CODEC = ByteBufCodecs.BOOL.map(Techniques::new, Techniques::imaginedRing);
@@ -274,17 +270,15 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** All windowways of the dimension (sent whenever one opens, joins or closes). */
-    public record WindowwaySync(List<com.fimkov.witchsatelier.windowway.PortalFrame> frames) implements CustomPacketPayload {
+    public record WindowwaySync(List<PortalFrame> frames) implements CustomPacketPayload {
         public static final Type<WindowwaySync> TYPE = typeOf("windowway_sync");
-        public static final StreamCodec<ByteBuf, WindowwaySync> CODEC = com.fimkov.witchsatelier.windowway.PortalFrame.CODEC
+        public static final StreamCodec<ByteBuf, WindowwaySync> CODEC = PortalFrame.CODEC
                 .apply(ByteBufCodecs.list(256)).map(WindowwaySync::new, WindowwaySync::frames);
 
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** The client stepped through window {@code id}. */
     public record PortalCross(long id) implements CustomPacketPayload {
         public static final Type<PortalCross> TYPE = typeOf("portal_cross");
         public static final StreamCodec<ByteBuf, PortalCross> CODEC = ByteBufCodecs.VAR_LONG.map(PortalCross::new, PortalCross::id);
@@ -293,7 +287,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Heels together: the glyph on the boots fires (or, if running, stops). */
     public record BootsJoin() implements CustomPacketPayload {
         public static final Type<BootsJoin> TYPE = typeOf("boots_join");
         public static final StreamCodec<ByteBuf, BootsJoin> CODEC = StreamCodec.unit(new BootsJoin());
@@ -302,7 +295,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** Forget all cached ink (sent before a full resync on login / dimension change). */
     public record ResetGlyphs() implements CustomPacketPayload {
         public static final Type<ResetGlyphs> TYPE = typeOf("reset_glyphs");
         public static final StreamCodec<ByteBuf, ResetGlyphs> CODEC = StreamCodec.unit(new ResetGlyphs());
@@ -311,7 +303,6 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** The glyph at (u, v) on {@code plane} turns into shadows for a while and is gone; {@code ids} were its lines. */
     public record BadApple(SurfacePlane plane, double u, double v, float radius, float up, long[] ids) implements CustomPacketPayload {
         public static final Type<BadApple> TYPE = typeOf("bad_apple");
         public static final StreamCodec<ByteBuf, BadApple> CODEC = StreamCodec.of((buf, f) -> {

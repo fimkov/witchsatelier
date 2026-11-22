@@ -1,11 +1,15 @@
 package com.fimkov.witchsatelier.client.dev;
 
-/** Screenshot harness only, and only with JEI loaded: opens JEI on the Awakening recipes. */
+import com.fimkov.witchsatelier.compat.AwakeningJeiCategory;
+import com.fimkov.witchsatelier.compat.WitchsAtelierJeiPlugin;
+
+import java.util.List;
+
 final class JeiShot {
     private JeiShot() {}
 
     static void open() {
-        var rt = com.fimkov.witchsatelier.compat.WitchsAtelierJeiPlugin.runtime;
-        if (rt != null) rt.getRecipesGui().showTypes(java.util.List.of(com.fimkov.witchsatelier.compat.AwakeningJeiCategory.TYPE));
+        var rt = WitchsAtelierJeiPlugin.runtime;
+        if (rt != null) rt.getRecipesGui().showTypes(List.of(AwakeningJeiCategory.TYPE));
     }
 }

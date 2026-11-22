@@ -19,10 +19,6 @@ import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSeriali
 
 import java.util.Optional;
 
-/**
- * The one piece of a {@link WitchStructure}: the whole place, built in one go by its builder when the chunk it
- * stands in is decorated (it reaches no further than the chunks next to it, as any feature may).
- */
 public class WitchStructurePiece extends StructurePiece {
     private final String kind;
     private final BlockPos origin;
@@ -53,11 +49,11 @@ public class WitchStructurePiece extends StructurePiece {
     @Override
     public void postProcess(WorldGenLevel level, StructureManager structures, ChunkGenerator generator, RandomSource random,
                             BoundingBox chunkBox, ChunkPos chunkPos, BlockPos pivot) {
-        if (!chunkPos.equals(new ChunkPos(origin))) return; // built once, from its own chunk
+        if (!chunkPos.equals(new ChunkPos(origin))) return;
         int y = level.getHeight(Heightmap.Types.WORLD_SURFACE_WG, origin.getX(), origin.getZ());
         var ctx = new FeaturePlaceContext<>(Optional.empty(), level, generator, RandomSource.create(seed),
                 new BlockPos(origin.getX(), y, origin.getZ()), NoneFeatureConfiguration.INSTANCE);
-        // the structure already judged the site fit: build, whatever small things have changed on it since
+
         switch (kind) {
             default -> ModFeatures.LIBRARY.get().build(ctx, false);
         }

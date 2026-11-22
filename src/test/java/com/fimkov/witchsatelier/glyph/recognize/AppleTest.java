@@ -6,16 +6,16 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The apple no book shows: drawn in a ring by hand it reads as an apple, and no recipe reads as one. */
 class AppleTest {
     static final GlyphLibrary.Recipe APPLE = new GlyphLibrary.Recipe("apple", Sigil.APPLE, 0.6, List.of());
 
     static GlyphReading draw(GlyphLibrary.Recipe r, long seed, double sloppiness) {
         HandDrawn h = new HandDrawn(seed, sloppiness);
-        java.util.Random rnd = new java.util.Random(seed * 31 + 7);
+        Random rnd = new Random(seed * 31 + 7);
         double turn = rnd.nextDouble() * Math.PI * 2;
         h.recipe(r, 1.4 + rnd.nextDouble() * 1.6, turn);
         double up = turn + Math.PI / 2 + rnd.nextGaussian() * 0.3;

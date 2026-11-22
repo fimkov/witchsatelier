@@ -8,7 +8,6 @@ import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.level.block.Blocks;
 
-/** Colours and particles per element. */
 public final class ElementLook {
     private ElementLook() {}
 
@@ -31,13 +30,11 @@ public final class ElementLook {
         };
     }
 
-    /** Soft glowing motes in the element's colour. */
     public static ParticleOptions particle(Sigil s) {
         if (s == Sigil.WATER) return droplet();
         return ModParticles.mote(withAlpha(color(s, null), s == Sigil.WIND || s == Sigil.AERIFORMS ? 0.55f : 0.85f));
     }
 
-    /** Sharp sparks for beams, bolts and bursts; earth throws real grit. */
     public static ParticleOptions trail(Sigil s) {
         if (s == Sigil.EARTH) return new BlockParticleOption(ParticleTypes.BLOCK, Blocks.COARSE_DIRT.defaultBlockState());
         if (s == Sigil.WATER) return spray();
@@ -48,17 +45,14 @@ public final class ElementLook {
         return ModParticles.rune(withAlpha(color(s, center), 0.9f));
     }
 
-    /** A drop of clear water, faintly blue. */
     public static ParticleOptions droplet() {
         return ModParticles.droplet(0xE8A8D8FF);
     }
 
-    /** Fine white spray. */
     public static ParticleOptions spray() {
         return ModParticles.mist(0x99E6F4FF);
     }
 
-    /** Scalding white steam. */
     public static ParticleOptions steam() {
         return ModParticles.mist(0xCCF4F4F4);
     }

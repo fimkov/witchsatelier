@@ -3,6 +3,7 @@ package com.fimkov.witchsatelier.spell;
 import com.fimkov.witchsatelier.glyph.GlyphService;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -20,10 +21,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Wall Breaker (earth + Crush) pulverises the surface it is drawn on; Integration (earth + reversed Crush)
- * puts pulverised blocks back together. Pulverised blocks are remembered for a while so they can be restored.
- */
 public final class Earthworks {
     private static final long MEMORY_TICKS = 20 * 60 * 10;
 
@@ -61,7 +58,7 @@ public final class Earthworks {
         }
         Vec3 o = p.origin();
         level.playSound(null, o.x, o.y, o.z, SoundEvents.GRAVEL_BREAK, SoundSource.BLOCKS, 1.5f, 0.6f);
-        com.mojang.logging.LogUtils.getLogger().debug("[earth] crush at {} r={} depth={}: {} blocks", p.origin(), r, depth, removed.size());
+        LogUtils.getLogger().debug("[earth] crush at {} r={} depth={}: {} blocks", p.origin(), r, depth, removed.size());
         GlyphService.onBlocksRemoved(level, removed);
     }
 
@@ -81,7 +78,7 @@ public final class Earthworks {
             it.remove();
             count++;
         }
-        com.mojang.logging.LogUtils.getLogger().debug("[earth] restore at {} range {}: {} restored, {} remembered", origin, range, count, memory.size());
+        LogUtils.getLogger().debug("[earth] restore at {} range {}: {} restored, {} remembered", origin, range, count, memory.size());
         if (count > 0) level.playSound(null, origin.x, origin.y, origin.z, SoundEvents.STONE_PLACE, SoundSource.BLOCKS, 1.5f, 0.8f);
     }
 }

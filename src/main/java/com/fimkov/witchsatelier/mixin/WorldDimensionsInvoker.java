@@ -7,7 +7,6 @@ import net.minecraft.world.level.levelgen.WorldDimensions;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
-/** Reaches the game's own judgement of whether one dimension is "vanilla-like" (stable). */
 @Mixin(WorldDimensions.class)
 public interface WorldDimensionsInvoker {
     @Invoker("checkStability")

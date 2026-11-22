@@ -3,32 +3,32 @@ package com.fimkov.witchsatelier.glyph.page;
 import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
-import com.fimkov.witchsatelier.glyph.recognize.Pt;
-import com.fimkov.witchsatelier.glyph.recognize.Templates;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages.Page;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages.PageStroke;
+import com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer;
+import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
+import com.fimkov.witchsatelier.glyph.recognize.Pt;
+import com.fimkov.witchsatelier.glyph.recognize.Templates;
+import com.fimkov.witchsatelier.registry.ModComponents;
+import com.fimkov.witchsatelier.registry.ModItems;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * Glyphs known from old books: what turns up in grimoires and on loose pages in ruins, and what the stranger
- * carries. Each is drawn by a steady but human hand (small wobbles), the signs evenly around the sigil.
- */
 public final class GlyphLibrary {
     private GlyphLibrary() {}
 
-    /** One sign group: {@code count} copies of a sign placed evenly, starting at {@code startDeg}. */
     public record Signs(SignType type, int count, double startDeg, double size) {}
 
-    /** The band of a nested glyph: what is drawn between its inner and outer ring. */
     public record Band(Sigil sigil, List<Signs> signs) {}
 
-    /**
-     * @param centerSign a sign drawn in the middle instead of a sigil (the Window of a windowway), or null
-     * @param band       for a nested glyph: what goes around the inner ring, or null
-     */
     public record Recipe(String name, Sigil sigil, SignType centerSign, double sigilSize, List<Signs> signs, Band band) {
         public Recipe(String name, Sigil sigil, double sigilSize, List<Signs> signs) {
             this(name, sigil, null, sigilSize, signs, null);
@@ -78,7 +78,6 @@ public final class GlyphLibrary {
             new Recipe("steam_pillar", Sigil.FIRE, null, 0.55, List.of(new Signs(SignType.COLUMN, 4, 45, 0.28)),
                     new Band(Sigil.WATER, List.of(new Signs(SignType.COLUMN, 3, 30, 0.14)))));
 
-    /** Glyphs the Pact forbids. They are not in honest grimoires; Brimhats carry them, and one stranger. */
     public static final List<Recipe> FORBIDDEN = List.of(
             new Recipe("petrification", Sigil.EARTH, 0.55, List.of(new Signs(SignType.EYE, 4, 45, 0.28))));
 
@@ -88,19 +87,14 @@ public final class GlyphLibrary {
         return null;
     }
 
-    /** A page torn from a forbidden book, its ring left open. */
-    public static net.minecraft.world.item.ItemStack forbiddenPageItem(RandomSource rnd) {
+    public static ItemStack forbiddenPageItem(RandomSource rnd) {
         Recipe r = FORBIDDEN.get(rnd.nextInt(FORBIDDEN.size()));
-        net.minecraft.world.item.ItemStack page = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.TORN_PAGE.get());
-        page.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.of(draw(r, rnd, true, InkType.BLOOD)), 0));
-        page.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.of(r.name()));
+        ItemStack page = new ItemStack(ModItems.TORN_PAGE.get());
+        page.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.of(draw(r, rnd, true, InkType.BLOOD)), 0));
+        page.set(ModComponents.GRIMOIRE_ENTRIES.get(), List.of(r.name()));
         return page;
     }
 
-    /**
-     * The glyph on a page (page units, radius 0.85). With {@code gap} the ring is left open by about 50°, the way
-     * witches prepare pages to close in a hurry.
-     */
     public static Page draw(Recipe recipe, RandomSource rnd, boolean gap, InkType ink) {
         List<PageStroke> out = new ArrayList<>();
         double radius = 0.85;
@@ -109,7 +103,6 @@ public final class GlyphLibrary {
         if (recipe.band() == null) {
             core(out, recipe, radius, 1, rnd, ink);
         } else {
-            // a glyph inside a glyph: the inner ring at about 0.52, the band's marks between the two
             double inner = radius * 0.6;
             out.add(new PageStroke(ring(inner, 0, 360, rnd), ink));
             core(out, recipe, inner, inner / radius, rnd, ink);
@@ -173,18 +166,15 @@ public final class GlyphLibrary {
         }
     }
 
-    /** The recipe written on a grimoire's page, or null (the opening pages, a blank one, a book that is no grimoire). */
-    public static Recipe recipeOf(net.minecraft.world.item.ItemStack book, int page) {
-        List<String> names = book.get(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get());
+    public static Recipe recipeOf(ItemStack book, int page) {
+        List<String> names = book.get(ModComponents.GRIMOIRE_ENTRIES.get());
         return names == null || page < 0 || page >= names.size() ? null : byName(names.get(page));
     }
 
-    /** The recipe drawn as the grimoire draws it today (the same hand every time). */
     public static Page fresh(Recipe r) {
         return draw(r, RandomSource.create(r.name().hashCode()), false, InkType.LASTING);
     }
 
-    /** A page's strokes as plane points (page units). */
     public static List<List<Pt>> strokesOf(Page page) {
         List<List<Pt>> out = new ArrayList<>();
         for (PageStroke st : page.strokes()) {
@@ -196,10 +186,9 @@ public final class GlyphLibrary {
         return out;
     }
 
-    /** True if {@code g} reads as {@code r} means: its sigil, its signs (as many of each), its band if nested. */
-    public static boolean readsAs(Recipe r, com.fimkov.witchsatelier.glyph.recognize.GlyphReading g) {
+    public static boolean readsAs(Recipe r, GlyphReading g) {
         if (g.ring() == null) return false;
-        com.fimkov.witchsatelier.glyph.recognize.GlyphReading core = g;
+        GlyphReading core = g;
         if (r.band() != null) {
             if (g.core() == null || g.sigil() != r.band().sigil() || !sameSigns(r.band().signs(), g)) return false;
             core = g.core();
@@ -209,39 +198,30 @@ public final class GlyphLibrary {
         return core.sigil() == r.sigil() && core.centerSign() == r.centerSign() && sameSigns(r.signs(), core);
     }
 
-    private static boolean sameSigns(List<Signs> want, com.fimkov.witchsatelier.glyph.recognize.GlyphReading g) {
-        java.util.Map<SignType, Integer> a = new java.util.EnumMap<>(SignType.class), b = new java.util.EnumMap<>(SignType.class);
+    private static boolean sameSigns(List<Signs> want, GlyphReading g) {
+        Map<SignType, Integer> a = new EnumMap<>(SignType.class), b = new EnumMap<>(SignType.class);
         for (Signs s : want) a.merge(s.type(), s.count(), Integer::sum);
         for (var s : g.signs()) b.merge(s.type(), 1, Integer::sum);
         return a.equals(b);
     }
 
-    /**
-     * Redraws the page at {@code page} if it no longer reads as its recipe (drawn by an older hand, before a sign
-     * was redrawn): true if it changed.
-     */
-    public static boolean refreshPage(net.minecraft.world.item.ItemStack book) {
-        GlyphPages gp = book.get(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get());
+    public static boolean refreshPage(ItemStack book) {
+        GlyphPages gp = book.get(ModComponents.GLYPH_PAGES.get());
         if (gp == null || gp.pages().isEmpty()) return false;
         int page = gp.current();
         Recipe r = recipeOf(book, page);
         if (r == null) return false;
-        var reading = com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer.analyze(strokesOf(gp.page(page)), PageService.PAGE_INK);
+        var reading = GlyphAnalyzer.analyze(strokesOf(gp.page(page)), PageService.PAGE_INK);
         if (readsAs(r, reading)) return false;
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), gp.withPage(page, fresh(r)));
+        book.set(ModComponents.GLYPH_PAGES.get(), gp.withPage(page, fresh(r)));
         return true;
     }
 
-    /** The opening page of every grimoire: how glyphs work at all. */
     public static final String BASICS = "basics";
-    /** The second page of every grimoire: the technique of seeing a ring before drawing it. */
+
     public static final String IMAGINED_RING = "imagined_ring";
 
-    /**
-     * A grimoire: the opening page on how glyphs work, then {@code count} different glyphs (complete rings, to
-     * copy from), each explained. {@code first} entries come right after the opening page.
-     */
-    public static net.minecraft.world.item.ItemStack grimoireBook(RandomSource rnd, int count, String... first) {
+    public static ItemStack grimoireBook(RandomSource rnd, int count, String... first) {
         List<Recipe> pool = new ArrayList<>(ALL);
         List<Page> pages = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -260,33 +240,24 @@ public final class GlyphLibrary {
             pages.add(draw(r, rnd, false, InkType.LASTING));
             names.add(r.name());
         }
-        net.minecraft.world.item.ItemStack book = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get());
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(names));
+        ItemStack book = new ItemStack(ModItems.GRIMOIRE.get());
+        book.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
+        book.set(ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(names));
         return book;
     }
 
-    /**
-     * One of the old books a witch can come across. Each is its own: a title, and a handful of entries on one theme
-     * (glyph recipes, or text pages such as {@link #BASICS}), with no blank pages. Nobody finds every glyph in one book.
-     */
     public record Volume(String id, List<String> entries) {
-        /** The book's name: {@code item.witchsatelier.grimoire.<id>}. */
         public String titleKey() {
             return "item.witchsatelier.grimoire." + id;
         }
     }
 
-    /**
-     * The first book, the one the Stranger gives: how glyphs work and three glyphs to start with, and at the very end,
-     * in blood ink, a page that should never have been in it (as in the book a stranger once gave a girl named Coco).
-     */
     public static final Volume PRIMER = new Volume("primer", List.of(BASICS, "lantern", "birds_of_light", "pillar_of_flame", "petrification"));
-    /** A thin notebook on the one technique: seeing the ring before drawing it. Reading it teaches it. */
+
     public static final Volume RING_NOTES = new Volume("imagined_ring", List.of(IMAGINED_RING));
-    /** A black-bound book of what the Pact forbids. */
+
     public static final Volume FORBIDDEN_BOOK = new Volume("forbidden", List.of("forbidden_magic", "the_pact", "blood_ink", "petrification", "brimhats", "knights_moralis"));
-    /** The books found in libraries and sold by the Stranger, each on its own theme. */
+
     public static final List<Volume> VOLUMES = List.of(
             new Volume("flame", List.of("fan_of_flame", "fire_bolts", "warming_hearth", "snare_of_flame", "steam_pillar")),
             new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep")),
@@ -296,52 +267,46 @@ public final class GlyphLibrary {
             new Volume("rings_within_rings", List.of("everburning_pillar", "sentinel_bolts", "pillar_and_volley", "crystal_ward", "binding_threads")),
             new Volume("odd_signs", List.of("windowway", "night_eye", "veil_of_unseeing", "puppet_dance")));
 
-    /** The book itself: each glyph entry drawn complete, to copy from; text entries face a blank page. */
-    public static net.minecraft.world.item.ItemStack volumeBook(Volume v, RandomSource rnd) {
+    public static ItemStack volumeBook(Volume v, RandomSource rnd) {
         List<Page> pages = new ArrayList<>();
         for (String e : v.entries()) {
             Recipe r = byName(e);
             Page picture = r == null ? Illustrations.of(e, rnd) : null;
             pages.add(r != null ? draw(r, rnd, false, FORBIDDEN.contains(r) ? InkType.BLOOD : InkType.LASTING) : picture != null ? picture : Page.EMPTY);
         }
-        net.minecraft.world.item.ItemStack book = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get());
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(v.entries()));
-        book.set(net.minecraft.core.component.DataComponents.ITEM_NAME, net.minecraft.network.chat.Component.translatable(v.titleKey()));
+        ItemStack book = new ItemStack(ModItems.GRIMOIRE.get());
+        book.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
+        book.set(ModComponents.GRIMOIRE_ENTRIES.get(), List.copyOf(v.entries()));
+        book.set(DataComponents.ITEM_NAME, Component.translatable(v.titleKey()));
         return book;
     }
 
-    /** One of the themed books, at random. */
-    public static net.minecraft.world.item.ItemStack randomVolume(RandomSource rnd) {
+    public static ItemStack randomVolume(RandomSource rnd) {
         return volumeBook(VOLUMES.get(rnd.nextInt(VOLUMES.size())), rnd);
     }
 
-    /** Pages of the Book of Contraptions: what witches make for everyone else, and the tools they draw with. */
     public static final List<String> CONTRAPTIONS = List.of("contraptions", "beast_warding_tower", "washing_barrel", "light_tracer_bangle",
             "raincleaver", "mirror_mantle", "arcane_lens", "drawing_tools", "glowstone_path", "dragon_teacup", "wingcloak", "tent_staff", "capture_pennant", "linked_glyphs", "forbidden_magic");
 
-    /** A grimoire that explains contraptions (text only). */
-    public static net.minecraft.world.item.ItemStack contraptionsBook() {
+    public static ItemStack contraptionsBook() {
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < CONTRAPTIONS.size(); i++) pages.add(Page.EMPTY);
-        net.minecraft.world.item.ItemStack book = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GRIMOIRE.get());
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
-        book.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), CONTRAPTIONS);
-        book.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                net.minecraft.network.chat.Component.translatable("item.witchsatelier.book_of_contraptions").withStyle(net.minecraft.ChatFormatting.ITALIC));
+        ItemStack book = new ItemStack(ModItems.GRIMOIRE.get());
+        book.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(pages), 0));
+        book.set(ModComponents.GRIMOIRE_ENTRIES.get(), CONTRAPTIONS);
+        book.set(DataComponents.CUSTOM_NAME,
+                Component.translatable("item.witchsatelier.book_of_contraptions").withStyle(ChatFormatting.ITALIC));
         return book;
     }
 
-    /** A crumpled page with a prepared glyph (ring left open), remembering which glyph it is. */
-    public static net.minecraft.world.item.ItemStack preparedPageItem(RandomSource rnd) {
+    public static ItemStack preparedPageItem(RandomSource rnd) {
         Recipe r = ALL.get(rnd.nextInt(ALL.size()));
-        net.minecraft.world.item.ItemStack page = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.TORN_PAGE.get());
-        page.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.of(draw(r, rnd, true, InkType.CONJURING)), 0));
-        page.set(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get(), List.of(r.name()));
+        ItemStack page = new ItemStack(ModItems.TORN_PAGE.get());
+        page.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.of(draw(r, rnd, true, InkType.CONJURING)), 0));
+        page.set(ModComponents.GRIMOIRE_ENTRIES.get(), List.of(r.name()));
         return page;
     }
 
-    /** A grimoire with {@code count} different glyphs, complete rings (a reference to copy from). */
     public static GlyphPages grimoire(RandomSource rnd, int count) {
         List<Recipe> pool = new ArrayList<>(ALL);
         List<Page> pages = new ArrayList<>();
@@ -352,7 +317,6 @@ public final class GlyphLibrary {
         return new GlyphPages(List.copyOf(pages), 0);
     }
 
-    /** A crumpled page with a prepared glyph, ring left open: close it (V) to cast. */
     public static GlyphPages preparedPage(RandomSource rnd) {
         return new GlyphPages(List.of(draw(ALL.get(rnd.nextInt(ALL.size())), rnd, true, InkType.CONJURING)), 0);
     }

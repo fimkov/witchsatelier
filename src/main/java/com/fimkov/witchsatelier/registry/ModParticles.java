@@ -10,16 +10,15 @@ import net.minecraft.network.codec.StreamCodec;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-/** Glowing, tinted particles for spells: soft motes, sharp sparks and drifting rune fragments. */
 public final class ModParticles {
     public static final DeferredRegister<ParticleType<?>> TYPES = DeferredRegister.create(Registries.PARTICLE_TYPE, WitchsAtelier.MODID);
 
     public static final DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> MOTE = colored("mote");
     public static final DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> SPARK = colored("spark");
     public static final DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> RUNE = colored("rune");
-    /** Real drops of water: fall, splash, lit by the world. */
+
     public static final DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> DROPLET = colored("droplet");
-    /** Spray and steam. */
+
     public static final DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> MIST = colored("mist");
 
     private static DeferredHolder<ParticleType<?>, ParticleType<ColorParticleOption>> colored(String name) {

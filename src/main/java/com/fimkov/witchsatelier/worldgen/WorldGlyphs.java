@@ -1,6 +1,7 @@
 package com.fimkov.witchsatelier.worldgen;
 
 import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
@@ -17,10 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/**
- * Glyphs that world generation draws onto walls and floors (in ateliers and ruins). World generation runs off
- * the main thread, so the ink is queued here and laid down on the next tick of the level.
- */
 public final class WorldGlyphs {
     private record Job(ResourceKey<Level> dim, SurfacePlane plane, List<double[]> strokes) {}
 
@@ -28,14 +25,10 @@ public final class WorldGlyphs {
 
     private WorldGlyphs() {}
 
-    /**
-     * Queues a library glyph on the {@code face} of the block at {@code pos}, {@code radius} blocks across,
-     * with its ring left open (a prepared glyph) when {@code open}.
-     */
     public static void draw(ResourceKey<Level> dim, BlockPos pos, Direction face, String recipe, double radius, boolean open, RandomSource rnd) {
         GlyphLibrary.Recipe r = GlyphLibrary.byName(recipe);
         if (r == null) return;
-        GlyphPages.Page page = GlyphLibrary.draw(r, rnd, open, com.fimkov.witchsatelier.glyph.ink.InkType.LASTING);
+        GlyphPages.Page page = GlyphLibrary.draw(r, rnd, open, InkType.LASTING);
         SurfacePlane plane = SurfacePlane.of(pos, face);
         Pt c = plane.toUV(Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(face.getNormal()).scale(0.5)));
         double k = radius / 0.85;
@@ -58,7 +51,7 @@ public final class WorldGlyphs {
             Job j = it.next();
             if (!j.dim().equals(level.dimension())) continue;
             it.remove();
-            GlyphService.inscribe(level, j.plane(), j.strokes(), com.fimkov.witchsatelier.glyph.ink.InkType.LASTING, null);
+            GlyphService.inscribe(level, j.plane(), j.strokes(), InkType.LASTING, null);
         }
     }
 }

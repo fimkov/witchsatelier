@@ -4,15 +4,15 @@ import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
-/** Screenshot harness only: turns blocks built in the world into a ship (a Sable sub-level), as Aeronautics does. */
 public final class SableFilm {
     private SableFilm() {}
 
-    /** Takes away every ship in the level (they are not blocks: clearing a scene leaves them otherwise). */
     public static void clearShips(ServerLevel level) {
         var container = dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
         if (container == null) return;
@@ -20,8 +20,7 @@ public final class SableFilm {
             container.removeSubLevel(sub, dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason.REMOVED);
     }
 
-    /** Every block in the box becomes one ship. @return where a world point inside the box is kept in its plot */
-    public static java.util.function.UnaryOperator<net.minecraft.world.phys.Vec3> assemble(ServerLevel level, BlockPos min, BlockPos max) {
+    public static UnaryOperator<Vec3> assemble(ServerLevel level, BlockPos min, BlockPos max) {
         List<BlockPos> blocks = new ArrayList<>();
         for (BlockPos p : BlockPos.betweenClosed(min, max)) if (!level.getBlockState(p).isAir()) blocks.add(p.immutable());
         if (blocks.isEmpty()) return null;

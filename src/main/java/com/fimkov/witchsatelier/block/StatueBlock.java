@@ -1,7 +1,8 @@
 package com.fimkov.witchsatelier.block;
 
-import com.mojang.serialization.MapCodec;
 import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModSounds;
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.BlockParticleOption;
@@ -15,10 +16,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
@@ -30,10 +29,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.Optional;
 
-/**
- * What petrification leaves: the creature turned to stone, exactly as it stood. Break it and it is gone for
- * good. An Integration glyph (Earth with reversed Crush) drawn around it gives it back its life.
- */
 public class StatueBlock extends BaseEntityBlock {
     public static final MapCodec<StatueBlock> CODEC = simpleCodec(StatueBlock::new);
     private static final VoxelShape SHAPE = box(3, 0, 3, 13, 16, 13);
@@ -62,7 +57,6 @@ public class StatueBlock extends BaseEntityBlock {
         return new Entity(pos, state);
     }
 
-    /** Turns a creature to stone where it stands. @return true if it became a statue */
     public static boolean petrify(ServerLevel level, Mob mob) {
         BlockPos at = mob.blockPosition();
         if (!level.getBlockState(at).canBeReplaced()) return false;
@@ -78,13 +72,12 @@ public class StatueBlock extends BaseEntityBlock {
         level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ModBlocks.PETRIFIED.get().defaultBlockState()), mob.getX(), mob.getY() + mob.getBbHeight() / 2,
                 mob.getZ(), 30, 0.3, mob.getBbHeight() / 3, 0.3, 0.1);
         level.sendParticles(ParticleTypes.END_ROD, mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ(), 12, 0.3, mob.getBbHeight() / 3, 0.3, 0.03);
-        level.playSound(null, at, com.fimkov.witchsatelier.registry.ModSounds.PETRIFY.get(), SoundSource.HOSTILE, 1.2f, 1f);
+        level.playSound(null, at, ModSounds.PETRIFY.get(), SoundSource.HOSTILE, 1.2f, 1f);
         level.playSound(null, at, SoundEvents.BASALT_BREAK, SoundSource.HOSTILE, 1f, 0.5f);
         mob.discard();
         return true;
     }
 
-    /** Integration: statues within range come back to life. */
     public static int revive(ServerLevel level, Vec3 center, double range) {
         int n = 0;
         BlockPos c = BlockPos.containing(center);
@@ -110,14 +103,13 @@ public class StatueBlock extends BaseEntityBlock {
     public static class Entity extends BlockEntity {
         CompoundTag data;
         float yaw;
-        /** Client: the creature as it stood, made once for drawing. */
+
         public net.minecraft.world.entity.Entity shown;
 
         public Entity(BlockPos pos, BlockState state) {
             super(ModBlocks.STATUE_BE.get(), pos, state);
         }
 
-        /** For world generation: a statue of {@code type} standing here. */
         public void set(CompoundTag data, float yaw) {
             this.data = data;
             this.yaw = yaw;

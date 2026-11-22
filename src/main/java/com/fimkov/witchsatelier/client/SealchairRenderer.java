@@ -1,9 +1,11 @@
 package com.fimkov.witchsatelier.client;
 
+import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.block.SealchairBlock;
+import com.fimkov.witchsatelier.entity.SealchairEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.fimkov.witchsatelier.WitchsAtelier;
-import com.fimkov.witchsatelier.entity.SealchairEntity;
+import com.mojang.math.Axis;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -12,18 +14,21 @@ import net.minecraft.client.model.geom.builders.CubeListBuilder;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
-/** The Sealchair: seat, carved back, and four slender hoofed legs that step like a goat's. */
 public class SealchairRenderer extends MobRenderer<SealchairEntity, SealchairRenderer.Model> {
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "sealchair"), "main");
     static final ResourceLocation TEX = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/sealchair.png");
 
     public SealchairRenderer(EntityRendererProvider.Context ctx) {
-        super(ctx, new Model(ctx.bakeLayer(LAYER)), 0f); // a chair throws no creature's shadow
+        super(ctx, new Model(ctx.bakeLayer(LAYER)), 0f);
     }
 
     @Override
@@ -49,24 +54,23 @@ public class SealchairRenderer extends MobRenderer<SealchairEntity, SealchairRen
         return LayerDefinition.create(mesh, 64, 64);
     }
 
-    /** The chair at rest, as a block: the same carved model, standing still. */
-    public static class AtRest implements net.minecraft.client.renderer.blockentity.BlockEntityRenderer<com.fimkov.witchsatelier.block.SealchairBlock.Entity> {
+    public static class AtRest implements BlockEntityRenderer<SealchairBlock.Entity> {
         private final Model model;
 
-        public AtRest(net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider.Context ctx) {
+        public AtRest(BlockEntityRendererProvider.Context ctx) {
             model = new Model(ctx.bakeLayer(LAYER));
         }
 
         @Override
-        public void render(com.fimkov.witchsatelier.block.SealchairBlock.Entity be, float pt, PoseStack ps, net.minecraft.client.renderer.MultiBufferSource buffers, int light, int overlay) {
-            float yaw = be.getBlockState().getValue(com.fimkov.witchsatelier.block.SealchairBlock.FACING).toYRot();
+        public void render(SealchairBlock.Entity be, float pt, PoseStack ps, MultiBufferSource buffers, int light, int overlay) {
+            float yaw = be.getBlockState().getValue(SealchairBlock.FACING).toYRot();
             ps.pushPose();
             ps.translate(0.5, 0, 0.5);
-            ps.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180 - yaw));
+            ps.mulPose(Axis.YP.rotationDegrees(180 - yaw));
             ps.scale(-1, -1, 1);
             ps.translate(0, -1.501, 0);
             model.setupAnim(null, 0, 0, 0, 0, 0);
-            model.renderToBuffer(ps, buffers.getBuffer(net.minecraft.client.renderer.RenderType.entityCutoutNoCull(TEX)), light, overlay, -1);
+            model.renderToBuffer(ps, buffers.getBuffer(RenderType.entityCutoutNoCull(TEX)), light, overlay, -1);
             ps.popPose();
         }
     }

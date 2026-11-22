@@ -9,7 +9,6 @@ import net.minecraft.world.level.block.Block;
 
 import java.util.List;
 
-/** A Sealchair to set down: it stands on its four hoofed legs until someone sits in it. */
 public class SealchairItem extends BlockItem {
     public SealchairItem(Block block, Properties props) {
         super(block, props);

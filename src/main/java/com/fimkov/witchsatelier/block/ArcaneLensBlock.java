@@ -14,10 +14,6 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * Arcane Lense: a great lens from before the Pact. A glyph drawn on it, or set right behind or before it, is
- * amplified: its spell comes out far stronger than its ink and size would give.
- */
 public class ArcaneLensBlock extends HorizontalDirectionalBlock {
     public static final MapCodec<ArcaneLensBlock> CODEC = simpleCodec(ArcaneLensBlock::new);
     public static final double AMPLIFY = 1.8;
@@ -48,7 +44,6 @@ public class ArcaneLensBlock extends HorizontalDirectionalBlock {
         return state.getValue(FACING).getAxis() == Direction.Axis.Z ? NS : EW;
     }
 
-    /** True if a lens sits within reach of a glyph centred at {@code at}. */
     public static boolean near(Level level, Vec3 at) {
         BlockPos c = BlockPos.containing(at);
         for (BlockPos p : BlockPos.betweenClosed(c.offset(-1, -1, -1), c.offset(1, 1, 1))) {

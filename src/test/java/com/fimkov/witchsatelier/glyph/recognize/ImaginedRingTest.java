@@ -4,14 +4,14 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ImaginedRingTest {
-    /** A shaky hand going round {@code turns} times (degrees) on a circle of radius 3 around (10, 5). */
     private static double[] shaky(double turns, int n) {
         double[] xy = new double[n * 2];
-        java.util.Random rnd = new java.util.Random(4);
+        Random rnd = new Random(4);
         for (int i = 0; i < n; i++) {
             double a = Math.toRadians(20 + turns * i / (n - 1));
             double r = 3 * (1 + 0.07 * Math.sin(a * 3) + 0.02 * rnd.nextGaussian());
@@ -33,10 +33,9 @@ class ImaginedRingTest {
 
     @Test
     void aRingIsOnlyImaginedOnceItGoesRoundASecondTime() {
-        // a ring drawn round once, closed with the overshoot a hand gives it, stays ink
         assertFalse(noticedAnywhere(shaky(130, 40)));
         assertFalse(noticedAnywhere(shaky(380, 120)));
-        // into the second lap: seen in the air
+
         assertTrue(ImaginedRing.noticed(shaky(440, 140), 140, 0.45, 12));
         double[] line = new double[80];
         for (int i = 0; i < 40; i++) { line[i * 2] = i * 0.1; line[i * 2 + 1] = 0.02 * Math.sin(i); }
@@ -45,7 +44,6 @@ class ImaginedRingTest {
 
     @Test
     void aScribbleToAndFroRoundACircleIsNoRing() {
-        // on round, but swinging back by turns: it gets round twice in all, but no witch circles like that
         int n = 400;
         double[] xy = new double[n * 2];
         for (int i = 0; i < n; i++) {
@@ -58,7 +56,6 @@ class ImaginedRingTest {
         assertFalse(noticedAnywhere(xy));
     }
 
-    /** No curve of a sign or sigil, at any size a glyph is drawn, is taken for a ring - not even all of it in one line. */
     @Test
     void signsAndSigilsAreNeverTakenForARing() {
         List<Templates.Template> all = new ArrayList<>(Templates.SIGILS);
@@ -80,7 +77,6 @@ class ImaginedRingTest {
         }
     }
 
-    /** As the game asks it: every few points while the line is drawn. */
     private static boolean noticedAnywhere(double[] xy) {
         int n = xy.length / 2;
         for (int k = 4; k <= n; k += 4) if (ImaginedRing.noticed(xy, k, 0.45, 12) || ImaginedRing.noticed(xy, k, 0.12, 1.3)) return true;
@@ -118,7 +114,7 @@ class ImaginedRingTest {
         assertTrue(ImaginedRing.circledTwice(laps, 300));
         double[] ring = ImaginedRing.trueRing(laps, 300, 0.45, 12, 0.35, 0.08);
         assertNotNull(ring);
-        // round: every point at the same distance from the centre
+
         for (int i = 0; i < ring.length; i += 2) {
             double d = Math.hypot(ring[i] - 10, ring[i + 1] - 5);
             assertEquals(3, d, 0.15);
@@ -127,7 +123,7 @@ class ImaginedRingTest {
         assertNotNull(r.ring(), r.describe());
         assertTrue(r.ring().roundness() > 0.98, r.describe());
         assertFalse(r.closed(), "the ring waits with its gap: " + r.describe());
-        // a short stroke across the gap closes it
+
         int n = ring.length / 2;
         double[] closer = {ring[(n - 1) * 2], ring[(n - 1) * 2 + 1],
                 (ring[(n - 1) * 2] + ring[0]) / 2 * 1.0, (ring[(n - 1) * 2 + 1] + ring[1]) / 2, ring[0], ring[1]};

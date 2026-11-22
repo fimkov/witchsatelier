@@ -11,7 +11,6 @@ import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/** A long crystal shard jutting out of a petrified mass, pointing away from it. Integration takes it away with the rest. */
 public class PetrifiedClusterBlock extends Block {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
     private static final VoxelShape SHAPE = box(3, 3, 3, 13, 13, 13);

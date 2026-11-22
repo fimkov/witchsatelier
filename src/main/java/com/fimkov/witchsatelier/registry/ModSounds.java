@@ -1,13 +1,13 @@
 package com.fimkov.witchsatelier.registry;
 
 import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.glyph.model.Sigil;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-/** The mod's own sounds (synthesised: chimes of glyphs coming alive, the scratch of a nib, a page tearing...). */
 public final class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUNDS = DeferredRegister.create(Registries.SOUND_EVENT, WitchsAtelier.MODID);
 
@@ -28,11 +28,10 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> ELEMENT_WIND = sound("element_wind");
     public static final DeferredHolder<SoundEvent, SoundEvent> ELEMENT_LIGHT = sound("element_light");
     public static final DeferredHolder<SoundEvent, SoundEvent> CLOTH_RUSTLE = sound("cloth_rustle");
-    /** Only there once tools/bad_apple.py has been run (it adds the sound file and its entry). */
+
     public static final DeferredHolder<SoundEvent, SoundEvent> BAD_APPLE = sound("bad_apple");
 
-    /** The voice of an element as its glyph wakes. */
-    public static SoundEvent element(com.fimkov.witchsatelier.glyph.model.Sigil s) {
+    public static SoundEvent element(Sigil s) {
         if (s == null) return null;
         return switch (s) {
             case FIRE -> ELEMENT_FIRE.get();

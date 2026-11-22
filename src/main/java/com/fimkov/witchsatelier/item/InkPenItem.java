@@ -17,19 +17,13 @@ import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 
-/**
- * The witch's ink wand: a dip pen. It carries only a little ink on the nib and dips itself into the ink bottle
- * held in the other hand. Use on a surface to start drawing.
- */
 public class InkPenItem extends Item {
-    /** Ink the nib holds: 64 blocks of line before it needs dipping again. */
     public static final int NIB_CAPACITY = 256;
 
     public InkPenItem(Properties props) {
         super(props.stacksTo(1));
     }
 
-    /** Holding use on a surface "uses" the pen like a brush; the client draws while it is in use. */
     @Override
     public InteractionResult useOn(UseOnContext ctx) {
         Player player = ctx.getPlayer();
@@ -37,7 +31,6 @@ public class InkPenItem extends Item {
         return InteractionResult.CONSUME;
     }
 
-    /** Ink on the nib running down or the wand wearing away is no reason to lower and raise the hand again. */
     @Override
     public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
         return slotChanged || !ItemStack.isSameItem(oldStack, newStack);
@@ -53,12 +46,10 @@ public class InkPenItem extends Item {
         return UseAnim.NONE;
     }
 
-    /** The ink a line comes out as, given the ink the pen takes up (the searneedle sears it, chalk is chalk). */
     public InkType lineInk(InkType source) {
         return source;
     }
 
-    /** True for tools that carry their own drawing stuff instead of dipping into an inkwell. */
     public boolean selfInked() {
         return false;
     }
@@ -72,7 +63,6 @@ public class InkPenItem extends Item {
         else pen.set(ModComponents.LOADED_INK.get(), new LoadedInk(type, Math.min(amount, NIB_CAPACITY)));
     }
 
-    /** The ink the next line will be drawn with: what is on the nib, else what the inkwell it would dip into holds. */
     public static InkType inkFor(Player player, ItemStack pen) {
         LoadedInk l = loaded(pen);
         if (l != null && l.amount() > 0) return l.type();
@@ -81,10 +71,6 @@ public class InkPenItem extends Item {
         return c != null ? c.type() : InkType.CONJURING;
     }
 
-    /**
-     * The inkwell the pen dips into: the one in the other hand, else the first non-empty one in the inventory.
-     * With {@code ink} set, only an inkwell holding that ink counts.
-     */
     public static ItemStack findInkwell(Player player, ItemStack pen, InkType ink) {
         ItemStack other = player.getMainHandItem() == pen ? player.getOffhandItem() : player.getMainHandItem();
         if (usable(other, ink)) return other;

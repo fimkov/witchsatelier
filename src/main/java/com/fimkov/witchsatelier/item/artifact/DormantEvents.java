@@ -4,9 +4,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
-/** A dormant artifact does nothing when used and cannot be set down: it says so, and how to wake it. */
 public final class DormantEvents {
     private DormantEvents() {}
 
@@ -20,7 +20,7 @@ public final class DormantEvents {
     public static void onUseOnBlock(PlayerInteractEvent.RightClickBlock e) {
         ItemStack stack = e.getItemStack();
         if (!Awakening.dormant(stack)) return;
-        e.setUseItem(net.neoforged.neoforge.common.util.TriState.FALSE);
+        e.setUseItem(TriState.FALSE);
         tell(e.getEntity());
     }
 

@@ -28,11 +28,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Beast Warding Tower: a little brick tower with a Beast Repellent seal on hide behind its hatch. While the seal
- * holds, no hostile creature spawns near it, and those that wander close are driven back. The seal fades
- * after a few days and must be restored with a pen, the way witches tend the towers along the roads.
- */
 public class BeastWardingTowerBlock extends SealedBlock {
     public static final MapCodec<BeastWardingTowerBlock> CODEC = simpleCodec(BeastWardingTowerBlock::new);
     public static final int RADIUS = 24;
@@ -91,7 +86,6 @@ public class BeastWardingTowerBlock extends SealedBlock {
         }
     }
 
-    /** Hostile creatures do not spawn near a tower whose seal holds. */
     public static void onSpawnCheck(MobSpawnEvent.PositionCheck e) {
         if (!(e.getEntity() instanceof Enemy) || e.getSpawnType() == MobSpawnType.SPAWNER || e.getSpawnType() == MobSpawnType.SPAWN_EGG
                 || e.getSpawnType() == MobSpawnType.COMMAND || e.getSpawnType() == MobSpawnType.TRIAL_SPAWNER) return;

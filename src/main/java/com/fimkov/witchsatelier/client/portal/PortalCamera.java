@@ -1,15 +1,16 @@
 package com.fimkov.witchsatelier.client.portal;
 
+import com.fimkov.witchsatelier.windowway.PortalFrame;
 import net.minecraft.client.Camera;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
-/** A camera that can be put anywhere, turned any way (roll too): the eye on the far side of a window. */
 final class PortalCamera extends Camera {
     void place(Vec3 pos, Quaternionf rot) {
-        Vec3 fwd = toVec(new org.joml.Vector3f(0, 0, -1).rotate(rot));
-        float[] yp = com.fimkov.witchsatelier.windowway.PortalFrame.yawPitch(fwd);
-        setRotation(yp[0], yp[1]); // keeps getYRot/getXRot meaningful for the renderer's bookkeeping
+        Vec3 fwd = toVec(new Vector3f(0, 0, -1).rotate(rot));
+        float[] yp = PortalFrame.yawPitch(fwd);
+        setRotation(yp[0], yp[1]);
         rotation().set(rot);
         getLookVector().set(0, 0, -1).rotate(rot);
         getUpVector().set(0, 1, 0).rotate(rot);
@@ -21,7 +22,7 @@ final class PortalCamera extends Camera {
 
     private static java.lang.reflect.Field field(String name) {
         try {
-            java.lang.reflect.Field f = net.minecraft.client.Camera.class.getDeclaredField(name);
+            java.lang.reflect.Field f = Camera.class.getDeclaredField(name);
             f.setAccessible(true);
             return f;
         } catch (NoSuchFieldException e) {
@@ -29,8 +30,7 @@ final class PortalCamera extends Camera {
         }
     }
 
-    /** The eased eye height (it follows sneaking and the like) from a camera that is ticked to one that is not. */
-    static void copyEyeHeight(net.minecraft.client.Camera from, net.minecraft.client.Camera to) {
+    static void copyEyeHeight(Camera from, Camera to) {
         try {
             EYE.setFloat(to, EYE.getFloat(from));
             EYE_OLD.setFloat(to, EYE_OLD.getFloat(from));
@@ -39,7 +39,7 @@ final class PortalCamera extends Camera {
         }
     }
 
-    private static Vec3 toVec(org.joml.Vector3f v) {
+    private static Vec3 toVec(Vector3f v) {
         return new Vec3(v.x, v.y, v.z);
     }
 }

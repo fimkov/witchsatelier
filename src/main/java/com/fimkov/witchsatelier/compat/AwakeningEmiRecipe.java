@@ -15,7 +15,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 
-/** EMI: a dormant artifact, the glyph to draw on it, and the artifact awake. */
 public class AwakeningEmiRecipe implements EmiRecipe {
     public static final EmiRecipeCategory CATEGORY = new EmiRecipeCategory(
             ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "awakening"), EmiStack.of(ModItems.INK_PEN.get()));

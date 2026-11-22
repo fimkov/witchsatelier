@@ -12,7 +12,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RecognizerTest {
-
     private static final double NOISE = 0.03;
 
     @Test
@@ -63,7 +62,6 @@ class RecognizerTest {
         assertTrue(failures.size() <= Templates.SIGNS.size() * 8 / 10, "too many misread signs: " + failures);
     }
 
-    /** Shapes that look the same turned 90 or 180 degrees can't reveal their orientation; that is fine. */
     private static boolean symmetricUnderTurn(SignType type, Orientation drawn, Orientation read) {
         return switch (type) {
             case WINDOW, CROSSHAIR, VISION, BILLOWING, DANCING_PUPPET, RAIN, ENLARGE -> true;
@@ -102,7 +100,7 @@ class RecognizerTest {
         assertEquals(1, rings.size());
         assertFalse(rings.get(0).closed(), "should be open, gap " + rings.get(0).maxGap());
 
-        d.ring(new Pt(0, 0), 1.0, 345, 385); // short closing stroke over the gap
+        d.ring(new Pt(0, 0), 1.0, 345, 385);
         rings = RingFinder.find(d.strokes, Drawing.INK);
         assertEquals(1, rings.size());
         assertTrue(rings.get(0).closed(), "should be closed, gap " + rings.get(0).maxGap());
@@ -131,7 +129,7 @@ class RecognizerTest {
         Drawing d = new Drawing(4, 0.02);
         d.ring(new Pt(0, 0), 1.5, 0, 362);
         d.put(template(Sigil.WATER), new Pt(0, 0), 0.8, 0);
-        // three columns on the right half, one on the left
+
         double[] angles = {-40, 0, 40, 180};
         for (double a : angles) {
             double pos = Math.toRadians(a);
@@ -151,11 +149,10 @@ class RecognizerTest {
         return Templates.SIGNS.stream().filter(t -> t.sign() == s && !t.reversed()).findFirst().orElseThrow().strokes();
     }
 
-    /** Roughly what was drawn in game: wobbly ring, rounded fire sigil, four wide "T" columns, ring closed later. */
     @Test
     void handDrawnFireGlyphLikeInGame() {
         Drawing d = new Drawing(9, 0.035);
-        d.ring(new Pt(0, 0), 1.45, 100, 445);           // the ring, with a gap near the top
+        d.ring(new Pt(0, 0), 1.45, 100, 445);
         List<List<Pt>> dome = Shapes.of().arc(0, -0.3, 0.8, 5, 175).line(-0.8, -0.3, 0.8, -0.3).line(0.05, 0.5, 0.05, -1.05).build();
         d.put(dome, new Pt(0.05, 0), 0.75, 0.05);
         List<List<Pt>> tee = Shapes.of().line(0, -0.55, 0, 0.55).line(-1, 0.55, 1, 0.55).build();
@@ -166,7 +163,7 @@ class RecognizerTest {
         GlyphReading open = GlyphAnalyzer.analyze(d.strokes, Drawing.INK);
         System.out.println("in-game open:  " + open.describe());
         assertFalse(open.closed(), open.describe());
-        d.ring(new Pt(0, 0), 1.52, 75, 112);             // closing stroke, drawn a little outside the ring line
+        d.ring(new Pt(0, 0), 1.52, 75, 112);
         GlyphReading r = GlyphAnalyzer.analyze(d.strokes, Drawing.INK);
         System.out.println("in-game closed: " + r.describe());
         assertTrue(r.closed(), r.describe());

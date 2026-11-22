@@ -1,6 +1,7 @@
 package com.fimkov.witchsatelier.glyph.surface;
 
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
+import com.fimkov.witchsatelier.spell.GlyphFrame;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -9,23 +10,12 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * An infinite drawing plane made of block faces that all face the same way at the same depth:
- * for example every top face at y = 64, or every north face at z = 10. A glyph can span many blocks of one plane.
- * <p>
- * Points on the plane are (u, v) in blocks, with axes chosen so that u x v points out of the face,
- * so drawings read the same way as seen from in front of the wall or floor.
- *
- * @param face  which way the drawn-on faces point
- * @param layer block coordinate along the face's axis of the blocks being drawn on
- */
-public record SurfacePlane(Direction face, int layer) implements com.fimkov.witchsatelier.spell.GlyphFrame {
+public record SurfacePlane(Direction face, int layer) implements GlyphFrame {
     public static final StreamCodec<ByteBuf, SurfacePlane> STREAM_CODEC = StreamCodec.composite(
             Direction.STREAM_CODEC, SurfacePlane::face,
             ByteBufCodecs.VAR_INT, SurfacePlane::layer,
             SurfacePlane::new);
 
-    /** World coordinate of the plane along the face axis. */
     public double depth() {
         return layer + (face.getAxisDirection() == Direction.AxisDirection.POSITIVE ? 1 : 0);
     }
@@ -45,7 +35,6 @@ public record SurfacePlane(Direction face, int layer) implements com.fimkov.witc
         };
     }
 
-    /** World position of (u, v), lifted {@code offset} blocks off the face. */
     public Vec3 toWorld(double u, double v, double offset) {
         double d = depth() + offset * face.getAxisDirection().getStep();
         return switch (face) {
@@ -61,13 +50,11 @@ public record SurfacePlane(Direction face, int layer) implements com.fimkov.witc
         return toWorld(p.x(), p.y(), offset);
     }
 
-    /** The block whose face contains the point (u, v). */
     public BlockPos blockAt(double u, double v) {
         Vec3 w = toWorld(u, v, -0.5);
         return BlockPos.containing(w.x, w.y, w.z);
     }
 
-    /** The in-plane direction (u, v) expressed as a world vector. */
     @Override
     public Vec3 planeVector(double du, double dv) {
         return toWorld(du, dv, 0).subtract(toWorld(0, 0, 0));
@@ -78,7 +65,6 @@ public record SurfacePlane(Direction face, int layer) implements com.fimkov.witc
         return Vec3.atLowerCornerOf(face.getNormal());
     }
 
-    /** Intersection of a ray with the plane, or null if parallel or behind. */
     public Vec3 intersect(Vec3 origin, Vec3 dir) {
         Direction.Axis axis = face.getAxis();
         double o = axis.choose(origin.x, origin.y, origin.z);

@@ -1,23 +1,15 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-/**
- * $P point-cloud recognizer (Vatavu, Anthony, Wobbrock 2012), adapted:
- * <ul>
- *   <li>not rotation invariant, because the orientation of a sign carries meaning;</li>
- *   <li>dots (very short strokes) are expanded into tiny circles so they keep weight after resampling.</li>
- * </ul>
- * Strokes are lists of points; stroke order and direction do not matter.
- */
 public final class PointCloud {
     public static final int N = 48;
     private static final double DOT_FRACTION = 0.08;
 
     private PointCloud() {}
 
-    /** Normalised cloud: N points, scaled uniformly into a unit box, centred on the centroid. */
     public static Pt[] normalize(List<List<Pt>> strokes) {
         List<List<Pt>> expanded = expandDots(strokes);
         Pt[] pts = resample(expanded, N);
@@ -30,15 +22,10 @@ public final class PointCloud {
         return out;
     }
 
-    /** Symmetric greedy cloud distance; 0 means identical. */
     public static double distance(Pt[] a, Pt[] b) {
         return distance(a, b, Double.POSITIVE_INFINITY);
     }
 
-    /**
-     * As {@link #distance(Pt[], Pt[])}, but anything at or above {@code bound} is of no interest: a matching that
-     * already costs that much is given up early and {@code bound} comes back (the result below it is exact).
-     */
     public static double distance(Pt[] a, Pt[] b, double bound) {
         int n = a.length;
         double[] ax = new double[n], ay = new double[n], bx = new double[n], by = new double[n];
@@ -55,11 +42,10 @@ public final class PointCloud {
 
     private static double cloudDistance(double[] ax, double[] ay, double[] bx, double[] by, int start, double bound, boolean[] matched) {
         int n = ax.length;
-        java.util.Arrays.fill(matched, false);
+        Arrays.fill(matched, false);
         double sum = 0;
         int i = start;
         do {
-            // nearest unmatched point, compared by squared distance (one square root per point, not per pair)
             int index = -1;
             double min = Double.POSITIVE_INFINITY;
             double px = ax[i], py = ay[i];
@@ -73,7 +59,7 @@ public final class PointCloud {
             matched[index] = true;
             double weight = 1 - ((i - start + n) % n) / (double) n;
             sum += weight * Math.sqrt(min);
-            if (sum >= bound) return sum; // already no better than the best so far
+            if (sum >= bound) return sum;
             i = (i + 1) % n;
         } while (i != start);
         return sum;

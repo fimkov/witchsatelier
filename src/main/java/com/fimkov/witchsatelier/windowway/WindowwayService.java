@@ -1,9 +1,11 @@
 package com.fimkov.witchsatelier.windowway;
 
+import com.fimkov.witchsatelier.advancement.MagicTrigger;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
 import com.fimkov.witchsatelier.network.Net;
 import com.fimkov.witchsatelier.network.Payloads;
 import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModSounds;
 import com.fimkov.witchsatelier.spell.ActiveSpell;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -25,15 +27,10 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Windowways: a ring with the Window sign at its centre, drawn on a surface. Two of them drawn by the same
- * witch join up; while both hold, the wall behind each disc steps aside and whatever passes into one window
- * comes out of the other. Players cross on their own side (so the view never jumps) and tell the server;
- * everything else is carried across here.
- */
 public final class WindowwayService {
     private WindowwayService() {}
 
@@ -68,7 +65,6 @@ public final class WindowwayService {
         return o == null ? null : o.frame;
     }
 
-    /** A windowway glyph came alive: set up its window and join it to its partner if one is waiting. */
     public static void open(ServerLevel level, ActiveSpell spell) {
         if (spell.plane == null || of(level).containsKey(spell.id)) return;
         SurfacePlane plane = spell.plane;
@@ -78,7 +74,6 @@ public final class WindowwayService {
         if (Math.abs(n.y) < 0.5) {
             up = new Vec3(0, 1, 0);
         } else {
-            // on a floor or ceiling the window's "up" is the way its maker faced
             Player p = spell.caster == null ? null : level.getPlayerByUUID(spell.caster);
             Vec3 look = p == null ? new Vec3(0, 0, -1) : p.getLookAngle();
             Direction d = Direction.getNearest(look.x, 0, look.z);
@@ -86,10 +81,10 @@ public final class WindowwayService {
         }
         Open me = new Open(spell, PortalFrame.of(spell.id, center, up, n, spell.program.radius(), -1));
         of(level).put(spell.id, me);
-        // it joins the window its maker drew last that is still waiting
+
         Open partner = null;
         for (Open other : of(level).values()) {
-            if (other != me && other.frame.link() < 0 && java.util.Objects.equals(other.owner, me.owner)) partner = other;
+            if (other != me && other.frame.link() < 0 && Objects.equals(other.owner, me.owner)) partner = other;
         }
         if (partner != null) link(level, me, partner);
         sync(level);
@@ -107,7 +102,6 @@ public final class WindowwayService {
         }
     }
 
-    /** The glyph's spell ended (or its ink was broken): close the window and let its partner wait again. */
     public static void close(ServerLevel level, long spellId) {
         Open me = of(level).remove(spellId);
         if (me == null) return;
@@ -125,7 +119,6 @@ public final class WindowwayService {
         return false;
     }
 
-    /** Blocks the disc covers step aside (never unbreakable ones, never ones holding contents). */
     private static void openGaps(ServerLevel level, Open o) {
         PortalFrame f = o.frame;
         BlockPos c = BlockPos.containing(f.center().subtract(f.n().scale(0.5)));
@@ -154,7 +147,6 @@ public final class WindowwayService {
         o.gaps.clear();
     }
 
-    /** Carries everything but players across (players cross on their own side, see {@link #handleCross}). */
     public static void tick(ServerLevel level) {
         Map<Long, Open> open = of(level);
         if (open.isEmpty()) return;
@@ -177,7 +169,6 @@ public final class WindowwayService {
         if (now % 200 == 0) COOLDOWN.values().removeIf(t -> now - t > 100);
     }
 
-    /** Went from the window's front to behind it, through the disc. */
     public static boolean crossed(PortalFrame f, Vec3 prev, Vec3 cur) {
         double a = f.side(prev), b = f.side(cur);
         if (!(a >= 0 && b < 0)) return false;
@@ -201,7 +192,6 @@ public final class WindowwayService {
         whoosh(level, from, to);
     }
 
-    /** A player's client saw them step through window {@code id}. */
     public static void handleCross(ServerPlayer player, long id) {
         ServerLevel level = player.serverLevel();
         Open o = of(level).get(id);
@@ -209,13 +199,12 @@ public final class WindowwayService {
         if (to == null) return;
         PortalFrame f = o.frame;
         Vec3 c = player.position().add(0, player.getBbHeight() / 2, 0);
-        if (Math.abs(f.side(c)) > 2.5 || f.inPlane(c) > f.radius() + 1.5) return; // nowhere near it
+        if (Math.abs(f.side(c)) > 2.5 || f.inPlane(c) > f.radius() + 1.5) return;
         double h = player.getBbHeight() / 2;
         Vec3 at = PortalFrame.mapPoint(f, to.frame, c);
         float[] yp = PortalFrame.yawPitch(PortalFrame.mapDir(f, to.frame, player.getLookAngle()));
         Vec3 vel = PortalFrame.mapDir(f, to.frame, player.getDeltaMovement());
         if (player.position().distanceTo(at) > 96) {
-            // too far for the client to have the other side loaded: an ordinary teleport
             player.teleportTo(level, at.x, at.y - h, at.z, yp[0], yp[1]);
         } else {
             player.moveTo(at.x, at.y - h, at.z, yp[0], yp[1]);
@@ -225,13 +214,13 @@ public final class WindowwayService {
         player.setDeltaMovement(vel);
         player.resetFallDistance();
         whoosh(level, f, to.frame);
-        com.fimkov.witchsatelier.advancement.MagicTrigger.fire(player, "windowway");
+        MagicTrigger.fire(player, "windowway");
     }
 
     private static void whoosh(ServerLevel level, PortalFrame a, PortalFrame b) {
         for (PortalFrame f : List.of(a, b)) {
             Vec3 c = f.center();
-            level.playSound(null, c.x, c.y, c.z, com.fimkov.witchsatelier.registry.ModSounds.WINDOWWAY.get(), SoundSource.PLAYERS, 0.8f, 1f);
+            level.playSound(null, c.x, c.y, c.z, ModSounds.WINDOWWAY.get(), SoundSource.PLAYERS, 0.8f, 1f);
         }
     }
 
@@ -243,7 +232,6 @@ public final class WindowwayService {
         Net.toPlayer(player, new Payloads.WindowwaySync(frames(player.serverLevel())));
     }
 
-    /** Server shutting down: put every wall back. */
     public static void closeAll(ServerLevel level) {
         Map<Long, Open> open = OPEN.remove(level.dimension());
         if (open == null) return;

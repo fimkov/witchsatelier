@@ -6,7 +6,6 @@ import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 
-/** The ink a dip pen currently carries on its nib. */
 public record LoadedInk(InkType type, int amount) {
     public static final Codec<LoadedInk> CODEC = RecordCodecBuilder.create(i -> i.group(
             InkType.CODEC.fieldOf("type").forGetter(LoadedInk::type),

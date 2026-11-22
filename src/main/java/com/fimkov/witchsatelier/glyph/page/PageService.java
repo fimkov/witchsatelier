@@ -1,45 +1,58 @@
 package com.fimkov.witchsatelier.glyph.page;
 
+import com.fimkov.witchsatelier.advancement.MagicTrigger;
+import com.fimkov.witchsatelier.entity.Taboo;
+import com.fimkov.witchsatelier.entity.Witnesses;
+import com.fimkov.witchsatelier.glyph.DrawingDump;
 import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.Techniques;
 import com.fimkov.witchsatelier.glyph.ink.InkSupply;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
+import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages.Page;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages.PageStroke;
-import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.recognize.RingFinder;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.fimkov.witchsatelier.item.artifact.Awakening;
 import com.fimkov.witchsatelier.registry.ModComponents;
+import com.fimkov.witchsatelier.registry.ModItems;
+import com.fimkov.witchsatelier.registry.ModSounds;
+import com.fimkov.witchsatelier.spell.ActiveSpell;
 import com.fimkov.witchsatelier.spell.ElementLook;
 import com.fimkov.witchsatelier.spell.GlyphFrame;
 import com.fimkov.witchsatelier.spell.SpellCompiler;
-import com.fimkov.witchsatelier.spell.SpellProgram;
 import com.fimkov.witchsatelier.spell.SpellProgram.Form;
+import com.fimkov.witchsatelier.spell.SpellProgram;
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import org.joml.Vector3f;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-/**
- * Glyphs on pages held in the hand: paper, books and the palm quire. A page glyph casts from the hand the moment
- * its ring closes, so a witch prepares pages with a small gap and closes them when needed (one short stroke, or
- * the quick-close key). The page's ink burns up in the casting.
- */
 public final class PageService {
-    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
-    /** Line width on a page, in page units. */
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     public static final double PAGE_INK = 0.035;
     private static final double MAX_COORD = 1.08;
 
@@ -62,7 +75,7 @@ public final class PageService {
                     supply == null ? null : supply.penHand, hand, pts.length);
             return;
         }
-        com.fimkov.witchsatelier.entity.Witnesses.saw(player);
+        Witnesses.saw(player);
         double len = 0;
         for (int i = 0; i + 1 < pts.length; i += 2) {
             if (!Float.isFinite(pts[i]) || !Float.isFinite(pts[i + 1]) || Math.hypot(pts[i], pts[i + 1]) > MAX_COORD * 1.42) return;
@@ -75,7 +88,7 @@ public final class PageService {
             return;
         }
         supply.consume(cost);
-        if (supply.ink == com.fimkov.witchsatelier.glyph.ink.InkType.BLOOD) com.fimkov.witchsatelier.entity.Taboo.add(player, 1);
+        if (supply.ink == InkType.BLOOD) Taboo.add(player, 1);
         stack = single(player, hand, stack);
         GlyphPages gp = pages(stack, kind);
         if (gp.pages().isEmpty()) return;
@@ -110,16 +123,14 @@ public final class PageService {
         if (gp.pages().size() <= 1) return;
         save(stack, kind, gp.withCurrent(page));
         if (kind == PageKind.GRIMOIRE) {
-            // a page drawn by an older hand (before a sign was redrawn) is drawn again as the sign is now
             GlyphLibrary.refreshPage(stack);
-            java.util.List<String> names = stack.get(com.fimkov.witchsatelier.registry.ModComponents.GRIMOIRE_ENTRIES.get());
+            List<String> names = stack.get(ModComponents.GRIMOIRE_ENTRIES.get());
             int p = Math.floorMod(page, gp.pages().size());
-            if (names != null && p < names.size() && GlyphLibrary.IMAGINED_RING.equals(names.get(p))) com.fimkov.witchsatelier.glyph.Techniques.learnImaginedRing(player);
+            if (names != null && p < names.size() && GlyphLibrary.IMAGINED_RING.equals(names.get(p))) Techniques.learnImaginedRing(player);
         }
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BOOK_PAGE_TURN, SoundSource.PLAYERS, 0.6f, 1.2f);
     }
 
-    /** Tears the page out of the palm quire; it lands crumpled on the ground (and lasts there five minutes). */
     public static void handleTear(ServerPlayer player, InteractionHand hand, int page) {
         ItemStack stack = player.getItemInHand(hand);
         if (PageKind.of(stack) != PageKind.PALM_QUIRE) return;
@@ -130,18 +141,17 @@ public final class PageService {
         List<Page> left = new ArrayList<>(gp.pages());
         left.remove(p);
         stack.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.copyOf(left), left.isEmpty() ? 0 : Math.min(p, left.size() - 1)));
-        ItemStack crumpled = new ItemStack(com.fimkov.witchsatelier.registry.ModItems.TORN_PAGE.get());
+        ItemStack crumpled = new ItemStack(ModItems.TORN_PAGE.get());
         crumpled.set(ModComponents.GLYPH_PAGES.get(), new GlyphPages(List.of(torn), 0));
         player.drop(crumpled, false, true);
-        player.level().playSound(null, player.getX(), player.getY(), player.getZ(), com.fimkov.witchsatelier.registry.ModSounds.PAGE_TEAR.get(), SoundSource.PLAYERS, 1f, 1f);
+        player.level().playSound(null, player.getX(), player.getY(), player.getZ(), ModSounds.PAGE_TEAR.get(), SoundSource.PLAYERS, 1f, 1f);
     }
 
-    /** Quick close: finish the ring on the current page of the held paper/book/quire by inking over its gap. */
     public static void handleQuickClose(ServerPlayer player) {
         InteractionHand hand = castable(player.getOffhandItem()) ? InteractionHand.OFF_HAND
                 : castable(player.getMainHandItem()) ? InteractionHand.MAIN_HAND : null;
         if (hand == null) return;
-        com.fimkov.witchsatelier.entity.Witnesses.saw(player);
+        Witnesses.saw(player);
         ItemStack stack = player.getItemInHand(hand);
         PageKind kind = PageKind.of(stack);
         GlyphPages gp = pages(stack, kind);
@@ -174,13 +184,14 @@ public final class PageService {
 
     private static boolean castable(ItemStack stack) {
         PageKind k = PageKind.of(stack);
-        return k != null && !k.readOnly() && k != PageKind.BOOTS && k != PageKind.ARTIFACT;
+        return k != null && !k.readOnly() && k != PageKind.BOOTS && k != PageKind.ARTIFACT && k != PageKind.WITCH_GRIMOIRE;
     }
 
     private static void evaluate(ServerPlayer player, InteractionHand hand, ItemStack stack, PageKind kind, int page) {
+        if (kind == PageKind.WITCH_GRIMOIRE) return;
         GlyphPages gp = pages(stack, kind);
         Page pg = gp.page(page);
-        // on shoes the two halves are read pushed together, as the heels bring them
+
         GlyphReading r = GlyphAnalyzer.analyze(kind == PageKind.BOOTS ? PageKind.joinSoles(points(pg)) : points(pg), PAGE_INK);
         if (r.ring() == null) return;
         if (!r.closed()) {
@@ -191,7 +202,7 @@ public final class PageService {
             awaken(player, stack, r);
             return;
         }
-        com.fimkov.witchsatelier.glyph.DrawingDump.savePage(points(pg), PAGE_INK, r);
+        DrawingDump.savePage(points(pg), PAGE_INK, r);
         double len = 0, pot = 0, dur = 0, mis = 0;
         for (int i : r.usedStrokes()) {
             PageStroke s = pg.strokes().get(i);
@@ -204,7 +215,6 @@ public final class PageService {
         if (len == 0) { len = 1; pot = 1; dur = 1; }
         ServerLevel level = player.serverLevel();
         if (kind == PageKind.BOOTS) {
-            // boots keep their glyph: it waits until the heels click together
             level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8f, 1.8f);
             return;
         }
@@ -220,7 +230,6 @@ public final class PageService {
         boolean needsSurface = program.form() == Form.CRUSH || program.form() == Form.RESTORE;
         if (program.element() == Sigil.EARTH && program.form() == Form.BEAM) program = program.withForm(Form.BOLTS);
         if (needsSurface) {
-            // earthworks need something to work on: the surface the caster looks at
             BlockHitResult hit = level.clip(new ClipContext(player.getEyePosition(), player.getEyePosition().add(look.scale(8)),
                     ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
             if (hit.getType() != HitResult.Type.BLOCK) {
@@ -234,43 +243,37 @@ public final class PageService {
         } else {
             GlyphService.startSpell(level, null, program, player, true);
         }
-        if (program.form() == Form.PETRIFY) com.fimkov.witchsatelier.entity.Taboo.add(player, 40);
-        com.fimkov.witchsatelier.advancement.MagicTrigger.cast(player, program, "page");
+        if (program.form() == Form.PETRIFY) Taboo.add(player, 40);
+        MagicTrigger.cast(player, program, "page");
         LOGGER.debug("[cast] {}", program.summary());
         level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.FIRECHARGE_USE, SoundSource.PLAYERS, 0.5f, 1.6f);
 
-        // the ink burns away in the casting: a sheet of paper is used up, a book or quire turns to its next page
         if (kind == PageKind.PAPER || kind == PageKind.TORN_PAGE) {
             stack.shrink(1);
         } else {
             save(stack, kind, gp.withPage(page, Page.EMPTY).withCurrent(page + 1));
         }
         int color = ElementLook.color(program.element(), program.centerSign());
-        level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(((color >> 16) & 255) / 255f,
+        level.sendParticles(new DustParticleOptions(new Vector3f(((color >> 16) & 255) / 255f,
                 ((color >> 8) & 255) / 255f, (color & 255) / 255f), 1.2f), origin.x, origin.y, origin.z, 20, 0.25, 0.25, 0.25, 0.02);
     }
 
-    /** A dormant artifact's ring closed: if what is drawn is its own glyph it wakes; if not, the ink just fizzles. */
     private static void awaken(ServerPlayer player, ItemStack stack, GlyphReading r) {
         ServerLevel level = player.serverLevel();
-        GlyphLibrary.Recipe want = com.fimkov.witchsatelier.item.artifact.Awakening.glyphOf(stack);
+        GlyphLibrary.Recipe want = Awakening.glyphOf(stack);
         Vec3 at = player.getEyePosition().add(player.getLookAngle().scale(0.7)).subtract(0, 0.3, 0);
         if (want == null || !GlyphLibrary.readsAs(want, r)) {
             level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.4f, 1.6f);
-            level.sendParticles(net.minecraft.core.particles.ParticleTypes.SMOKE, at.x, at.y, at.z, 6, 0.15, 0.15, 0.15, 0.01);
+            level.sendParticles(ParticleTypes.SMOKE, at.x, at.y, at.z, 6, 0.15, 0.15, 0.15, 0.01);
             return;
         }
-        com.fimkov.witchsatelier.item.artifact.Awakening.wake(stack);
+        Awakening.wake(stack);
         level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1f, 1.2f);
-        level.playSound(null, player.getX(), player.getY(), player.getZ(), com.fimkov.witchsatelier.registry.ModSounds.RING_IGNITE.get(), SoundSource.PLAYERS, 0.8f, 1.1f);
-        level.sendParticles(net.minecraft.core.particles.ParticleTypes.END_ROD, at.x, at.y, at.z, 24, 0.25, 0.25, 0.25, 0.04);
-        com.fimkov.witchsatelier.advancement.MagicTrigger.fire(player, "awaken");
+        level.playSound(null, player.getX(), player.getY(), player.getZ(), ModSounds.RING_IGNITE.get(), SoundSource.PLAYERS, 0.8f, 1.1f);
+        level.sendParticles(ParticleTypes.END_ROD, at.x, at.y, at.z, 24, 0.25, 0.25, 0.25, 0.04);
+        MagicTrigger.fire(player, "awaken");
     }
 
-    /**
-     * Heels together (jump twice quickly): the glyph on the boots being worn comes alive, or, if it is already
-     * running, stops. The glyph stays on the boots; every casting wears them a little.
-     */
     public static void handleBootsJoin(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         var running = GlyphService.wornSpell(level, player.getUUID());
@@ -279,7 +282,7 @@ public final class PageService {
             level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AMETHYST_BLOCK_HIT, SoundSource.PLAYERS, 0.8f, 0.7f);
             return;
         }
-        ItemStack boots = player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET);
+        ItemStack boots = player.getItemBySlot(EquipmentSlot.FEET);
         if (PageKind.of(boots) != PageKind.BOOTS || !boots.has(ModComponents.GLYPH_PAGES.get())) return;
         Page pg = pages(boots, PageKind.BOOTS).page(0);
         GlyphReading r = GlyphAnalyzer.analyze(PageKind.joinSoles(points(pg)), PAGE_INK);
@@ -299,29 +302,25 @@ public final class PageService {
         Vec3 fwd = flat.lengthSqr() > 1e-4 ? flat.normalize() : new Vec3(0, 0, 1);
         Vec3 right = fwd.cross(new Vec3(0, 1, 0)).normalize();
         Vec3 feet = player.position().add(0, 0.03, 0);
-        SpellProgram program = SpellCompiler.compile(r, com.fimkov.witchsatelier.spell.ActiveSpell.wornFrame(right, fwd), feet, PageKind.BOOTS.scale,
+        SpellProgram program = SpellCompiler.compile(r, ActiveSpell.wornFrame(right, fwd), feet, PageKind.BOOTS.scale,
                 pot / len, dur / len, mis / len);
         level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.ARMOR_EQUIP_LEATHER.value(), SoundSource.PLAYERS, 1f, 1.6f);
         if (program.form() == Form.FIZZLE || program.form() == Form.CRUSH || program.form() == Form.RESTORE) {
-            GlyphService.fizzle(level, feet, com.fimkov.witchsatelier.spell.ActiveSpell.wornFrame(right, fwd), 0.3);
+            GlyphService.fizzle(level, feet, ActiveSpell.wornFrame(right, fwd), 0.3);
             return;
         }
         var spell = GlyphService.startSpell(level, null, program, player, true);
         spell.worn = true;
-        // the sylph shoes' glyph holds for as long as it is on the soles: until the heels click again, or water takes it
+
         if (program.form() == Form.LIFT) spell.ticksLeft = Integer.MAX_VALUE / 2;
-        com.fimkov.witchsatelier.advancement.MagicTrigger.cast(player, program, "boots");
-        boots.hurtAndBreak(1, player, net.minecraft.world.entity.EquipmentSlot.FEET);
+        MagicTrigger.cast(player, program, "boots");
+        boots.hurtAndBreak(1, player, EquipmentSlot.FEET);
         LOGGER.debug("[boots] {}", program.summary());
     }
 
-    /**
-     * Water takes ink off shoe soles, as it does any ink not made to stand it: wading in, the glyph on the shoes is
-     * gone (and whatever it was doing ends). Waterproof ink stays; even so nothing works under water.
-     */
-    public static void washBoots(net.neoforged.neoforge.event.tick.PlayerTickEvent.Post e) {
+    public static void washBoots(PlayerTickEvent.Post e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !p.isInWater() || p.tickCount % 5 != 0) return;
-        ItemStack boots = p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET);
+        ItemStack boots = p.getItemBySlot(EquipmentSlot.FEET);
         if (PageKind.of(boots) != PageKind.BOOTS) return;
         GlyphPages gp = boots.get(ModComponents.GLYPH_PAGES.get());
         if (gp == null || gp.page(0).isEmpty()) return;
@@ -331,7 +330,7 @@ public final class PageService {
         var running = GlyphService.wornSpell(p.serverLevel(), p.getUUID());
         if (running != null) GlyphService.stop(p.serverLevel(), running);
         p.serverLevel().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.4f, 1.8f);
-        p.serverLevel().sendParticles(net.minecraft.core.particles.ParticleTypes.BUBBLE, p.getX(), p.getY() + 0.1, p.getZ(), 12, 0.2, 0.05, 0.2, 0.02);
+        p.serverLevel().sendParticles(ParticleTypes.BUBBLE, p.getX(), p.getY() + 0.1, p.getZ(), 12, 0.2, 0.05, 0.2, 0.02);
     }
 
     public static List<List<Pt>> pointsOf(Page p) {
@@ -355,7 +354,107 @@ public final class PageService {
         if (kind == PageKind.PAPER || kind == PageKind.BOOK || kind == PageKind.BOOTS) stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, any);
     }
 
-    /** Drawing on a stack of paper (or books) takes one sheet off the stack; the rest goes back to the inventory. */
+    public static final int CARRIED_TICKS = 200;
+
+    public static ActiveSpell castOnSurface(ServerLevel level, Page pg, SurfacePlane plane,
+                                                                            Vec3 at, UUID caster) {
+        if (pg == null || pg.isEmpty()) return null;
+        GlyphReading r = GlyphAnalyzer.analyze(points(pg), PAGE_INK);
+        if (r.ring() == null) return null;
+        double len = 0, pot = 0, dur = 0, mis = 0;
+        for (int i : r.usedStrokes()) {
+            PageStroke s = pg.strokes().get(i);
+            double l = Math.max(0.02, s.length());
+            len += l;
+            pot += l * s.ink().potency;
+            dur += l * s.ink().duration;
+            mis += l * s.ink().misfire;
+        }
+        if (len == 0) { len = 1; pot = 1; dur = 1; }
+        SpellProgram program = SpellCompiler.compile(r, plane, at.add(plane.normal().scale(0.05)), PageKind.PAPER.scale, pot / len, dur / len, mis / len);
+        if (program.form() == Form.FIZZLE) {
+            GlyphService.fizzle(level, at, plane, 0.35);
+            return null;
+        }
+        var spell = GlyphService.startSpell(level, plane, program, caster, false);
+        spell.ticksLeft = Math.min(spell.ticksLeft, CARRIED_TICKS);
+        if (program.form() == Form.PETRIFY && caster != null && level.getPlayerByUUID(caster) instanceof ServerPlayer sp) Taboo.add(sp, 40);
+        int color = ElementLook.color(program.element(), program.centerSign());
+        level.sendParticles(new DustParticleOptions(new Vector3f(((color >> 16) & 255) / 255f,
+                ((color >> 8) & 255) / 255f, (color & 255) / 255f), 1.2f), at.x, at.y, at.z, 16, 0.25, 0.25, 0.25, 0.02);
+        return spell;
+    }
+
+    public static final int TITLE_MAX = 40, NOTES_MAX = 320;
+
+    public static void handleCopy(ServerPlayer player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack book = player.getItemInHand(hand);
+        if (PageKind.of(book) != PageKind.WITCH_GRIMOIRE) return;
+        ItemStack other = player.getItemInHand(hand == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
+        Page found = null;
+        String title = "";
+        if (PageKind.of(other) == PageKind.GRIMOIRE) {
+            GlyphPages from = pages(other, PageKind.GRIMOIRE);
+            int at = Math.floorMod(from.current(), Math.max(1, from.pages().size()));
+            found = from.page(at);
+            List<String> names = other.get(ModComponents.GRIMOIRE_ENTRIES.get());
+            if (names != null && at < names.size() && !names.get(at).isEmpty()) title = "#glyph.witchsatelier." + names.get(at);
+        } else if (hit != null && player.level() instanceof ServerLevel level) {
+            var plane = SurfacePlane.of(hit.getBlockPos(), hit.getDirection());
+            found = GlyphService.glyphAsPage(level, plane, plane.toUV(hit.getLocation()), player);
+        }
+        if (found == null || found.isEmpty()) {
+            player.displayClientMessage(Component.translatable("message.witchsatelier.grimoire.nothing"), true);
+            return;
+        }
+        book = single(player, hand, book);
+        GlyphPages gp = pages(book, PageKind.WITCH_GRIMOIRE);
+        int target = gp.page(gp.current()).isEmpty() ? gp.current() : -1;
+        for (int i = 0; target < 0 && i < gp.pages().size(); i++) if (gp.page(i).isEmpty()) target = i;
+        if (target < 0) {
+            player.displayClientMessage(Component.translatable("message.witchsatelier.grimoire.full"), true);
+            return;
+        }
+        save(book, PageKind.WITCH_GRIMOIRE, gp.withPage(target, found).withCurrent(target));
+        setNote(book, target, title, null);
+        claim(book, player);
+        Witnesses.saw(player);
+        player.level().playSound(null, player.getX(), player.getY(), player.getZ(), ModSounds.QUILL_SCRATCH.get(), SoundSource.PLAYERS, 1f, 1f);
+        player.displayClientMessage(Component.translatable("message.witchsatelier.grimoire.copied", target + 1), true);
+    }
+
+    public static void handleNote(ServerPlayer player, InteractionHand hand, int page, String title, String notes) {
+        ItemStack book = player.getItemInHand(hand);
+        if (PageKind.of(book) != PageKind.WITCH_GRIMOIRE) return;
+        book = single(player, hand, book);
+        GlyphPages gp = pages(book, PageKind.WITCH_GRIMOIRE);
+        if (!book.has(ModComponents.GLYPH_PAGES.get())) save(book, PageKind.WITCH_GRIMOIRE, gp);
+        setNote(book, Math.floorMod(page, gp.pages().size()), clean(title, TITLE_MAX), clean(notes, NOTES_MAX));
+        claim(book, player);
+    }
+
+    private static String clean(String s, int max) {
+        if (s == null) return "";
+        s = s.replaceAll("[\\p{Cntrl}&&[^\n]]", "");
+        return s.length() > max ? s.substring(0, max) : s;
+    }
+
+    private static void setNote(ItemStack book, int i, String title, String notes) {
+        int n = PageKind.WITCH_GRIMOIRE.maxPages;
+        List<String> titles = new ArrayList<>(book.getOrDefault(ModComponents.PAGE_TITLES.get(), List.of()));
+        List<String> texts = new ArrayList<>(book.getOrDefault(ModComponents.PAGE_NOTES.get(), List.of()));
+        while (titles.size() < n) titles.add("");
+        while (texts.size() < n) texts.add("");
+        titles.set(i, title == null ? "" : title);
+        if (notes != null) texts.set(i, notes);
+        book.set(ModComponents.PAGE_TITLES.get(), List.copyOf(titles));
+        book.set(ModComponents.PAGE_NOTES.get(), List.copyOf(texts));
+    }
+
+    private static void claim(ItemStack book, ServerPlayer player) {
+        if (!book.has(ModComponents.KEEPER.get())) book.set(ModComponents.KEEPER.get(), player.getGameProfile().getName());
+    }
+
     private static ItemStack single(ServerPlayer player, InteractionHand hand, ItemStack stack) {
         if (stack.getCount() <= 1 || stack.has(ModComponents.GLYPH_PAGES.get())) return stack;
         ItemStack sheet = stack.split(1);

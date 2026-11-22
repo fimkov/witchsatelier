@@ -3,19 +3,20 @@ package com.fimkov.witchsatelier.spell;
 import com.fimkov.witchsatelier.glyph.model.Orientation;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
-import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphReading.ReadSign;
+import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
 import com.fimkov.witchsatelier.spell.SpellProgram.Form;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * Turns what was read from a drawing into a runnable spell. The rules follow the source material:
- * size gives power, neatness gives duration and stability, unbalanced signs push the effect towards the side
- * that has more of them, reversed signs invert their effect.
- */
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 public final class SpellCompiler {
     private SpellCompiler() {}
 
@@ -23,35 +24,25 @@ public final class SpellCompiler {
         return compile(r, plane, inkPotency, 1.0, 0.0);
     }
 
-    /** Glyph drawn on a world surface. */
     public static SpellProgram compile(GlyphReading r, SurfacePlane plane, double inkPotency, double inkDuration, double inkMisfire) {
         return compile(r, plane, plane.toWorld(r.ring().center(), 0.05), 1.0, inkPotency, inkDuration, inkMisfire);
     }
 
-    /**
-     * @param plane       how the glyph sits in the world
-     * @param origin      where its centre is
-     * @param scale       blocks per drawing unit (pages are drawn in page units)
-     * @param inkDuration duration multiplier of the ink mix
-     * @param inkMisfire  extra backfire chance of the ink mix
-     */
     public static SpellProgram compile(GlyphReading r, GlyphFrame plane, Vec3 origin, double scale, double inkPotency,
                                        double inkDuration, double inkMisfire) {
         if (r.core() != null) return nested(r, plane, origin, scale, inkPotency, inkDuration, inkMisfire);
         double radius = r.ring().radius() * scale;
         Vec3 normal = plane.normal();
 
-        // ---- quality ----
         double ringQuality = Mth.clamp((r.ring().roundness() - 0.80) / 0.18, 0, 1);
         double symmetry = r.symmetry();
         double neat = r.neatness();
         long columns = r.count(SignType.COLUMN);
         double power = Mth.clamp(radius * radius * 4, 0.5, 60) * (0.5 + 0.5 * neat) * inkPotency
-                * (1 + 0.1 * Math.max(0, columns - 2));
+                * (1 + 0.1 * Math.max(0, columns - 2)) * signWeight(r);
         double quality = (0.3 + 0.7 * ringQuality) * (0.5 + 0.5 * symmetry) * (0.5 + 0.5 * neat);
         double misfire = Mth.clamp(0.55 - neat, 0, 0.5) + 0.1 * r.unknown() + (symmetry < 0.3 ? 0.1 : 0) + inkMisfire;
 
-        // ---- direction ----
         Vec3 dir = normal;
         boolean spread = false;
         double vortex = 0;
@@ -81,7 +72,6 @@ public final class SpellCompiler {
         if (dirSigns > 0) {
             double agree = Math.hypot(px, py) / dirSigns;
             if (agree > 0.5) {
-                // all pointing the same way along the surface: shoot that way
                 dir = normal.scale(0.5).add(plane.planeVector(px / dirSigns, py / dirSigns).normalize());
             } else if (outward > inward) {
                 spread = true;
@@ -93,7 +83,6 @@ public final class SpellCompiler {
         dir = dir.add(plane.planeVector(imb.x(), imb.y()).scale(1.2)).normalize();
         vortex = r.signs().isEmpty() ? 0 : vortex / r.signs().size();
 
-        // ---- form ----
         Sigil element = r.sigil();
         SignType center = r.centerSign();
         boolean inverted = majorityInverted(r);
@@ -103,7 +92,6 @@ public final class SpellCompiler {
         } else if (element == null && center != null) {
             form = Form.CENTER_SIGN;
         } else if (element == null || element == Sigil.APPLE) {
-            // (an apple only does anything drawn on the world itself: see BadApple)
             form = Form.FIZZLE;
         } else if (element == Sigil.EARTH && r.count(SignType.EYE) >= 2) {
             form = Form.PETRIFY;
@@ -140,9 +128,7 @@ public final class SpellCompiler {
         SpellProgram main = new SpellProgram(element, center, form, inverted, origin, normal, dir, radius, power, duration,
                 focused, gentle, spread, vortex, bolts, misfire, hidden, birds).withMods(mods(r));
 
-        // more than one way of shaping in the same ring: the first one leads, every other one drawn at least twice
-        // works alongside it with the same element (Columns and Bolts: a pillar that also throws fire)
-        java.util.List<SpellProgram> layers = new java.util.ArrayList<>();
+        List<SpellProgram> layers = new ArrayList<>();
         if (element != null && SHAPEABLE.contains(form)) {
             for (Object[] f : SHAPES) {
                 Form other = (Form) f[0];
@@ -157,14 +143,30 @@ public final class SpellCompiler {
                         duration(other, null, r, quality, radius, inkDuration, b), focused, gentle, spread, vortex, b, misfire, hidden, 0));
             }
         }
-        if (layers.isEmpty()) return main;
-        return main.layered(element, radius, power * 0.85, duration, focused, birds, bolts, java.util.List.copyOf(layers), false)
-                .withMods(mods(r));
+
+        for (Sigil side : new LinkedHashSet<>(r.sides())) {
+            if (element == null || side == element || side == Sigil.APPLE || !SHAPEABLE.contains(form)) continue;
+            layers.add(new SpellProgram(side, null, form, inverted, origin, normal, dir, radius, power * 0.6, duration,
+                    focused, gentle, spread, vortex, bolts, misfire, hidden, 0));
+        }
+        int sideMods = sideMods(element, r);
+        if (layers.isEmpty()) return main.withMods(mods(r) | sideMods);
+        return main.layered(element, radius, power * 0.85, duration, focused, birds, bolts, List.copyOf(layers), false)
+                .withMods(mods(r) | sideMods);
     }
 
-    /** Forms that can share a ring with another form. */
-    private static final java.util.Set<Form> SHAPEABLE = java.util.EnumSet.of(Form.BEAM, Form.SPILL, Form.BOLTS, Form.LIFT, Form.PULL, Form.RAIN, Form.BIRD);
-    /** Each shaping form and the signs that call it. */
+    static int sideMods(Sigil middle, GlyphReading r) {
+        if (r.sides().isEmpty()) return 0;
+        int m = 0;
+        boolean airy = middle == Sigil.WIND || middle == Sigil.AERIFORMS || middle == Sigil.WIND_UNDERFOOT;
+        if (airy && r.sides().contains(Sigil.WATER)) m |= SpellProgram.MIST;
+        if (middle == Sigil.WATER && r.sides().contains(Sigil.FIRE)) m |= SpellProgram.DRY;
+        if (r.sides().contains(Sigil.LIGHT) && middle != Sigil.LIGHT) m |= SpellProgram.REPEL;
+        return m;
+    }
+
+    private static final Set<Form> SHAPEABLE = EnumSet.of(Form.BEAM, Form.SPILL, Form.BOLTS, Form.LIFT, Form.PULL, Form.RAIN, Form.BIRD);
+
     private static final Object[][] SHAPES = {
             {Form.BOLTS, new SignType[]{SignType.BOLT}},
             {Form.RAIN, new SignType[]{SignType.RAIN}},
@@ -174,12 +176,6 @@ public final class SpellCompiler {
             {Form.PULL, new SignType[]{SignType.PULL}},
     };
 
-    /**
-     * How long a spell keeps going, in ticks. As in the old books, a glyph that keeps working (a light, a pillar, a
-     * lift, a ward, a window...) works for as long as it is whole: until its ring is broken, rubbed out, washed off
-     * or worn away (see GlyphService's wear). Only what is done in one go (bolts, crushing, mending a wall, a burst)
-     * is over when it is done; a petrifying gaze takes the time it takes.
-     */
     private static int duration(Form form, SignType center, GlyphReading r, double quality, double radius, double inkDuration, int bolts) {
         return switch (form) {
             case BEAM, SPILL, PULL, LIFT, RAIN, BIRD, MANIFEST, CENTER_SIGN -> WHILE_WHOLE;
@@ -189,33 +185,24 @@ public final class SpellCompiler {
         };
     }
 
-    /** "For as long as the glyph is whole": in ticks, as near forever as a game needs. */
     public static final int WHILE_WHOLE = Integer.MAX_VALUE / 4;
 
-    /**
-     * A glyph inside another ring: the inner glyph is the spell; what is drawn in the band around it shapes it.
-     * Repetition keeps it going far longer, Enlarge makes it stronger, Convergence focuses it, Bird sends birds,
-     * Billowing softens every fall around it. A shaping sign in the band (Column, Dispersion, Levitation, Pull,
-     * Rain, Bolt) adds a second effect of the same element; a sigil in the band adds that element too. Nothing
-     * of it works before the outermost ring is closed.
-     */
     private static SpellProgram nested(GlyphReading r, GlyphFrame plane, Vec3 origin, double scale, double inkPotency,
                                        double inkDuration, double inkMisfire) {
         SpellProgram core = compile(r.core(), plane, origin, scale, inkPotency, inkDuration, inkMisfire);
         if (core.form() == Form.FIZZLE || core.form() == Form.BURST) return core;
         double outerR = r.ring().radius() * scale;
-        // the extra ring is extra ink: the whole thing is stronger than the inner glyph alone
+
         double power = core.power() * Math.min(1.6, Math.pow(outerR / Math.max(0.1, core.radius()), 0.8));
         long rep = r.count(SignType.REPETITION), enl = r.count(SignType.ENLARGE);
-        // (Repetition in the band no longer lengthens anything: the glyph keeps going while whole, and Repetition
-        // keeps it whole, mending what rain and feet would wear off: see GlyphService's wear)
+
         int duration = core.duration() >= WHILE_WHOLE ? WHILE_WHOLE : (int) Math.min(WHILE_WHOLE, Math.round(core.duration() * (0.85 + 0.15 * r.neatness() / 0.5)));
         power *= 1 + 0.3 * Math.min(enl, 3);
         boolean focused = core.focused() || r.has(SignType.CONVERGENCE);
         int birds = core.birds() + (int) r.count(SignType.BIRD);
         boolean cushion = r.has(SignType.BILLOWING);
 
-        java.util.List<SpellProgram> layers = new java.util.ArrayList<>(core.layers());
+        List<SpellProgram> layers = new ArrayList<>(core.layers());
         Sigil layerElement = r.sigil() != null ? r.sigil() : core.element();
         Form layerForm = null;
         if (r.has(SignType.COLUMN)) layerForm = Form.BEAM;
@@ -232,11 +219,20 @@ public final class SpellCompiler {
                     core.spread(), core.vortex(), bolts, core.misfire(), core.hidden(), 0);
             layers.add(layer);
         }
-        return core.layered(core.element(), core.radius(), power, duration, focused, birds, core.bolts(), java.util.List.copyOf(layers), cushion)
+        return core.layered(core.element(), core.radius(), power, duration, focused, birds, core.bolts(), List.copyOf(layers), cushion)
                 .withMods(core.mods() | mods(r));
     }
 
-    /** The signs that add a behaviour on top of the form. */
+    static final double USUAL_SIGN = 0.42;
+
+    static double signWeight(GlyphReading r) {
+        if (r.signs().isEmpty() || r.ring() == null || r.ring().radius() <= 0) return 1;
+        double sum = 0;
+        for (ReadSign s : r.signs()) sum += s.size() / r.ring().radius();
+        double ratio = sum / r.signs().size() / USUAL_SIGN;
+        return Math.sqrt(Mth.clamp(ratio, 0.5, 1.8));
+    }
+
     static int mods(GlyphReading r) {
         int m = 0;
         if (r.has(SignType.CROSSHAIR)) m |= SpellProgram.AIM;

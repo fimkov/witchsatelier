@@ -20,17 +20,11 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 
-/**
- * First-person hands while holding the pen: the real arms are drawn holding the pen (and the inkwell in the other
- * hand). The writing hand reaches to the surface while drawing, trails the view a little and scratches; when the
- * nib gets new ink the hand dips into the inkwell and comes back.
- */
 public final class HandsRenderer {
-    // pose tuning (blocks / degrees, applied before the vanilla arm transform)
     private static final float REACH_X = -0.16f, REACH_Y = 0.10f, REACH_Z = -0.12f, REACH_PITCH = -14f;
     private static final float DIP_X = -0.52f, DIP_Y = -0.06f, DIP_DEPTH = 0.10f;
     private static final int DIP_TICKS = 14;
-    // where the inkwell stands in view space (right of centre is +x; it is mirrored for the left hand)
+
     private static final float WELL_X = 0.43f, WELL_Y = -0.17f, WELL_Z = -0.75f, WELL_SCALE = 0.42f;
 
     private static int dipTick = -1;
@@ -49,12 +43,11 @@ public final class HandsRenderer {
             LoadedInk l = InkPenItem.loaded(pen);
             nib = l == null ? 0 : l.amount();
         }
-        if (lastNib >= 0 && nib > lastNib) dipTick = 0; // the nib was refilled: play the dip
+        if (lastNib >= 0 && nib > lastNib) dipTick = 0;
         lastNib = nib;
         if (dipTick >= 0 && ++dipTick > DIP_TICKS) dipTick = -1;
     }
 
-    /** Eased per frame (not per tick), so the hand glides instead of stepping. */
     private static void updateReach() {
         long now = System.nanoTime();
         float dt = lastFrame == 0 ? 0.016f : Math.min(0.1f, (now - lastFrame) / 1e9f);
@@ -83,7 +76,7 @@ public final class HandsRenderer {
             ps.pushPose();
             float breathe = Mth.sin(t * 0.08f) * 0.006f;
             float r = reach;
-            // the hand trails the view a little as it turns, and the nib trembles faintly while ink flows
+
             float sx = ClientDrawing.swayX * r, sy = ClientDrawing.swayY * r;
             float secs = (System.nanoTime() % 1_000_000_000_000L) / 1e9f;
             float scratch = ClientDrawing.scratch * r * Mth.sin(secs * 21f) * 0.0035f;
@@ -92,8 +85,8 @@ public final class HandsRenderer {
             ps.mulPose(Axis.YP.rotationDegrees(-sx * 5f));
             if (dipTick >= 0) {
                 float d = (dipTick + pt) / DIP_TICKS;
-                float go = Mth.sin(d * Mth.PI);                  // there and back
-                float dunk = Math.max(0, Mth.sin(d * Mth.PI * 2 - Mth.HALF_PI)) * DIP_DEPTH; // down at the middle
+                float go = Mth.sin(d * Mth.PI);
+                float dunk = Math.max(0, Mth.sin(d * Mth.PI * 2 - Mth.HALF_PI)) * DIP_DEPTH;
                 ps.translate(side * DIP_X * go, DIP_Y * go - dunk, 0);
                 ps.mulPose(Axis.ZP.rotationDegrees(side * 18f * go));
             }
@@ -103,7 +96,7 @@ public final class HandsRenderer {
             e.setCanceled(true);
             float lift = dipTick >= 0 ? Mth.sin((dipTick + pt) / DIP_TICKS * Mth.PI) : 0;
             float bob = Mth.sin(t * 0.08f + 1) * 0.005f;
-            // the arm, a little lowered, with the inkwell standing upright on its palm
+
             ps.pushPose();
             ps.translate(side * (-0.06f - 0.06f * lift), -0.08f + 0.04f * lift + bob, 0.02f);
             renderArm(ps, e.getMultiBufferSource(), e.getPackedLight(), player, arm, e.getEquipProgress());
@@ -118,7 +111,6 @@ public final class HandsRenderer {
         }
     }
 
-    /** Just the vanilla first-person arm. */
     private static void renderArm(PoseStack ps, MultiBufferSource buffers, int light, AbstractClientPlayer player, HumanoidArm arm, float equip) {
         Minecraft mc = Minecraft.getInstance();
         boolean right = arm == HumanoidArm.RIGHT;
@@ -135,7 +127,6 @@ public final class HandsRenderer {
         else pr.renderLeftHand(ps, buffers, light, player);
     }
 
-    /** The vanilla first-person arm, with the held item placed in its hand the way the third-person view does. */
     private static void renderArmWithItem(PoseStack ps, MultiBufferSource buffers, int light, AbstractClientPlayer player,
                                           HumanoidArm arm, ItemStack stack, float equip) {
         Minecraft mc = Minecraft.getInstance();

@@ -26,10 +26,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * An inkwell on the desk. Pour ink bottles in with use; dip the pen with use to load its nib.
- * Breaking it keeps the ink inside the item.
- */
 public class InkwellBlock extends BaseEntityBlock {
     public static final MapCodec<InkwellBlock> CODEC = simpleCodec(InkwellBlock::new);
     public static final IntegerProperty FILL = IntegerProperty.create("fill", 0, 3);

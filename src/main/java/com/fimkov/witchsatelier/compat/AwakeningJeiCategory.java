@@ -17,7 +17,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
-/** JEI: a dormant artifact, the glyph to draw on it, and the artifact awake. */
 public class AwakeningJeiCategory implements IRecipeCategory<Awakening.Entry> {
     public static final RecipeType<Awakening.Entry> TYPE = RecipeType.create(WitchsAtelier.MODID, "awakening", Awakening.Entry.class);
     private static final int GLYPH = 54, GX = 46;

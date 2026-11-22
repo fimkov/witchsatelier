@@ -1,23 +1,19 @@
 package com.fimkov.witchsatelier.glyph.page;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-/**
- * Glyphs drawn on the pages of an item (a sheet of paper, a book, a palm quire).
- * Page coordinates run from -1 to 1 across the page, v pointing up.
- */
 public record GlyphPages(List<Page> pages, int current) {
-
     public record PageStroke(float[] pts, InkType ink) {
         static final Codec<float[]> FLOATS = Codec.FLOAT.listOf().xmap(l -> {
             float[] f = new float[l.size()];
@@ -49,11 +45,11 @@ public record GlyphPages(List<Page> pages, int current) {
         }
 
         @Override public boolean equals(Object o) {
-            return o instanceof PageStroke p && p.ink == ink && java.util.Arrays.equals(p.pts, pts);
+            return o instanceof PageStroke p && p.ink == ink && Arrays.equals(p.pts, pts);
         }
 
         @Override public int hashCode() {
-            return java.util.Arrays.hashCode(pts) * 31 + ink.hashCode();
+            return Arrays.hashCode(pts) * 31 + ink.hashCode();
         }
     }
 

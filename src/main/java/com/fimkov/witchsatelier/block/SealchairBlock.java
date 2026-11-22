@@ -1,9 +1,9 @@
 package com.fimkov.witchsatelier.block;
 
-import com.mojang.serialization.MapCodec;
 import com.fimkov.witchsatelier.entity.SealchairEntity;
 import com.fimkov.witchsatelier.registry.ModBlocks;
 import com.fimkov.witchsatelier.registry.ModEntities;
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -16,34 +16,28 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * A Sealchair at rest: a chair standing on four carved hoofed legs, the glyph under its seat asleep. It is placed
- * and broken like any wooden thing. Sit in it and the glyph wakes: the chair gets up and walks where you look
- * (see {@link SealchairEntity}); get up, and it settles down again where it stopped.
- */
 public class SealchairBlock extends BaseEntityBlock {
     public static final MapCodec<SealchairBlock> CODEC = simpleCodec(SealchairBlock::new);
-    public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+    public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
 
-    // seat and legs, and the carved back on the side away from where it faces
     private static final VoxelShape SEAT = Shapes.or(Block.box(1.5, 0, 1.5, 14.5, 13, 14.5));
     private static final VoxelShape[] SHAPES = new VoxelShape[4];
 
     static {
         for (Direction d : Direction.Plane.HORIZONTAL) {
-            // the back stands behind the seat: on the side opposite the way the chair faces
             Direction b = d.getOpposite();
             double x0 = 2, z0 = 2, x1 = 14, z1 = 14;
             switch (b) {
@@ -73,7 +67,6 @@ public class SealchairBlock extends BaseEntityBlock {
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext ctx) {
-        // it faces whoever set it down, ready to be sat in
         return defaultBlockState().setValue(FACING, ctx.getHorizontalDirection().getOpposite());
     }
 
@@ -92,7 +85,6 @@ public class SealchairBlock extends BaseEntityBlock {
         return new Entity(pos, state);
     }
 
-    /** Sitting down wakes it: the chair gets up off its spot and carries you. */
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (player.isSecondaryUseActive() || player.isPassenger()) return InteractionResult.PASS;
@@ -113,7 +105,6 @@ public class SealchairBlock extends BaseEntityBlock {
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
-    /** Settles a walking chair back into a block where it stopped, facing the way it walked; false if there is no room. */
     public static boolean settle(Level level, BlockPos near, float yaw) {
         BlockState state = ModBlocks.SEALCHAIR.get().defaultBlockState().setValue(FACING, Direction.fromYRot(yaw));
         BlockPos[] tries = {near, near.above(), near.below(), near.north(), near.south(), near.east(), near.west()};
@@ -128,7 +119,6 @@ public class SealchairBlock extends BaseEntityBlock {
         return false;
     }
 
-    /** Only there so the chair can be drawn with its carved model. */
     public static class Entity extends BlockEntity {
         public Entity(BlockPos pos, BlockState state) {
             super(ModBlocks.SEALCHAIR_BE.get(), pos, state);

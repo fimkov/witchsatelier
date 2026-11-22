@@ -7,10 +7,6 @@ import net.minecraft.world.item.Item;
 import java.util.List;
 import java.util.function.Supplier;
 
-/**
- * Information pages for recipe viewers (JEI, EMI): every item whose use is not a crafting recipe (inks, pens, the
- * quire and the old books, the artifacts), built from the descriptions the items already carry.
- */
 public final class ItemInfo {
     private ItemInfo() {}
 
@@ -45,6 +41,8 @@ public final class ItemInfo {
                 of(ModItems.TENT_STAFF, "item.witchsatelier.tent_staff.desc", "jei.witchsatelier.info.awakening"),
                 of(ModItems.BRIMHAT_MASK, "item.witchsatelier.brimhat_mask.desc", "jei.witchsatelier.info.brimhat_mask"),
                 of(ModItems.WOODCRUOR, "jei.witchsatelier.info.woodcruor"),
+                of(ModItems.WITCH_GRIMOIRE, "item.witchsatelier.witch_grimoire.desc", "jei.witchsatelier.info.witch_grimoire"),
+                of(ModItems.GLYPH_ARROW, "item.witchsatelier.glyph_arrow.desc", "jei.witchsatelier.info.glyph_arrow"),
                 of(ModItems.GLOWSTONE_PATH, "item.witchsatelier.glowstone_path.desc", "jei.witchsatelier.info.awakening"),
                 of(ModItems.WASHING_BARREL, "item.witchsatelier.washing_barrel.desc", "jei.witchsatelier.info.awakening"),
                 of(ModItems.VOID_BASIN, "item.witchsatelier.void_basin.desc", "jei.witchsatelier.info.awakening"),

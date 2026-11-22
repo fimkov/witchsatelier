@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/** Test helper that "hand-draws" template shapes: places, turns, resamples and adds wobble. */
 final class Drawing {
     static final double INK = 1.0 / 16;
     final List<List<Pt>> strokes = new ArrayList<>();
@@ -16,7 +15,6 @@ final class Drawing {
         this.noise = noise;
     }
 
-    /** Adds template strokes scaled by {@code size/2}, rotated by {@code rot}, centred at {@code at}. */
     Drawing put(List<List<Pt>> template, Pt at, double size, double rot) {
         double wobblePhase = rnd.nextDouble() * 10;
         for (List<Pt> s : template) {
@@ -32,7 +30,6 @@ final class Drawing {
         return this;
     }
 
-    /** Ring drawn as one stroke from angle a0 to a1 (degrees). */
     Drawing ring(Pt c, double r, double a0, double a1) {
         List<Pt> s = new ArrayList<>();
         int n = (int) Math.ceil(Math.abs(a1 - a0) / 360 * Math.PI * 2 * r / (INK / 2));

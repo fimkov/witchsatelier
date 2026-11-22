@@ -1,8 +1,9 @@
 package com.fimkov.witchsatelier.dev;
 
 import com.fimkov.witchsatelier.WitchsAtelier;
-import com.fimkov.witchsatelier.glyph.GlyphService;
 import com.fimkov.witchsatelier.gametest.GlyphSketch;
+import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.model.Orientation;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
@@ -10,6 +11,8 @@ import com.fimkov.witchsatelier.glyph.page.GlyphPages;
 import com.fimkov.witchsatelier.glyph.page.PageKind;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.fimkov.witchsatelier.registry.ModComponents;
+import com.fimkov.witchsatelier.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -27,10 +30,6 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Development only (left out of the release jar): with -Dwitchsatelier.smoke, a dedicated server that sets a scene
- * for the client that joins it (see client/dev/SmokeClient) and reports what happened, then stops.
- */
 public final class SmokeServer {
     private static ServerPlayer guest;
     private static int t;
@@ -59,8 +58,8 @@ public final class SmokeServer {
             BlockPos ground = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, BlockPos.ZERO);
             guest.teleportTo(0.5, ground.getY(), 0.5);
             guest.setItemSlot(EquipmentSlot.FEET, flightBoots());
-            guest.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(com.fimkov.witchsatelier.registry.ModItems.INK_PEN.get()));
-            // glyphs for the client to receive: a lantern beside the guest, a small petrification further off
+            guest.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ModItems.INK_PEN.get()));
+
             inscribe(level, ground.offset(3, -1, 0), new GlyphSketch(new Pt(0, 0), 1.0).ring(0, 362).sigil(Sigil.LIGHT, 0.6));
             inscribe(level, ground.offset(14, -1, 0), new GlyphSketch(new Pt(0, 0), 0.8).ring(0, 362).sigil(Sigil.EARTH, 0.5)
                     .signs(SignType.EYE, 4, Orientation.OUTWARD, 0.25, 45));
@@ -77,7 +76,6 @@ public final class SmokeServer {
         }
     }
 
-    /** A glyph laid on the top face of {@code under}, centred on it. */
     private static void inscribe(ServerLevel level, BlockPos under, GlyphSketch g) {
         SurfacePlane plane = SurfacePlane.of(under, Direction.UP);
         Pt c = plane.toUV(Vec3.atCenterOf(under).add(0, 0.5, 0));
@@ -93,7 +91,6 @@ public final class SmokeServer {
         GlyphService.inscribe(level, plane, placed, null);
     }
 
-    /** Leather boots with the flight glyph drawn across both soles. */
     private static ItemStack flightBoots() {
         var boots = new ItemStack(Items.LEATHER_BOOTS);
         GlyphSketch g = new GlyphSketch(new Pt(0, 0), 0.85).ring(0, 360).sigil(Sigil.WIND, 0.55)
@@ -103,9 +100,9 @@ public final class SmokeServer {
             float[] f = new float[d.length];
             for (int i = 0; i < d.length; i++) f[i] = (float) d[i];
             for (float[] part : PageKind.splitForSoles(f, 0.82f))
-                halves.add(new GlyphPages.PageStroke(part, com.fimkov.witchsatelier.glyph.ink.InkType.CONJURING));
+                halves.add(new GlyphPages.PageStroke(part, InkType.CONJURING));
         }
-        boots.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), GlyphPages.blank(1).withPage(0, new GlyphPages.Page(List.copyOf(halves))));
+        boots.set(ModComponents.GLYPH_PAGES.get(), GlyphPages.blank(1).withPage(0, new GlyphPages.Page(List.copyOf(halves))));
         return boots;
     }
 }

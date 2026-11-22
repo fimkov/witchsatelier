@@ -12,7 +12,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/** Blocks a contraption changes for a while (a cleft in a river, a bubble of water); put back when time is up. */
 public final class TimedBlocks {
     private record Entry(BlockPos pos, BlockState placed, BlockState original, long until) {}
 
@@ -20,7 +19,6 @@ public final class TimedBlocks {
 
     private TimedBlocks() {}
 
-    /** Sets {@code state} at {@code pos} for {@code ticks}, then restores what was there (if nobody changed it since). */
     public static void set(ServerLevel level, BlockPos pos, BlockState state, int ticks) {
         BlockState was = level.getBlockState(pos);
         for (Entry e : ALL.getOrDefault(level.dimension(), List.of())) {
@@ -32,7 +30,6 @@ public final class TimedBlocks {
         ALL.get(level.dimension()).add(new Entry(pos.immutable(), state, original, level.getGameTime() + ticks));
     }
 
-    /** If {@code pos} is one of ours, keeps it changed for another {@code ticks}. @return whether it was ours */
     public static boolean extend(ServerLevel level, BlockPos pos, int ticks) {
         List<Entry> list = ALL.get(level.dimension());
         if (list == null) return false;
@@ -58,7 +55,6 @@ public final class TimedBlocks {
         }
     }
 
-    /** The world is closing: put everything back now. */
     public static void restoreAll(ServerLevel level) {
         List<Entry> list = ALL.remove(level.dimension());
         if (list == null) return;

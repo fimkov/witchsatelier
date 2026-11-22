@@ -3,9 +3,15 @@ package com.fimkov.witchsatelier.registry;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.ink.LoadedInk;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages;
+import com.mojang.serialization.Codec;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponentType;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.List;
+import java.util.UUID;
 
 public final class ModComponents {
     public static final DeferredRegister.DataComponents COMPONENTS = DeferredRegister.createDataComponents(WitchsAtelier.MODID);
@@ -19,21 +25,29 @@ public final class ModComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<LoadedInk>> INKWELL_INK =
             COMPONENTS.registerComponentType("inkwell_ink", b -> b.persistent(LoadedInk.CODEC).networkSynchronized(LoadedInk.STREAM_CODEC));
 
-    /** What each page of a grimoire shows (a glyph library name per page, "basics" for the opening page). */
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<java.util.List<String>>> GRIMOIRE_ENTRIES =
-            COMPONENTS.registerComponentType("grimoire_entries", b -> b.persistent(com.mojang.serialization.Codec.STRING.listOf())
-                    .networkSynchronized(net.minecraft.network.codec.ByteBufCodecs.STRING_UTF8.apply(net.minecraft.network.codec.ByteBufCodecs.list(64))));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<String>>> GRIMOIRE_ENTRIES =
+            COMPONENTS.registerComponentType("grimoire_entries", b -> b.persistent(Codec.STRING.listOf())
+                    .networkSynchronized(ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list(64))));
 
-    /** Pieces cut from one crystal share a bond. */
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<java.util.UUID>> BOND =
-            COMPONENTS.registerComponentType("bond", b -> b.persistent(net.minecraft.core.UUIDUtil.CODEC).networkSynchronized(net.minecraft.core.UUIDUtil.STREAM_CODEC));
-    /** One piece's own identity. */
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<java.util.UUID>> SELF_ID =
-            COMPONENTS.registerComponentType("self_id", b -> b.persistent(net.minecraft.core.UUIDUtil.CODEC).networkSynchronized(net.minecraft.core.UUIDUtil.STREAM_CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<String>>> PAGE_TITLES =
+            COMPONENTS.registerComponentType("page_titles", b -> b.persistent(Codec.STRING.listOf())
+                    .networkSynchronized(ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list(64))));
 
-    /** An artifact made but not yet awake: it does nothing until its glyph is drawn on it (see Awakening). */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<List<String>>> PAGE_NOTES =
+            COMPONENTS.registerComponentType("page_notes", b -> b.persistent(Codec.STRING.listOf())
+                    .networkSynchronized(ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list(64))));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<String>> KEEPER =
+            COMPONENTS.registerComponentType("keeper", b -> b.persistent(Codec.STRING).networkSynchronized(ByteBufCodecs.STRING_UTF8));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> BOND =
+            COMPONENTS.registerComponentType("bond", b -> b.persistent(UUIDUtil.CODEC).networkSynchronized(UUIDUtil.STREAM_CODEC));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<UUID>> SELF_ID =
+            COMPONENTS.registerComponentType("self_id", b -> b.persistent(UUIDUtil.CODEC).networkSynchronized(UUIDUtil.STREAM_CODEC));
+
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> DORMANT =
-            COMPONENTS.registerComponentType("dormant", b -> b.persistent(com.mojang.serialization.Codec.BOOL).networkSynchronized(net.minecraft.network.codec.ByteBufCodecs.BOOL));
+            COMPONENTS.registerComponentType("dormant", b -> b.persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL));
 
     private ModComponents() {}
 }

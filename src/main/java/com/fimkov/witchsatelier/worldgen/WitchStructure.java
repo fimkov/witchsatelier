@@ -13,11 +13,6 @@ import net.minecraft.world.level.levelgen.structure.StructureType;
 
 import java.util.Optional;
 
-/**
- * The witches' places as real structures, so they can be found with {@code /locate structure} and placed with
- * {@code /place structure}: a library ruin (the one kind left), chosen by {@code kind}, raised by the
- * same builder as before in the middle of its chunk, never on water.
- */
 public class WitchStructure extends Structure {
     public static final MapCodec<WitchStructure> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(settingsCodec(i),
             Codec.STRING.fieldOf("kind").forGetter(s -> s.kind)).apply(i, WitchStructure::new));
@@ -40,17 +35,12 @@ public class WitchStructure extends Structure {
         return Optional.of(new GenerationStub(at, b -> b.addPiece(new WitchStructurePiece(kind, at, seed))));
     }
 
-    /** Height of the dry ground at (x, z), or MIN_VALUE where it is water. */
     private static int surface(GenerationContext ctx, int x, int z) {
         int y = ctx.chunkGenerator().getFirstOccupiedHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, ctx.heightAccessor(), ctx.randomState());
         NoiseColumn column = ctx.chunkGenerator().getBaseColumn(x, z, ctx.heightAccessor(), ctx.randomState());
         return column.getBlock(y - 1).getFluidState().isEmpty() ? y : Integer.MIN_VALUE;
     }
 
-    /**
-     * The same judgement of the ground its builder makes, made before the site is chosen, so that what /locate finds
-     * is always built: a library ruin wants fairly level ground.
-     */
     private boolean fits(GenerationContext ctx, int x, int z) {
         int step, rx, rz, most;
         switch (kind) {

@@ -3,14 +3,21 @@ package com.fimkov.witchsatelier.entity;
 import com.fimkov.witchsatelier.glyph.GlyphService;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
-import com.fimkov.witchsatelier.spell.SpellProgram;
+import com.fimkov.witchsatelier.network.Net;
+import com.fimkov.witchsatelier.network.Payloads;
+import com.fimkov.witchsatelier.registry.ModItems;
+import com.fimkov.witchsatelier.registry.ModSounds;
 import com.fimkov.witchsatelier.spell.SpellProgram.Form;
+import com.fimkov.witchsatelier.spell.SpellProgram;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -27,28 +34,26 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.EnumSet;
+import java.util.UUID;
 
-/**
- * A knight of the Knights Moralis, the order that enforces the Pact. Silver-white, unhurried, polite to the
- * innocent. They hunt Brimhats, and anyone who has broken the Pact (see {@link Taboo}), or wears a Brimhat
- * mask: first a ring of binding light under the culprit's feet, then the knight's blade.
- */
 public class KnightMoralisEntity extends PathfinderMob {
     private int bindCooldown = 40;
-    /** The player this knight was sent after, and which hunt it belongs to (see {@link Taboo}); null for a knight about its own business. */
-    private java.util.UUID quarry;
+
+    private UUID quarry;
     private long huntId;
-    /** Ticks left of walking off before it is gone, once its work is done; 0 while it is not leaving. */
+
     private int leaving;
-    /** How long it has been getting no closer to its target, for stepping across what it cannot walk. */
+
     private int stuck;
     private double lastGap = Double.MAX_VALUE;
 
@@ -86,16 +91,16 @@ public class KnightMoralisEntity extends PathfinderMob {
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType type, SpawnGroupData data) {
         setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         setDropChance(EquipmentSlot.MAINHAND, 0.02f);
-        // the pennant in the off hand (its own rare drop is below)
-        setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(com.fimkov.witchsatelier.registry.ModItems.CAPTURE_PENNANT.get()));
+
+        setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(ModItems.CAPTURE_PENNANT.get()));
         setDropChance(EquipmentSlot.OFFHAND, 0f);
         return super.finalizeSpawn(level, difficulty, type, data);
     }
 
     @Override
-    protected void dropCustomDeathLoot(ServerLevel level, net.minecraft.world.damagesource.DamageSource source, boolean recentlyHit) {
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean recentlyHit) {
         super.dropCustomDeathLoot(level, source, recentlyHit);
-        if (recentlyHit && random.nextFloat() < 0.06f) spawnAtLocation(new ItemStack(com.fimkov.witchsatelier.registry.ModItems.CAPTURE_PENNANT.get()));
+        if (recentlyHit && random.nextFloat() < 0.06f) spawnAtLocation(new ItemStack(ModItems.CAPTURE_PENNANT.get()));
     }
 
     @Override
@@ -118,7 +123,6 @@ public class KnightMoralisEntity extends PathfinderMob {
         return quarry != null && quarry.equals(p.getUUID());
     }
 
-    /** Its work done (or the hunt called off): it turns away, walks off a little, and is gone. */
     public void leave() {
         if (leaving > 0) return;
         leaving = 80;
@@ -129,7 +133,7 @@ public class KnightMoralisEntity extends PathfinderMob {
     }
 
     @Override
-    public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+    public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         if (quarry != null) {
             tag.putUUID("Quarry", quarry);
@@ -139,7 +143,7 @@ public class KnightMoralisEntity extends PathfinderMob {
     }
 
     @Override
-    public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+    public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         quarry = tag.hasUUID("Quarry") ? tag.getUUID("Quarry") : null;
         huntId = tag.getLong("Hunt");
@@ -154,26 +158,25 @@ public class KnightMoralisEntity extends PathfinderMob {
             setTarget(null);
             if (--leaving <= 0) vanish(sl);
             else if (leaving % 20 == 0 && getNavigation().isDone()) {
-                Vec3 away = net.minecraft.world.entity.ai.util.DefaultRandomPos.getPos(this, 12, 4);
+                Vec3 away = DefaultRandomPos.getPos(this, 12, 4);
                 if (away != null) getNavigation().moveTo(away.x, away.y, away.z, 0.8);
             }
             return;
         }
         if (quarry == null || tickCount % 10 != 0) return;
         Player p = sl.getPlayerByUUID(quarry);
-        // the hunt is over (paid for, forgiven, or the quarry is gone from this world): nothing more to do here
+
         if (p == null || !p.isAlive() || Taboo.huntOf(p) != huntId) {
             leave();
             return;
         }
         double gap = distanceTo(p);
         if (gap > 96) {
-            // left far behind: others are sent from where the quarry is now (see Taboo), this one goes
             vanish(sl);
             return;
         }
         if (!p.isCreative() && !p.isSpectator() && getTarget() != p) setTarget(p);
-        // walled in, cut off by water or a tower of blocks: when walking gets it no closer, it steps across
+
         if (gap > 4 && gap > lastGap - 0.5) stuck += 10;
         else stuck = 0;
         lastGap = gap;
@@ -184,20 +187,17 @@ public class KnightMoralisEntity extends PathfinderMob {
         }
     }
 
-    /** Gone in a fold of light. */
     private void vanish(ServerLevel sl) {
-        sl.sendParticles(net.minecraft.core.particles.ParticleTypes.END_ROD, getX(), getY() + 1, getZ(), 30, 0.3, 0.8, 0.3, 0.05);
+        sl.sendParticles(ParticleTypes.END_ROD, getX(), getY() + 1, getZ(), 30, 0.3, 0.8, 0.3, 0.05);
         sl.playSound(null, getX(), getY(), getZ(), SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.HOSTILE, 0.8f, 1.2f);
         discard();
     }
 
-    /** Light where a knight steps out of nowhere. */
     static void arrive(ServerLevel sl, Vec3 at) {
-        sl.sendParticles(net.minecraft.core.particles.ParticleTypes.END_ROD, at.x, at.y + 1, at.z, 30, 0.3, 0.8, 0.3, 0.05);
+        sl.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 1, at.z, 30, 0.3, 0.8, 0.3, 0.05);
         sl.playSound(null, at.x, at.y, at.z, SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.HOSTILE, 0.8f, 0.8f);
     }
 
-    /** Steps out of the air a few blocks from {@code p}, somewhere it can stand. */
     private void stepTo(ServerLevel sl, Player p) {
         for (int i = 0; i < 16; i++) {
             double a = random.nextDouble() * Math.PI * 2, d = 2 + random.nextDouble() * 2;
@@ -211,17 +211,14 @@ public class KnightMoralisEntity extends PathfinderMob {
         }
     }
 
-    /** Room for a knight to stand at {@code at}: solid ground under two blocks of air. */
     static boolean standable(ServerLevel sl, BlockPos at) {
         return sl.getBlockState(at.below()).isFaceSturdy(sl, at.below(), Direction.UP)
                 && sl.getBlockState(at).getCollisionShape(sl, at).isEmpty() && sl.getBlockState(at.above()).getCollisionShape(sl, at.above()).isEmpty()
                 && sl.getFluidState(at).isEmpty();
     }
 
-    /** Before closing in, the knight pins the culprit with a ring of binding light. */
-    /** Entity event: the knight just cast its binding. */
     public static final byte BIND_EVENT = 60;
-    /** Client only: ticks left of the binding pose. */
+
     public int bindPose;
 
     @Override
@@ -259,10 +256,10 @@ public class KnightMoralisEntity extends PathfinderMob {
             SpellProgram p = new SpellProgram(Sigil.LIGHT, null, Form.MANIFEST, false, o, new Vec3(0, 1, 0), new Vec3(0, 1, 0),
                     1.4, 3, 60, false, true, false, 0, 0, 0, false, 0).withMods(SpellProgram.BIND);
             GlyphService.startSpell(sl, SurfacePlane.of(below, Direction.UP), p, knight.getUUID(), false);
-            sl.playSound(null, t.getX(), t.getY(), t.getZ(), com.fimkov.witchsatelier.registry.ModSounds.KNIGHT_BIND.get(), SoundSource.HOSTILE, 1f, 1f);
+            sl.playSound(null, t.getX(), t.getY(), t.getZ(), ModSounds.KNIGHT_BIND.get(), SoundSource.HOSTILE, 1f, 1f);
             knight.bindCooldown = 160 + knight.random.nextInt(80);
-            sl.broadcastEntityEvent(knight, BIND_EVENT); // the client shows the knight levelling the pennant
-            com.fimkov.witchsatelier.network.Net.toNear(sl, knight.position(), 96, new com.fimkov.witchsatelier.network.Payloads.PennantFx(knight.getId(), t.getId(),
+            sl.broadcastEntityEvent(knight, BIND_EVENT);
+            Net.toNear(sl, knight.position(), 96, new Payloads.PennantFx(knight.getId(), t.getId(),
                     (float) t.getX(), (float) t.getY(), (float) t.getZ(), 60));
         }
 
@@ -272,10 +269,9 @@ public class KnightMoralisEntity extends PathfinderMob {
         }
     }
 
-    /** Steps come with the swish of the long robe. */
     @Override
-    protected void playStepSound(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+    protected void playStepSound(BlockPos pos, BlockState state) {
         super.playStepSound(pos, state);
-        if (random.nextInt(2) == 0) playSound(com.fimkov.witchsatelier.registry.ModSounds.CLOTH_RUSTLE.get(), 0.35f, 0.85f + random.nextFloat() * 0.3f);
+        if (random.nextInt(2) == 0) playSound(ModSounds.CLOTH_RUSTLE.get(), 0.35f, 0.85f + random.nextFloat() * 0.3f);
     }
 }

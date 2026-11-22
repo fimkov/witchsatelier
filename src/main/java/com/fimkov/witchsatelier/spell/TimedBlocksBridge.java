@@ -5,7 +5,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 
-/** Short-lived blocks a spell leaves behind. */
 final class TimedBlocksBridge {
     private TimedBlocksBridge() {}
 

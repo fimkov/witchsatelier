@@ -9,7 +9,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** A glyph drawn on a pair of shoes, half on each sole, reads whole once the heels bring the halves together. */
 class BootsSplitTest {
     @Test
     void halvesOnTheTwoSolesReadAsOneGlyph() {
@@ -36,7 +35,7 @@ class BootsSplitTest {
             if (w.closed() && GlyphLibrary.readsAs(flight, w)) base++;
         }
         System.out.println("shoe glyphs read right " + ok + "/" + n + " (drawn whole: " + base + ")");
-        // drawn in halves it reads as well as the same hand drawing it whole
+
         assertTrue(ok >= base - 1, ok + "/" + n + " against " + base + " whole");
     }
 }

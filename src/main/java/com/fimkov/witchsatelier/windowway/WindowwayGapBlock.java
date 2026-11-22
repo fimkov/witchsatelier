@@ -1,5 +1,6 @@
 package com.fimkov.witchsatelier.windowway;
 
+import com.fimkov.witchsatelier.registry.ModBlocks;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
@@ -14,10 +15,6 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * The bit of wall an open windowway has stepped aside: nothing to bump into, though it is drawn as the block it
- * stands for (see the client's GapRenderer). It remembers that block and puts it back as soon as no windowway needs the opening any more.
- */
 public class WindowwayGapBlock extends BaseEntityBlock {
     public static final MapCodec<WindowwayGapBlock> CODEC = simpleCodec(WindowwayGapBlock::new);
 
@@ -52,6 +49,6 @@ public class WindowwayGapBlock extends BaseEntityBlock {
 
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null : createTickerHelper(type, com.fimkov.witchsatelier.registry.ModBlocks.WINDOWWAY_GAP_BE.get(), WindowwayGapBlockEntity::serverTick);
+        return level.isClientSide ? null : createTickerHelper(type, ModBlocks.WINDOWWAY_GAP_BE.get(), WindowwayGapBlockEntity::serverTick);
     }
 }

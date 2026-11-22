@@ -6,23 +6,6 @@ import com.fimkov.witchsatelier.glyph.model.SignType;
 
 import java.util.List;
 
-/**
- * What the analyzer read from a drawing: the outer ring, the centre symbol and the signs around it,
- * plus quality measures that drive power, duration and stability.
- *
- * @param ring           outermost ring, or null if no ring was found
- * @param innerRings     other rings inside it (nested or satellite glyphs)
- * @param sigil          the central element, or null
- * @param centerSign     a sign standing in for the sigil (Repetition, Vision...), or null
- * @param centerScore    match quality of the centre symbol, 0..1
- * @param signs          recognised signs around the centre
- * @param unknown        symbols inside the ring that matched nothing well (noise)
- * @param imbalance      size-weighted mean of the signs' outward unit vectors; length 0 = balanced
- * @param neatness       mean match score of all symbols, 0..1
- * @param usedStrokes    indices of all strokes that belong to this glyph
- * @param core           nested glyph: what is inside the inner ring, read as a glyph of its own (this reading then
- *                       holds only the band between the two rings), or null
- */
 public record GlyphReading(
         RingFinder.Ring ring,
         List<RingFinder.Ring> innerRings,
@@ -34,11 +17,17 @@ public record GlyphReading(
         Pt imbalance,
         double neatness,
         List<Integer> usedStrokes,
-        GlyphReading core
+        GlyphReading core,
+        List<Sigil> sides
 ) {
     public GlyphReading(RingFinder.Ring ring, List<RingFinder.Ring> innerRings, Sigil sigil, SignType centerSign, double centerScore,
                         List<ReadSign> signs, int unknown, Pt imbalance, double neatness, List<Integer> usedStrokes) {
-        this(ring, innerRings, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, usedStrokes, null);
+        this(ring, innerRings, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, usedStrokes, null, List.of());
+    }
+
+    public GlyphReading(RingFinder.Ring ring, List<RingFinder.Ring> innerRings, Sigil sigil, SignType centerSign, double centerScore,
+                        List<ReadSign> signs, int unknown, Pt imbalance, double neatness, List<Integer> usedStrokes, GlyphReading core) {
+        this(ring, innerRings, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, usedStrokes, core, List.of());
     }
 
     public boolean nested() {
@@ -47,7 +36,6 @@ public record GlyphReading(
 
     public record ReadSign(SignType type, boolean reversedTemplate, Orientation orientation, double angle,
                            double size, double score, Pt centroid, List<Integer> strokes) {
-        /** True when the sign is flipped relative to its normal form and should invert its effect. */
         public boolean inverted() {
             return reversedTemplate ^ (orientation == Orientation.INWARD);
         }
@@ -65,7 +53,6 @@ public record GlyphReading(
         return count(type) > 0;
     }
 
-    /** Symmetry 0..1 from the sign layout (1 = perfectly balanced). */
     public double symmetry() {
         return signs.isEmpty() ? 1 : Math.max(0, 1 - imbalance.len());
     }

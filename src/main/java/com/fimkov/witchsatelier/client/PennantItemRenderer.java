@@ -13,16 +13,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
-/**
- * The Capture Pennant in the hand: a silver pole wound with blue cord, a gold spearhead, and a long swallow-tailed
- * banner of silk with the knights' seal that ripples in the air. Once it has streamed out at someone the pole is
- * bare, and the banner grows back as the pennant gathers itself again.
- */
 public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
     private static final ResourceLocation POLE = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/capture_pennant_pole.png");
     private static final ResourceLocation FLAG = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/capture_pennant_flag.png");
 
-    // u ranges on the pole texture
     private static final float SILVER = 0f, GOLD = 0.25f, CORD = 0.5f;
 
     public PennantItemRenderer() {
@@ -39,10 +33,9 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
             unfurled = 1 - mc.player.getCooldowns().getCooldownPercent(stack.getItem(), pt);
 
         ps.pushPose();
-        // held like a tool: the grip near the bottom corner, the pole along the diagonal
+
         ps.translate(0.22, 0.22, 0.5);
         if (ctx.firstPerson()) {
-            // smaller, and leaning in from the side, so the whole banner is in view without hiding much
             ps.mulPose(Axis.ZP.rotationDegrees(55));
             ps.scale(0.45f, 0.45f, 0.45f);
         }
@@ -54,7 +47,7 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
         box(pole, pose, 0.044f, -0.37f, -0.30f, GOLD, light, overlay);
         box(pole, pose, 0.052f, 1.44f, 1.50f, GOLD, light, overlay);
         box(pole, pose, 0.036f, 1.50f, 1.53f, GOLD, light, overlay);
-        // the spearhead: two crossed leaf blades
+
         for (int k = 0; k < 2; k++) {
             ps.pushPose();
             ps.mulPose(Axis.YP.rotationDegrees(k * 90));
@@ -65,10 +58,9 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
         ps.popPose();
     }
 
-    /** A square rod of half-width {@code h} from y0 to y1 along the pole. */
     private static void box(VertexConsumer vc, PoseStack.Pose p, float h, float y0, float y1, float u, int light, int overlay) {
         float u0 = u, u1 = u + 0.25f, v1 = Math.min(1, (y1 - y0) * 2);
-        // every side is lit as an item's face is, a touch darker on the far sides, so the metal never goes grey
+
         quad(vc, p, -h, y0, h, h, y0, h, h, y1, h, -h, y1, h, u0, u1, 0, v1, 0, 0.3f, 1, light, overlay);
         quad(vc, p, h, y0, -h, -h, y0, -h, -h, y1, -h, h, y1, -h, u0, u1, 0, v1, 0, 0.3f, 1, light, overlay);
         quad(vc, p, h, y0, h, h, y0, -h, h, y1, -h, h, y1, h, u0, u1, 0, v1, 0.4f, 0.3f, 0.85f, light, overlay);
@@ -79,15 +71,11 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
 
     private static void blade(VertexConsumer vc, PoseStack.Pose p, int light, int overlay) {
         float b = 1.53f, w = 1.61f, t = 1.86f, hw = 0.07f;
-        // front and back of a flat diamond
+
         quad(vc, p, 0, b, 0, hw, w, 0, 0, t, 0, -hw, w, 0, GOLD, GOLD + 0.25f, 0, 0.5f, 0, 0, 1, light, overlay);
         quad(vc, p, -hw, w, 0, 0, t, 0, hw, w, 0, 0, b, 0, GOLD, GOLD + 0.25f, 0, 0.5f, 0, 0.3f, 1, light, overlay);
     }
 
-    /**
-     * The banner: hung from the pole below the spearhead and streaming out to the side, a ripple running along it
-     * that grows towards the free end, the tail drooping a little.
-     */
     private static void flag(VertexConsumer vc, PoseStack.Pose p, double time, float unfurled, int light, int overlay) {
         int n = 14;
         float len = 1.05f * unfurled, top = 1.42f, bottom = 0.98f;
@@ -103,16 +91,15 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
         }
         for (int i = 0; i < n; i++) {
             float u0 = (float) i / n * unfurled + (1 - unfurled), u1 = (float) (i + 1) / n * unfurled + (1 - unfurled);
-            // normal of the strip at this segment: across the ripple
+
             float dx = x[i + 1] - x[i], dz = z[i + 1] - z[i];
             float l = Mth.sqrt(dx * dx + dz * dz);
-            float nx = -dz / l, nz = Math.abs(dx / l); // both faces of the silk catch the light
+            float nx = -dz / l, nz = Math.abs(dx / l);
             quad(vc, p, x[i], yb[i], z[i], x[i + 1], yb[i + 1], z[i + 1], x[i + 1], yt[i + 1], z[i + 1], x[i], yt[i], z[i],
                     u0, u1, 1, 0, nx, 0, nz, light, overlay);
         }
     }
 
-    /** Corners a, b, c, d counter-clockwise; u0→u1 runs from a to b, v0 at a/b and v1 at c/d. */
     private static void quad(VertexConsumer vc, PoseStack.Pose p,
                              float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz, float dx, float dy, float dz,
                              float u0, float u1, float v0, float v1, float nx, float ny, float nz, int light, int overlay) {

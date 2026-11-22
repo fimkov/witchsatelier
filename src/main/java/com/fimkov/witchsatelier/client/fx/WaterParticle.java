@@ -6,14 +6,11 @@ import net.minecraft.client.particle.ParticleProvider;
 import net.minecraft.client.particle.ParticleRenderType;
 import net.minecraft.client.particle.SpriteSet;
 import net.minecraft.client.particle.TextureSheetParticle;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ColorParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.util.Mth;
 
-/**
- * Water that looks like water, not like light: real drops that arc under their own weight and burst into a
- * splash where they land, and mist that billows out and thins away. Lit by the world, alpha-blended.
- */
 public class WaterParticle extends TextureSheetParticle {
     public enum Kind { DROPLET, MIST }
 
@@ -57,12 +54,11 @@ public class WaterParticle extends TextureSheetParticle {
         float t = (float) age / lifetime;
         if (kind == Kind.DROPLET) {
             if (onGround || (x == xo && z == zo && yd == 0)) {
-                // it hit something: a little splash and gone
                 level.addParticle(ParticleTypes.SPLASH, x, y + 0.05, z, (random.nextFloat() - 0.5f) * 0.1, 0.1, (random.nextFloat() - 0.5f) * 0.1);
                 remove();
                 return;
             }
-            if (level.getFluidState(net.minecraft.core.BlockPos.containing(x, y, z)).isSource()) {
+            if (level.getFluidState(BlockPos.containing(x, y, z)).isSource()) {
                 level.addParticle(ParticleTypes.BUBBLE, x, y, z, 0, 0.05, 0);
                 remove();
                 return;

@@ -9,7 +9,6 @@ import net.minecraft.client.particle.TextureSheetParticle;
 import net.minecraft.core.particles.ColorParticleOption;
 import net.minecraft.util.Mth;
 
-/** A self-lit, additive particle tinted with the spell's colour. */
 public class GlowParticle extends TextureSheetParticle {
     public enum Kind { MOTE, SPARK, RUNE }
 

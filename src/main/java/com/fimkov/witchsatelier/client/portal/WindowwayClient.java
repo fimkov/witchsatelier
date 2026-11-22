@@ -1,5 +1,9 @@
 package com.fimkov.witchsatelier.client.portal;
 
+import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.network.Payloads;
+import com.fimkov.witchsatelier.windowway.PortalFrame;
+import com.fimkov.witchsatelier.windowway.WindowwayService;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
@@ -10,10 +14,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
-import com.fimkov.witchsatelier.WitchsAtelier;
-import com.fimkov.witchsatelier.network.Payloads;
-import com.fimkov.witchsatelier.windowway.PortalFrame;
-import com.fimkov.witchsatelier.windowway.WindowwayService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.GameRenderer;
@@ -30,35 +30,31 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Windowways on the client. Seen from the front, a joined window shows what is really on the other side: before
- * each frame the world is drawn a second time from the matching place behind the partner window (with
- * everything between that eye and the partner's surface cut away), and that picture is laid into the disc.
- * Walking through is done here too, the moment our own player crosses, so the view carries straight on.
- */
 public final class WindowwayClient {
     private WindowwayClient() {}
 
     private static final Map<Long, PortalFrame> PORTALS = new HashMap<>();
     private static ShaderInstance viewShader;
-    /**
-     * How many windows show a live picture in one frame, nearest first (each costs drawing the world once more):
-     * two, so both of a pair in sight are alive. Any further ones show their membrane.
-     */
+
     private static final int MAX_VIEWS = 2;
     private static final RenderTarget[] VIEWS = new RenderTarget[MAX_VIEWS];
     private static final PortalCamera CAMERA = new PortalCamera();
-    /** Which window the picture in each of {@link #VIEWS} belongs to this frame (-1: none). */
+
     private static final long[] VIEWING = new long[MAX_VIEWS];
-    /** While drawing a picture: the partner window it is seen out of (left out of that picture). */
+
     private static long viewPartner = -1;
     private static boolean inPortalPass;
     private static Matrix4f lastProjection;
@@ -78,12 +74,10 @@ public final class WindowwayClient {
         try {
             e.registerShader(new ShaderInstance(e.getResourceProvider(), ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "portal_view"),
                     DefaultVertexFormat.POSITION_COLOR), s -> viewShader = s);
-        } catch (java.io.IOException ex) {
+        } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
     }
-
-    // ------------------------------------------------------------------ crossing
 
     public static void onClientTick(ClientTickEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
@@ -91,7 +85,7 @@ public final class WindowwayClient {
         if (p == null || PORTALS.isEmpty() || p.isPassenger()) return;
         double h = p.getBbHeight() / 2;
         Vec3 prev = new Vec3(p.xo, p.yo + h, p.zo), cur = p.position().add(0, h, 0);
-        if (prev.distanceToSqr(cur) > 25) return; // a teleport, not a step
+        if (prev.distanceToSqr(cur) > 25) return;
         for (PortalFrame f : PORTALS.values()) {
             PortalFrame to = f.link() < 0 ? null : PORTALS.get(f.link());
             if (to == null || !WindowwayService.crossed(f, prev, cur)) continue;
@@ -101,7 +95,6 @@ public final class WindowwayClient {
         }
     }
 
-    /** Moves our player through, the remembered previous position and turn too, so nothing visibly jumps. */
     private static void carry(LocalPlayer p, PortalFrame from, PortalFrame to) {
         double h = p.getBbHeight() / 2;
         Vec3 now = PortalFrame.mapPoint(from, to, p.position().add(0, h, 0)).subtract(0, h, 0);
@@ -123,25 +116,21 @@ public final class WindowwayClient {
         p.setDeltaMovement(vel);
     }
 
-    // ------------------------------------------------------------------ the second pass
-
-    /** Before the frame: for the nearest joined windows in view, draw the world as seen through each into its picture. */
     public static void onFramePre(RenderFrameEvent.Pre e) {
-        java.util.Arrays.fill(VIEWING, -1);
+        Arrays.fill(VIEWING, -1);
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || PORTALS.isEmpty() || lastProjection == null || mc.noRender) return;
         if (System.getProperty("witchsatelier.fxoff", "").contains("portalpass")) return;
         float pt = e.getPartialTick().getGameTimeDeltaPartialTick(true);
         var type = mc.options.getCameraType();
-        // the camera's eye height is eased along by its tick, which only the main camera gets: borrow it, or the eye
-        // would sit at the player's feet
+
         PortalCamera.copyEyeHeight(mc.gameRenderer.getMainCamera(), CAMERA);
         CAMERA.setup(mc.level, mc.getCameraEntity() == null ? mc.player : mc.getCameraEntity(), !type.isFirstPerson(), type.isMirrored(), pt);
         Vec3 eye = CAMERA.getPosition();
         Quaternionf rot = new Quaternionf(CAMERA.rotation());
 
         double reach = mc.options.getEffectiveRenderDistance() * 16 - 24;
-        List<PortalFrame> seen = new java.util.ArrayList<>();
+        List<PortalFrame> seen = new ArrayList<>();
         for (PortalFrame f : PORTALS.values()) {
             PortalFrame to = f.link() < 0 ? null : PORTALS.get(f.link());
             if (to == null || f.side(eye) <= 0.01) continue;
@@ -149,18 +138,16 @@ public final class WindowwayClient {
             if (lastFrustum != null && !lastFrustum.isVisible(new AABB(f.center(), f.center()).inflate(f.radius()))) continue;
             seen.add(f);
         }
-        seen.sort(java.util.Comparator.comparingDouble(f -> f.center().distanceTo(eye)));
+        seen.sort(Comparator.comparingDouble(f -> f.center().distanceTo(eye)));
         for (int k = 0; k < Math.min(MAX_VIEWS, seen.size()); k++) {
             PortalFrame f = seen.get(k);
             if (picture(mc, e, pt, eye, rot, f, PORTALS.get(f.link()), k)) VIEWING[k] = f.id();
         }
     }
 
-    /** Draws the world as seen through {@code best} (out of {@code partner}) into picture {@code k}. */
     private static boolean picture(Minecraft mc, RenderFrameEvent.Pre e, float pt, Vec3 eye, Quaternionf rot, PortalFrame best, PortalFrame partner, int k) {
         viewPartner = partner.id();
 
-        // the eye behind the partner window, turned the same way
         Vec3 vEye = PortalFrame.mapPoint(best, partner, eye);
         Quaternionf vRot = PortalFrame.rotation(best, partner).mul(rot);
         CAMERA.setup(mc.level, mc.getCameraEntity() == null ? mc.player : mc.getCameraEntity(), true, false, pt);
@@ -186,7 +173,6 @@ public final class WindowwayClient {
             viewPartner = -1;
         }
 
-        // keep the picture, then give the frame back a clean target
         RenderTarget view = VIEWS[k];
         if (view == null) {
             view = VIEWS[k] = new TextureTarget(main.width, main.height, false, Minecraft.ON_OSX);
@@ -201,25 +187,16 @@ public final class WindowwayClient {
         return true;
     }
 
-    /**
-     * How far in front of the partner window's surface the picture is cut: past its own ink (lifted a few
-     * hundredths off the wall), which would otherwise show from behind, mirrored, in the middle of the picture.
-     */
     private static final double CUT = 0.03;
 
-    /**
-     * The projection with its near plane laid onto the partner window (Lengyel's oblique clipping), so whatever
-     * is behind that window, between it and our eye, is not drawn. Worked out for any projection (the game's own
-     * carries the view bobbing in it, so its last row is not the plain perspective one).
-     */
     private static Matrix4f oblique(Matrix4f proj, Matrix4f modelView, PortalFrame at, Vec3 eye) {
         Vec3 n = at.n();
         Vec3 rel = at.center().subtract(eye);
-        org.joml.Vector3f nv = modelView.transformDirection(new org.joml.Vector3f((float) n.x, (float) n.y, (float) n.z));
+        Vector3f nv = modelView.transformDirection(new Vector3f((float) n.x, (float) n.y, (float) n.z));
         Vector4f c = new Vector4f(nv.x, nv.y, nv.z, (float) -(n.dot(rel) + CUT));
-        if (c.w > -0.01f) return new Matrix4f(proj); // eye too close to the plane: nothing sensible to cut
+        if (c.w > -0.01f) return new Matrix4f(proj);
         Matrix4f inv = new Matrix4f(proj).invert();
-        // the plane in clip space, then the far corner of the view on the plane's far side
+
         Vector4f cc = new Matrix4f(inv).transpose().transform(new Vector4f(c));
         Vector4f q = inv.transform(new Vector4f(Math.signum(cc.x), Math.signum(cc.y), 1f, 1f));
         Matrix4f m = new Matrix4f(proj);
@@ -232,8 +209,6 @@ public final class WindowwayClient {
         return m;
     }
 
-    // ------------------------------------------------------------------ drawing the windows
-
     public static void onRenderLevel(RenderLevelStageEvent e) {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES || PORTALS.isEmpty()) return;
         if (!inPortalPass) {
@@ -245,17 +220,13 @@ public final class WindowwayClient {
         for (PortalFrame f : PORTALS.values()) {
             if (f.center().distanceTo(cam) > 128) continue;
             boolean front = f.side(cam) > 0;
-            // the far window we are looking out of is the cut plane itself: leave it out
+
             if (inPortalPass && f.id() == viewPartner) continue;
             int k = inPortalPass || !front || viewShader == null ? -1 : pictureOf(f.id());
             disc(f, cam, k, f.link() >= 0, time + e.getPartialTick().getGameTimeDeltaPartialTick(false));
         }
     }
 
-    /**
-     * The colour a joined pair shares, the same on both windows (worked out from the pair, not from either one),
-     * so with several windows about it is plain which goes with which.
-     */
     static int pairColour(PortalFrame f) {
         if (f.link() < 0) return 0x8A8898;
         long key = Math.min(f.id(), f.link()) * 0x9E3779B97F4A7C15L;
@@ -263,7 +234,6 @@ public final class WindowwayClient {
         return java.awt.Color.HSBtoRGB(hue, 0.55f, 1f) & 0xFFFFFF;
     }
 
-    /** Which picture this frame shows through window {@code id}, or -1. */
     private static int pictureOf(long id) {
         for (int k = 0; k < MAX_VIEWS; k++) if (VIEWING[k] == id && VIEWS[k] != null) return k;
         return -1;
@@ -285,12 +255,10 @@ public final class WindowwayClient {
             Vec3 p0 = c.add(f.u().scale(Math.cos(a0) * r)).add(f.v().scale(Math.sin(a0) * r));
             Vec3 p1 = c.add(f.u().scale(Math.cos(a1) * r)).add(f.v().scale(Math.sin(a1) * r));
             if (picture) {
-                // colour carries a tint (rgb) and how much of it (alpha): none in the middle, the pair's colour at the rim
                 vtx(b, c, pair, 0);
                 vtx(b, p0, pair, 120);
                 vtx(b, p1, pair, 120);
             } else {
-                // a dark, slowly turning membrane: rimmed in the pair's colour, or a dim grey while still waiting
                 double sw = Math.sin(time * (joined ? 0.05 : 0.025) + i * 0.4) * 0.5 + 0.5;
                 int rim = joined ? lerp(lerp(0x07050F, pair, 0.35), pair, sw) : lerp(0x18161F, 0x4A4858, sw);
                 vtx(b, c, 0x07050F, 255);

@@ -9,7 +9,6 @@ import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 
-/** A white porcelain mask with a red seal over one eye, taken from a Brimhat. */
 public class BrimhatMaskItem extends ArmorItem {
     public BrimhatMaskItem(Properties props) {
         super(WitchAttire.BRIMHAT_PORCELAIN, Type.HELMET, props);

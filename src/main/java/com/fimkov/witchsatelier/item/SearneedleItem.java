@@ -8,10 +8,6 @@ import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 
-/**
- * The searneedle: a pen with a fire spell heating its ink, burning the line into whatever it touches. Seared
- * lines laugh at rain, rivers, fire and lava. It dips like any pen, and the heat wears it slowly.
- */
 public class SearneedleItem extends InkPenItem {
     public SearneedleItem(Properties props) {
         super(props);

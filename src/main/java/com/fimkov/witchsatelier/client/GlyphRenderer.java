@@ -1,20 +1,24 @@
 package com.fimkov.witchsatelier.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.fimkov.witchsatelier.compat.Ships;
 import com.fimkov.witchsatelier.glyph.GlyphService;
 import com.fimkov.witchsatelier.glyph.InkWear;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
 import com.fimkov.witchsatelier.glyph.surface.StrokeState;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 
-/** Draws ink lines as thin quads lying on the block faces. */
+import java.util.UUID;
+import java.util.function.UnaryOperator;
+
 public final class GlyphRenderer {
     private static final double OFFSET = 0.0025;
     private static final double MAX_DIST_SQR = 96 * 96;
@@ -38,12 +42,12 @@ public final class GlyphRenderer {
 
         double time = (mc.level != null ? mc.level.getGameTime() : 0) + pt;
         float w = (float) GlyphService.INK_WIDTH;
-        java.util.UUID me = mc.player != null ? mc.player.getUUID() : null;
-        // the guide first and lowest: ink drawn over it lies on top of it
+        UUID me = mc.player != null ? mc.player.getUUID() : null;
+
         TraceGuide.render(vc, pose, cam, w);
         for (ClientGlyphs.Entry en : ClientGlyphs.INSTANCE.all()) {
             InkStroke s = en.stroke();
-            // invisible ink: only its author sees the lines (a running spell still glows)
+
             if (s.ink().invisible && s.state() != StrokeState.ACTIVE && !s.author().equals(me)) continue;
             SurfacePlane plane = en.plane();
             double[] uv = en.abs();
@@ -55,25 +59,23 @@ public final class GlyphRenderer {
                 case SPENT -> drawInk(vc, pose, cam, plane, uv, s.size(), w, SPENT, OFFSET, worn, s.id(), SPENT);
                 case ACTIVE -> {
                     if ((s.color() >>> 24 & 0xFF) == 1) {
-                        // a snare, awake and waiting: just a slow, faint breath of light in its lines
                         double breath = 0.5 + 0.5 * Math.sin(time * 0.07 + s.id());
                         drawStroke(vc, pose, cam, plane, uv, s.size(), w * 2.6f, withAlpha(s.color() & 0xFFFFFF, (int) (14 + 26 * breath)), OFFSET * 0.6);
                         drawStroke(vc, pose, cam, plane, uv, s.size(), w, withAlpha(mix(s.ink().color, s.color() & 0xFFFFFF, 0.15 + 0.15 * breath), 255), OFFSET * 1.4);
                         break;
                     }
-                    // the glow fades as the spell's time runs out and flickers in its last seconds
+
                     double left = en.duration() > 0 ? Math.max(0, (en.until() - time) / en.duration()) : 1;
                     double life = 0.25 + 0.75 * left;
                     if (left < 0.2) life *= 0.6 + 0.4 * Math.abs(Math.sin(time * 0.9));
                     double pulse = 0.75 + 0.25 * Math.sin(time * 0.25 + s.id());
                     int glow = withAlpha(s.color(), (int) (80 * pulse * life));
                     int core = withAlpha(mix(s.ink().color, brighten(s.color(), pulse), life), 255);
-                    // ignition: the light runs along each line from where it began, a bright spark at its front
+
                     double since = time - (en.until() - en.duration());
-                    // (if the clock was set back the glyph is simply shown alight)
+
                     double lit = en.duration() > 0 && since >= 0 ? Math.min(1, since / IGNITE) : 1;
                     if (lit >= 1) {
-                        // worn ink holds less of the light
                         if (worn == null) drawStroke(vc, pose, cam, plane, uv, s.size(), w * 3.5f, glow, OFFSET * 0.6);
                         else drawFaded(vc, pose, cam, plane, uv, s.size(), w * 3.5f, glow, OFFSET * 0.6, worn);
                         drawInk(vc, pose, cam, plane, uv, s.size(), w, core, OFFSET * 1.4, worn, s.id(), withAlpha(s.ink().color, 255));
@@ -86,7 +88,6 @@ public final class GlyphRenderer {
 
         BadAppleShow.render(vc, pose, cam, w);
 
-        // lines just finished, until the server's ink for them comes back
         for (ClientDrawing.Sent sent : ClientDrawing.sent()) {
             if (sent.n() > 0) drawStroke(vc, pose, cam, sent.plane(), sent.uv(), sent.n(), w, sent.color(), OFFSET * 1.2);
         }
@@ -97,7 +98,6 @@ public final class GlyphRenderer {
             double[] uv = new double[n * 2];
             for (int i = 0; i < n; i++) { uv[i * 2] = ClientDrawing.u(i); uv[i * 2 + 1] = ClientDrawing.v(i); }
             if (ClientDrawing.imagining()) {
-                // only imagined: pale light hanging a little over the surface, and the whole ring faintly ahead of it
                 double lift = 0.14;
                 var c = ClientDrawing.imaginedCircle();
                 if (c != null) {
@@ -126,7 +126,6 @@ public final class GlyphRenderer {
         }
         if (drawing != null && hover != null) {
             if (ClientDrawing.erasingNow() || aimingRag) {
-                // rubbing out: a circle as wide as what the rag (or the pen) actually wipes
                 double r = ClientDrawing.eraseRadius();
                 double[] c = new double[34 * 2];
                 for (int i = 0; i < 34; i++) {
@@ -136,7 +135,6 @@ public final class GlyphRenderer {
                 }
                 drawStroke(vc, pose, cam, drawing, c, 34, w * 0.5f, 0xC0FFFFFF, OFFSET * 2);
             } else {
-                // pen tip: a small hollow square under the cursor
                 double h = 0.06;
                 double[] box = {hover.x() - h, hover.y() - h, hover.x() + h, hover.y() - h, hover.x() + h, hover.y() + h,
                         hover.x() - h, hover.y() + h, hover.x() - h, hover.y() - h};
@@ -148,14 +146,13 @@ public final class GlyphRenderer {
         ps.popPose();
     }
 
-    /** Ticks it takes the light to run the length of a line when a glyph comes alive. */
     private static final double IGNITE = 16;
 
     private static void ignite(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n, float w,
                                int glow, int core, int ink, double frac) {
         double total = 0;
         for (int i = 1; i < n; i++) total += Math.hypot(uv[i * 2] - uv[i * 2 - 2], uv[i * 2 + 1] - uv[i * 2 - 1]);
-        double front = total * (frac * frac * (3 - 2 * frac)); // eases in and out
+        double front = total * (frac * frac * (3 - 2 * frac));
         double acc = 0;
         int cut = n;
         double fu = uv[0], fv = uv[1];
@@ -170,7 +167,7 @@ public final class GlyphRenderer {
             }
             acc += seg;
         }
-        // the lit part, the front point, and the still dark rest
+
         double[] litPts = new double[(cut + 1) * 2];
         System.arraycopy(uv, 0, litPts, 0, cut * 2);
         litPts[cut * 2] = fu;
@@ -189,15 +186,13 @@ public final class GlyphRenderer {
         }
     }
 
-    /** Partial tick of the frame being drawn, and where the ink being drawn is seen if it lies on a ship. */
     private static float partial;
-    private static java.util.function.UnaryOperator<Vec3> frame;
+    private static UnaryOperator<Vec3> frame;
 
-    /** Where ink kept at {@code (u, v)} on {@code plane} is seen this frame (a ship's ink moves with the ship). */
     static Vec3 seen(SurfacePlane plane, double u, double v, double offset) {
         Vec3 kept = plane.toWorld(u, v, offset);
         var level = Minecraft.getInstance().level;
-        var f = level == null ? null : com.fimkov.witchsatelier.compat.Ships.toWorld(level, net.minecraft.core.BlockPos.containing(plane.toWorld(u, v, -0.01)), partial);
+        var f = level == null ? null : Ships.toWorld(level, BlockPos.containing(plane.toWorld(u, v, -0.01)), partial);
         return f == null ? kept : f.apply(kept);
     }
 
@@ -205,7 +200,7 @@ public final class GlyphRenderer {
                                    float width, int argb, double offset) {
         var level = Minecraft.getInstance().level;
         frame = level == null || n == 0 ? null
-                : com.fimkov.witchsatelier.compat.Ships.toWorld(level, net.minecraft.core.BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), partial);
+                : Ships.toWorld(level, BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), partial);
         try {
             drawStrokeAt(vc, pose, cam, plane, uv, n, width, argb, offset);
         } finally {
@@ -228,14 +223,13 @@ public final class GlyphRenderer {
             if (len < 1e-5) continue;
             du /= len;
             dv /= len;
-            // extend each segment by half a width at both ends so the joints have no gaps
+
             double su = u0 - du * hw, sv = v0 - dv * hw, eu = u1 + du * hw, ev = v1 + dv * hw;
             double nu = -dv * hw, nv = du * hw;
             quad(vc, pose, cam, plane, su + nu, sv + nv, eu + nu, ev + nv, eu - nu, ev - nv, su - nu, sv - nv, offset, r, g, b, a);
         }
     }
 
-    /** A line of ink as rain and feet have left it (or as drawn, if it is unworn). */
     private static void drawInk(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n,
                                 float width, int argb, double offset, byte[] worn, long seed, int fadeTo) {
         if (worn == null || n < 2) {
@@ -245,7 +239,6 @@ public final class GlyphRenderer {
         withFrame(plane, uv, n, () -> drawWorn(vc, pose, cam, plane, uv, n, width, argb, offset, worn, seed, fadeTo));
     }
 
-    /** A glow over worn ink: dimmer where the ink is thinner. */
     private static void drawFaded(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n,
                                   float width, int argb, double offset, byte[] worn) {
         withFrame(plane, uv, n, () -> {
@@ -260,7 +253,7 @@ public final class GlyphRenderer {
     private static void withFrame(SurfacePlane plane, double[] uv, int n, Runnable draw) {
         var level = Minecraft.getInstance().level;
         frame = level == null || n == 0 ? null
-                : com.fimkov.witchsatelier.compat.Ships.toWorld(level, net.minecraft.core.BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), partial);
+                : Ships.toWorld(level, BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), partial);
         try {
             draw.run();
         } finally {
@@ -268,16 +261,11 @@ public final class GlyphRenderer {
         }
     }
 
-    /**
-     * Washed ink thins, bleeds out soft at its edges and, on a wall, runs down in streaks; scuffed ink thins, smears
-     * sideways and breaks into dashes. The more worn a point, the less of the line is left there, and the more of
-     * its colour has gone over to {@code fadeTo} (a glowing line's light leaves the worn ink first).
-     */
     private static void drawWorn(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int n,
                                  float width, int base, double offset, byte[] worn, long seed, int fadeTo) {
         int a = base >>> 24;
         double hw = width / 2.0;
-        // which way is down along this surface (nothing runs on a floor)
+
         Vec3 p0 = plane.toWorld(uv[0], uv[1], 0);
         double downU = -(plane.toWorld(uv[0] + 1, uv[1], 0).y - p0.y), downV = -(plane.toWorld(uv[0], uv[1] + 1, 0).y - p0.y);
         boolean wall = Math.hypot(downU, downV) > 0.5;
@@ -292,11 +280,9 @@ public final class GlyphRenderer {
             }
             double h = noise(seed, i);
             if (InkWear.washed(wa) || InkWear.washed(wb)) {
-                // the pigment spreads out into a soft stain, and what is left of the line is pale and a little wider
                 segment(vc, pose, cam, plane, uv, i, hw * (2.5 + 4 * f), 0, offset * 0.8, r, g, b, (int) (a * 0.35 * f));
                 segment(vc, pose, cam, plane, uv, i, hw * (1 + 0.6 * f), 0, offset, r, g, b, (int) (a * (1 - 0.75 * f)));
                 if (wall && f > 0.15 && h < 0.3) {
-                    // a streak running down from the line, fading as it goes
                     double u = uv[i * 2], v = uv[i * 2 + 1], len = (0.08 + 0.4 * f) * (0.5 + noise(seed + 7, i));
                     double sw = hw * (0.5 + 0.4 * f), su = -downV * sw, sv = downU * sw;
                     double eu = u + downU * len, ev = v + downV * len;
@@ -304,7 +290,6 @@ public final class GlyphRenderer {
                             offset * 0.9, r, g, b, (int) (a * 0.7 * Math.min(1, f * 1.5)), 0);
                 }
             } else {
-                // trodden: a smear dragged off to one side, and the line itself broken where it is worst
                 double side = (h - 0.5) * 2;
                 segment(vc, pose, cam, plane, uv, i, hw * (1.6 + 2.2 * f), side * hw * 3 * f, offset * 0.8, r, g, b, (int) (a * 0.32 * f));
                 if (noise(seed + 3, i) < f) continue;
@@ -313,7 +298,6 @@ public final class GlyphRenderer {
         }
     }
 
-    /** Segment i-1..i of a line, {@code shift} across it, extended by half a width at both ends so joints have no gaps. */
     private static void segment(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane, double[] uv, int i, double hw,
                                 double shift, double offset, int r, int g, int b, int a) {
         if (a <= 0) return;
@@ -329,7 +313,6 @@ public final class GlyphRenderer {
         quad(vc, pose, cam, plane, su + nu, sv + nv, eu + nu, ev + nv, eu - nu, ev - nv, su - nu, sv - nv, offset, r, g, b, Math.min(255, a));
     }
 
-    /** A quad whose first two corners have alpha {@code a0} and last two {@code a1}. */
     private static void fadeQuad(VertexConsumer vc, Matrix4f pose, Vec3 cam, SurfacePlane plane,
                                  double u0, double v0, double u1, double v1, double u2, double v2, double u3, double v3,
                                  double offset, int r, int g, int b, int a0, int a1) {
@@ -339,7 +322,6 @@ public final class GlyphRenderer {
         vertex(vc, pose, cam, plane.toWorld(u3, v3, offset), r, g, b, a1);
     }
 
-    /** A steady pseudo-random number in [0, 1) for point {@code i} of a line, so worn ink does not shimmer. */
     private static double noise(long seed, int i) {
         long x = seed * 0x9E3779B97F4A7C15L + i * 0xC2B2AE3D27D4EB4FL;
         x ^= x >>> 31;
@@ -357,7 +339,6 @@ public final class GlyphRenderer {
         vertex(vc, pose, cam, plane.toWorld(u3, v3, offset), r, g, b, a);
     }
 
-    /** Positions are made camera-relative in double precision before going to float. */
     private static void vertex(VertexConsumer vc, Matrix4f pose, Vec3 cam, Vec3 p, int r, int g, int b, int a) {
         if (frame != null) p = frame.apply(p);
         vc.addVertex(pose, (float) (p.x - cam.x), (float) (p.y - cam.y), (float) (p.z - cam.z)).setColor(r, g, b, a);

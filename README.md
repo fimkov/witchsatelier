@@ -11,8 +11,16 @@ Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wi
 - The spell wakes the moment the ring closes, and stops when the ring is broken, rubbed out or the block under it is gone.
 - 8 sigils (Fire, Water, Earth, Wind, Light, Crystal, Wind Underfoot, Aeriforms) and 25 signs; reversed signs give the opposite effect.
 - How it is drawn matters: a bigger ring makes a bigger, stronger spell, a lopsided layout bends it, a careless hand misfires.
-- Nested rings, linked glyphs, a quick-close key for prepared pages and an imagined-ring technique.
 - 38 grimoire spells, from Pillar of Flame and Wall Breaker to Windowway portals, Birds of Light and Rain of Light.
+- A quick-close key for prepared pages and an imagined-ring technique.
+
+**Spellbuilding**
+- Rings inside rings, as deep as you like: every band adds its own layer to the spell at the heart.
+- Sigils beside the middle one mix their elements in: Floating Drops, Rainflinger, Beast Repellent.
+- Big signs make a strong spell, small ones a weak one; a longer sign on one side pulls the spell that way.
+- Glyphs joined by lines are one chain: they light in a wave, or wait for a Tread glyph that works while it is stood on or powered by redstone: doors, traps, lights on a lever.
+- Glyph arrows cast where they strike; dispensers shoot them, or cast a page's glyph from their own front.
+- A Witch's Grimoire of your own: draw, name and annotate your glyphs, copy them from walls and old books, copy the whole book for a friend.
 
 **Glyphs that last**
 - Continuous spells work for as long as the glyph is whole.
@@ -22,7 +30,7 @@ Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wi
 **Inks and tools**
 - Conjuring, waterproof, invisible and lasting inks brewed from Silverwood, plus forbidden blood ink.
 - Ink Pen and inkwell, Woodcruor Wand (chalk on stone), Searneedle (burns into metal), a rag to erase.
-- Silverwood trees, and library ruins with grimoires and prepared pages.
+- Silverwood trees, and library ruins with themed grimoires, loose glyph pages and rarer finds.
 
 **Artifacts**
 - 15 artifacts, crafted dormant and woken by drawing their glyph, traced from a faint guide.

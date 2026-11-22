@@ -12,15 +12,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** A glyph drawn small in a screen (recipe viewers): the grimoire's own drawing of it, in dark ink. */
 public final class GlyphIcon {
     private static final Map<String, List<float[]>> CACHE = new HashMap<>();
-    /** How far the ring of a grimoire drawing reaches from its centre, in page units. */
+
     private static final float RING = 0.88f;
 
     private GlyphIcon() {}
 
-    /** Draws {@code r} filling a {@code size}-pixel square whose top-left corner is at (x, y). */
     public static void draw(GuiGraphics g, GlyphLibrary.Recipe r, int x, int y, int size, int argb) {
         List<float[]> strokes = CACHE.computeIfAbsent(r.name(), k -> {
             var page = GlyphLibrary.draw(r, RandomSource.create(k.hashCode()), false, InkType.CONJURING);
@@ -56,7 +54,7 @@ public final class GlyphIcon {
             x1 += dx * hw * 0.6f;
             y1 += dy * hw * 0.6f;
             float nx = -dy * hw, ny = dx * hw;
-            // counter-clockwise on screen, or the GUI's back-face culling drops the quad
+
             vc.addVertex(m, x0 - nx, y0 - ny, 0).setColor(argb);
             vc.addVertex(m, x0 + nx, y0 + ny, 0).setColor(argb);
             vc.addVertex(m, x1 + nx, y1 + ny, 0).setColor(argb);

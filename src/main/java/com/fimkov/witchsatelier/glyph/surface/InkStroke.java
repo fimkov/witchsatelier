@@ -10,19 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * One continuous line of conjuring ink on a {@link SurfacePlane}.
- * Points are stored as small float offsets from an integer anchor so they stay precise far from the world origin.
- *
- * @param id     unique per level
- * @param au     anchor u (block)
- * @param av     anchor v (block)
- * @param rel    interleaved offsets du0, dv0, du1, dv1, ... from the anchor
- * @param ink    which ink it was drawn with
- * @param author who drew it (invisible ink shows only to them)
- * @param state  idle, active (part of a running spell) or spent (ink used up)
- * @param color  ARGB tint while active; ignored otherwise
- */
 public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID author, StrokeState state, int color) {
     public static final UUID NOBODY = new UUID(0, 0);
 
@@ -55,7 +42,6 @@ public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID 
         }
     };
 
-    /** Builds a stroke from absolute plane coordinates (interleaved u, v). */
     public static InkStroke of(long id, double[] uv, InkType ink, UUID author, StrokeState state, int color) {
         int au = (int) Math.floor(uv[0]), av = (int) Math.floor(uv[1]);
         float[] rel = new float[uv.length];
@@ -86,7 +72,6 @@ public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID 
     public double u(int i) { return au + (double) rel[i * 2]; }
     public double v(int i) { return av + (double) rel[i * 2 + 1]; }
 
-    /** Absolute interleaved coordinates. */
     public double[] absolute() {
         double[] out = new double[rel.length];
         for (int i = 0; i < size(); i++) {
@@ -118,7 +103,6 @@ public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID 
         return new Pt(x / size(), y / size());
     }
 
-    /** True if any point lies inside the given square of the plane. */
     public boolean touchesSquare(double minU, double minV, double maxU, double maxV) {
         for (int i = 0; i < size(); i++) {
             double u = u(i), v = v(i);
@@ -147,7 +131,7 @@ public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID 
         float[] rel = new float[bits.length];
         for (int i = 0; i < bits.length; i++) rel[i] = Float.intBitsToFloat(bits[i]);
         StrokeState state = StrokeState.byId(t.getByte("state"));
-        // a spell does not survive a restart: its strokes come back idle and can be re-activated
+
         if (state == StrokeState.ACTIVE) state = StrokeState.IDLE;
         UUID author = t.hasUUID("author") ? t.getUUID("author") : NOBODY;
         return new InkStroke(t.getLong("id"), t.getInt("au"), t.getInt("av"), rel, InkType.byId(t.getByte("ink")), author,

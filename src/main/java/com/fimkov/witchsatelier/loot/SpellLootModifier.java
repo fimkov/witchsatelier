@@ -5,8 +5,6 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
-import com.fimkov.witchsatelier.registry.ModComponents;
-import com.fimkov.witchsatelier.registry.ModItems;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
@@ -18,10 +16,6 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import java.util.function.Supplier;
 
-/**
- * Old dungeons, libraries and temples sometimes hold a grimoire, or a few crumpled pages with glyphs
- * someone prepared and never used (their rings still open, ready to close).
- */
 public class SpellLootModifier extends LootModifier {
     public static final DeferredRegister<MapCodec<? extends IGlobalLootModifier>> SERIALIZERS =
             DeferredRegister.create(NeoForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, WitchsAtelier.MODID);
@@ -45,7 +39,7 @@ public class SpellLootModifier extends LootModifier {
     @Override
     protected ObjectArrayList<ItemStack> doApply(ObjectArrayList<ItemStack> loot, LootContext ctx) {
         var rnd = ctx.getRandom();
-        // one of the themed books; more rarely the notes on the imagined ring
+
         if (rnd.nextFloat() < grimoireChance) loot.add(GlyphLibrary.randomVolume(rnd));
         if (rnd.nextFloat() < grimoireChance * 0.4f) loot.add(GlyphLibrary.volumeBook(GlyphLibrary.RING_NOTES, rnd));
         if (rnd.nextFloat() < pageChance) {

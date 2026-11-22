@@ -1,11 +1,13 @@
 package com.fimkov.witchsatelier.entity;
 
+import com.fimkov.witchsatelier.advancement.MagicTrigger;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
-import com.fimkov.witchsatelier.glyph.page.GlyphPages;
-import com.fimkov.witchsatelier.registry.ModComponents;
 import com.fimkov.witchsatelier.registry.ModItems;
+import com.fimkov.witchsatelier.registry.ModSounds;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -22,14 +24,10 @@ import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
-/**
- * A stranger in a broad-brimmed hat and a long dark mantle who sometimes passes by villages, rarely, and never
- * for long. The first time someone speaks to them they press an old grimoire and a pen into that person's
- * hands without a word; after that they trade in the things witches need.
- */
 public class StrangerEntity extends WanderingTrader {
     public static final String GIFT_TAG = "witchsatelier_stranger_gift";
 
@@ -45,22 +43,21 @@ public class StrangerEntity extends WanderingTrader {
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!level().isClientSide && hand == InteractionHand.MAIN_HAND && !player.getPersistentData().getBoolean(GIFT_TAG)) {
             player.getPersistentData().putBoolean(GIFT_TAG, true);
-            // a primer: how glyphs work, and three to start with; the rest is out there to be found
+
             give(player, GlyphLibrary.volumeBook(GlyphLibrary.PRIMER, random));
             give(player, new ItemStack(ModItems.INK_PEN.get()));
             give(player, new ItemStack(ModItems.CONJURING_INK.get()));
             level().playSound(null, getX(), getY(), getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.NEUTRAL, 1f, 0.6f);
             if (level() instanceof ServerLevel sl) sl.sendParticles(ParticleTypes.ENCHANT, getX(), getY() + 1.5, getZ(), 40, 0.5, 0.6, 0.5, 0.6);
             getLookControl().setLookAt(player);
-            com.fimkov.witchsatelier.advancement.MagicTrigger.fire(player, "stranger_gift");
+            MagicTrigger.fire(player, "stranger_gift");
             return InteractionResult.SUCCESS;
         }
         return super.mobInteract(player, hand);
     }
 
-    /** They say nothing at all. */
     @Override
-    protected net.minecraft.sounds.SoundEvent getAmbientSound() {
+    protected SoundEvent getAmbientSound() {
         return null;
     }
 
@@ -90,10 +87,9 @@ public class StrangerEntity extends WanderingTrader {
         }
     }
 
-    /** Steps come with the swish of the long robe. */
     @Override
-    protected void playStepSound(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+    protected void playStepSound(BlockPos pos, BlockState state) {
         super.playStepSound(pos, state);
-        if (random.nextInt(2) == 0) playSound(com.fimkov.witchsatelier.registry.ModSounds.CLOTH_RUSTLE.get(), 0.35f, 0.85f + random.nextFloat() * 0.3f);
+        if (random.nextInt(2) == 0) playSound(ModSounds.CLOTH_RUSTLE.get(), 0.35f, 0.85f + random.nextFloat() * 0.3f);
     }
 }

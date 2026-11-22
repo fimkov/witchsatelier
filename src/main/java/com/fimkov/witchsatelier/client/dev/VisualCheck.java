@@ -1,49 +1,90 @@
 package com.fimkov.witchsatelier.client.dev;
 
 import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.block.ArcaneLensBlock;
+import com.fimkov.witchsatelier.block.DragonTeacupBlock;
+import com.fimkov.witchsatelier.block.GlowstonePathBlock;
+import com.fimkov.witchsatelier.block.SealchairBlock;
+import com.fimkov.witchsatelier.block.StatueBlock;
+import com.fimkov.witchsatelier.block.sealed.SealedBlock;
+import com.fimkov.witchsatelier.client.ClientDrawing;
+import com.fimkov.witchsatelier.client.PageScreen;
+import com.fimkov.witchsatelier.client.PennantRibbons;
+import com.fimkov.witchsatelier.compat.AwakeningEmiRecipe;
+import com.fimkov.witchsatelier.gametest.GlyphSketch;
 import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.model.Orientation;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
+import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
+import com.fimkov.witchsatelier.glyph.page.GlyphPages;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
-import com.fimkov.witchsatelier.gametest.GlyphSketch;
+import com.fimkov.witchsatelier.item.InkPenItem;
+import com.fimkov.witchsatelier.network.Payloads;
 import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModComponents;
 import com.fimkov.witchsatelier.registry.ModEntities;
+import com.fimkov.witchsatelier.registry.ModFeatures;
 import com.fimkov.witchsatelier.registry.ModItems;
+import dev.emi.emi.api.EmiApi;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.feature.FeaturePlaceContext;
+import net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConfiguration;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * Development aid, only active with -Dwitchsatelier.visualcheck: in a throw-away world it builds scenes high in the
- * sky (glyphs, creatures, ruins, contraptions, a windowway), points the camera at each, takes
- * screenshots into run/screenshots/witchsatelier_*.png and quits. Lets the visuals be checked without a person at
- * the keyboard.
- */
 public final class VisualCheck {
-    /**
-     * @param film   ticks to film instead of taking a screenshot (0: a screenshot)
-     * @param during while filming, called on the server each tick with the tick number (from 1)
-     */
     record Shot(String name, int delay, Consumer<ServerLevel> setup, Vec3 eye, float yaw, float pitch, boolean firstPerson,
-                int film, java.util.function.BiConsumer<ServerLevel, Integer> during) {
+                int film, BiConsumer<ServerLevel, Integer> during) {
         Shot(String name, int delay, Consumer<ServerLevel> setup, Vec3 eye, float yaw, float pitch, boolean firstPerson) {
             this(name, delay, setup, eye, yaw, pitch, firstPerson, 0, null);
         }
@@ -59,14 +100,10 @@ public final class VisualCheck {
     private static final String TEST_WORLD = "WitchcraftVisualTest";
 
     private static String worldFolder(MinecraftServer server) {
-        var p = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize().getFileName();
+        var p = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName();
         return p == null ? "" : p.toString();
     }
 
-    /**
-     * Undoes the scenes in a world they were built in by mistake: the platforms in the sky over the origin go back
-     * to air, and the creatures put there are removed (wherever they wandered). Run with -Pshots=cleanup -Pworld=...
-     */
     private static void cleanup(Minecraft mc, MinecraftServer server) {
         index = Integer.MAX_VALUE / 2;
         timer = -1;
@@ -77,12 +114,12 @@ public final class VisualCheck {
                 BlockPos p = BASE.offset(x, y, z);
                 if (!l.getBlockState(p).isAir()) { l.setBlock(p, Blocks.AIR.defaultBlockState(), 2); blocks++; }
             }
-            java.util.Set<net.minecraft.world.entity.EntityType<?>> ours = java.util.Set.of(ModEntities.KNIGHT_MORALIS.get(), ModEntities.BRIMHAT.get(),
+            Set<EntityType<?>> ours = Set.of(ModEntities.KNIGHT_MORALIS.get(), ModEntities.BRIMHAT.get(),
                     ModEntities.STRANGER.get(), ModEntities.SEALCHAIR.get());
-            var box = new net.minecraft.world.phys.AABB(-48, l.getMinBuildHeight(), -48, 48, l.getMaxBuildHeight(), 48);
-            for (var e : l.getEntities((net.minecraft.world.entity.Entity) null, box, en -> !(en instanceof net.minecraft.world.entity.player.Player)
+            var box = new AABB(-48, l.getMinBuildHeight(), -48, 48, l.getMaxBuildHeight(), 48);
+            for (var e : l.getEntities((Entity) null, box, en -> !(en instanceof Player)
                     && (ours.contains(en.getType()) || en.getY() > BASE.getY() - 2))) {
-                WitchsAtelier.LOGGER.info("[visualcheck] cleanup: removing {} at {}", net.minecraft.world.entity.EntityType.getKey(e.getType()), e.blockPosition());
+                WitchsAtelier.LOGGER.info("[visualcheck] cleanup: removing {} at {}", EntityType.getKey(e.getType()), e.blockPosition());
                 e.discard();
             }
             WitchsAtelier.LOGGER.info("[visualcheck] cleanup: {} blocks back to air", blocks);
@@ -94,11 +131,11 @@ public final class VisualCheck {
 
     public static void init() {
         if (System.getProperty("witchsatelier.visualcheck") == null) return;
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(VisualCheck::tick);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.RenderFrameEvent.Post e) -> {
+        NeoForge.EVENT_BUS.addListener(VisualCheck::tick);
+        NeoForge.EVENT_BUS.addListener((RenderFrameEvent.Post e) -> {
             if (recorder != null) recorder.frame();
         });
-        // 1. glyphs one at a time, then together
+
         SHOTS.add(new Shot("glyph_fire", 30, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 14);
@@ -119,7 +156,7 @@ public final class VisualCheck {
             platform(l, BASE, 14);
             floorGlyph(l, BASE, new GlyphSketch(new Pt(0, 0), 1.6).ring(0, 362).sigil(Sigil.WIND, 0.8).signs(SignType.LEVITATION, 4, Orientation.OUTWARD, 0.4, 45));
         }, new Vec3(0.5, 224.5, 5.5), 180, 40, false));
-        // 2. water: a jet from a wall and a wave on the floor
+
         SHOTS.add(new Shot("water", 25, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 14);
@@ -130,42 +167,42 @@ public final class VisualCheck {
             GlyphService.inscribe(l, pw, new GlyphSketch(cw, 1.0).ring(0, 362).sigil(Sigil.WATER, 0.6).signs(SignType.COLUMN, 4, Orientation.OUTWARD, 0.3, 45).strokes, null);
             floorGlyph(l, BASE.offset(3, 0, 0), new GlyphSketch(new Pt(0, 0), 1.2).ring(0, 362).sigil(Sigil.WATER, 0.7).signs(SignType.DISPERSION, 4, Orientation.OUTWARD, 0.35, 45));
         }, new Vec3(0.5, 226, 10), 180, 30, false));
-        // 3. creatures
+
         SHOTS.add(new Shot("creatures", 30, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 14);
             spawn(l, ModEntities.BRIMHAT.get(), BASE.offset(-3, 1, 0));
             spawn(l, ModEntities.KNIGHT_MORALIS.get(), BASE.offset(0, 1, 0));
             spawn(l, ModEntities.STRANGER.get(), BASE.offset(3, 1, 0));
-            l.setBlock(BASE.offset(-1, 1, 3), com.fimkov.witchsatelier.registry.ModBlocks.SEALCHAIR.get().defaultBlockState()
-                    .setValue(com.fimkov.witchsatelier.block.SealchairBlock.FACING, Direction.SOUTH), 3);
-            var pig = net.minecraft.world.entity.EntityType.SHEEP.create(l);
+            l.setBlock(BASE.offset(-1, 1, 3), ModBlocks.SEALCHAIR.get().defaultBlockState()
+                    .setValue(SealchairBlock.FACING, Direction.SOUTH), 3);
+            var pig = EntityType.SHEEP.create(l);
             if (pig != null) {
                 pig.moveTo(BASE.getX() + 6.5, BASE.getY() + 1, BASE.getZ() + 0.5, 180, 0);
                 l.addFreshEntity(pig);
-                com.fimkov.witchsatelier.block.StatueBlock.petrify(l, pig);
+                StatueBlock.petrify(l, pig);
             }
         }, new Vec3(0.5, 223.2, 8.5), 180, 12, false));
-        // 4. contraptions
+
         SHOTS.add(new Shot("contraptions", 20, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 14);
-            l.setBlock(BASE.offset(-4, 1, 0), ModBlocks.WARDING_TOWER.get().defaultBlockState().setValue(com.fimkov.witchsatelier.block.sealed.SealedBlock.LIT, true), 3);
-            l.setBlock(BASE.offset(-2, 1, 0), ModBlocks.WASHING_BARREL.get().defaultBlockState().setValue(com.fimkov.witchsatelier.block.sealed.SealedBlock.LIT, true), 3);
-            l.setBlock(BASE.offset(0, 1, 0), ModBlocks.ARCANE_LENS.get().defaultBlockState().setValue(com.fimkov.witchsatelier.block.ArcaneLensBlock.FACING, Direction.SOUTH), 3);
+            l.setBlock(BASE.offset(-4, 1, 0), ModBlocks.WARDING_TOWER.get().defaultBlockState().setValue(SealedBlock.LIT, true), 3);
+            l.setBlock(BASE.offset(-2, 1, 0), ModBlocks.WASHING_BARREL.get().defaultBlockState().setValue(SealedBlock.LIT, true), 3);
+            l.setBlock(BASE.offset(0, 1, 0), ModBlocks.ARCANE_LENS.get().defaultBlockState().setValue(ArcaneLensBlock.FACING, Direction.SOUTH), 3);
             l.setBlock(BASE.offset(2, 1, 0), ModBlocks.VOID_BASIN.get().defaultBlockState(), 3);
             l.setBlock(BASE.offset(4, 1, 0), ModBlocks.INKWELL.get().defaultBlockState(), 3);
-            l.setBlock(BASE.offset(-1, 1, 2), ModBlocks.GLOWSTONE_PATH.get().defaultBlockState().setValue(com.fimkov.witchsatelier.block.GlowstonePathBlock.LIT, true), 3);
+            l.setBlock(BASE.offset(-1, 1, 2), ModBlocks.GLOWSTONE_PATH.get().defaultBlockState().setValue(GlowstonePathBlock.LIT, true), 3);
             l.setBlock(BASE.offset(1, 1, 2), ModBlocks.GLOWSTONE_PATH.get().defaultBlockState(), 3);
-            l.setBlock(BASE.offset(3, 1, 2), ModBlocks.DRAGON_TEACUP.get().defaultBlockState().setValue(com.fimkov.witchsatelier.block.DragonTeacupBlock.DANCING, true), 3);
+            l.setBlock(BASE.offset(3, 1, 2), ModBlocks.DRAGON_TEACUP.get().defaultBlockState().setValue(DragonTeacupBlock.DANCING, true), 3);
         }, new Vec3(0.5, 224, 6.5), 180, 28, false));
-        // 5. the library ruin
+
         SHOTS.add(new Shot("library", 120, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 16);
-            place(l, com.fimkov.witchsatelier.registry.ModFeatures.LIBRARY.get(), BASE.offset(0, 1, 0));
+            place(l, ModFeatures.LIBRARY.get(), BASE.offset(0, 1, 0));
         }, new Vec3(0.5, 229, 16), 180, 25, false));
-        // 6. windowway
+
         SHOTS.add(new Shot("windowway", 40, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 16);
@@ -181,7 +218,7 @@ public final class VisualCheck {
             GlyphService.inscribe(l, pa, new GlyphSketch(ca, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
             GlyphService.inscribe(l, pb, new GlyphSketch(cb, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
         }, new Vec3(-1.5, 223.2, 0.5), 90, 5, false));
-        // 6b. windowways the size people draw them, on dirt pillars, the two facing different ways
+
         SHOTS.add(new Shot("windowway_small", 40, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 16);
@@ -198,7 +235,7 @@ public final class VisualCheck {
             GlyphService.inscribe(l, pa, new GlyphSketch(ca, 1.4).ring(0, 362).centerSign(SignType.WINDOW, 0.8).strokes, null);
             GlyphService.inscribe(l, pb, new GlyphSketch(cb, 1.4).ring(0, 362).centerSign(SignType.WINDOW, 0.8).strokes, null);
         }, new Vec3(-1.5, 222.6, 0.5), 90, 8, false));
-        // 7. gear: attire on stands, artifacts in frames
+
         SHOTS.add(new Shot("gear", 20, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 12);
@@ -210,7 +247,7 @@ public final class VisualCheck {
                     {ModItems.WITCH_HAT.get(), ModItems.WITCH_MANTLE.get(), null, null}};
             EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
             for (int i = 0; i < sets.length; i++) {
-                var stand = net.minecraft.world.entity.EntityType.ARMOR_STAND.create(l);
+                var stand = EntityType.ARMOR_STAND.create(l);
                 if (stand == null) continue;
                 stand.moveTo(BASE.getX() - 4 + i * 2 + 0.5, BASE.getY() + 1, BASE.getZ() + 0.5, (i - 2) * -14, 0);
                 for (int s = 0; s < 4; s++) if (sets[i][s] != null) stand.setItemSlot(slots[s], new ItemStack(sets[i][s]));
@@ -222,12 +259,12 @@ public final class VisualCheck {
                 BlockPos wall = BASE.offset(-4 + i, 2 + (i % 2), -2);
                 l.setBlock(wall, Blocks.SPRUCE_PLANKS.defaultBlockState(), 3);
                 l.setBlock(wall.below(), Blocks.SPRUCE_PLANKS.defaultBlockState(), 3);
-                var frame = new net.minecraft.world.entity.decoration.ItemFrame(l, wall.south(), Direction.SOUTH);
+                var frame = new ItemFrame(l, wall.south(), Direction.SOUTH);
                 frame.setItem(new ItemStack(shown[i]), false);
                 l.addFreshEntity(frame);
             }
         }, new Vec3(0.5, 222.9, 4.6), 180, 8, false));
-        // 8. hands
+
         SHOTS.add(new Shot("hands", 20, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 10);
@@ -239,33 +276,60 @@ public final class VisualCheck {
         visitShots();
         imaginedShot();
         appleShots();
-        // the themed books, open: volume_<id>_<page>
+
         for (String[] v : new String[][]{{"forbidden", "0"}, {"forbidden", "1"}, {"forbidden", "2"}, {"forbidden", "3"}, {"forbidden", "4"}, {"forbidden", "5"}, {"flame", "1"}, {"imagined_ring", "0"}, {"primer", "0"}}) {
             SHOTS.add(new Shot("volume_" + v[0] + "_" + v[1], 30, l -> {
                 ServerPlayer p = player(l.getServer());
                 if (p == null) return;
-                var vol = v[0].equals("forbidden") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.FORBIDDEN_BOOK
-                        : v[0].equals("imagined_ring") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.RING_NOTES
-                        : v[0].equals("primer") ? com.fimkov.witchsatelier.glyph.page.GlyphLibrary.PRIMER
-                        : com.fimkov.witchsatelier.glyph.page.GlyphLibrary.VOLUMES.stream().filter(x -> x.id().equals(v[0])).findFirst().orElseThrow();
-                p.setItemSlot(EquipmentSlot.MAINHAND, com.fimkov.witchsatelier.glyph.page.GlyphLibrary.volumeBook(vol, net.minecraft.util.RandomSource.create(3)));
+                var vol = v[0].equals("forbidden") ? GlyphLibrary.FORBIDDEN_BOOK
+                        : v[0].equals("imagined_ring") ? GlyphLibrary.RING_NOTES
+                        : v[0].equals("primer") ? GlyphLibrary.PRIMER
+                        : GlyphLibrary.VOLUMES.stream().filter(x -> x.id().equals(v[0])).findFirst().orElseThrow();
+                p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.volumeBook(vol, RandomSource.create(3)));
             }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
         }
-        // the recipe viewer's Awakening pages (EMI is in the dev run)
+
+        for (int pg = 0; pg < 2; pg++) {
+            int open = pg;
+            SHOTS.add(new Shot("witch_grimoire_" + pg, 30, l -> {
+                ServerPlayer p = player(l.getServer());
+                if (p == null) return;
+                var book = new ItemStack(ModItems.WITCH_GRIMOIRE.get());
+                var rnd = RandomSource.create(4);
+                var gp = GlyphPages.blank(16)
+                        .withPage(0, GlyphLibrary.draw(GlyphLibrary.byName("fire_bolts"), rnd, false, InkType.CONJURING))
+                        .withPage(1, GlyphLibrary.draw(GlyphLibrary.byName("lantern"), rnd, false, InkType.LASTING))
+                        .withCurrent(open);
+                book.set(ModComponents.GLYPH_PAGES.get(), gp);
+                List<String> titles = new ArrayList<>(Collections.nCopies(16, ""));
+                List<String> notes = new ArrayList<>(Collections.nCopies(16, ""));
+                titles.set(0, "Hailstorm of embers");
+                notes.set(0, "Bolts, four of them. Draw the ring wide for more shots.\nCopied off the barn wall at Kalhn.");
+                titles.set(1, "#glyph.witchsatelier.lantern");
+                book.set(ModComponents.PAGE_TITLES.get(), titles);
+                book.set(ModComponents.PAGE_NOTES.get(), notes);
+                book.set(ModComponents.KEEPER.get(), p.getGameProfile().getName());
+                p.setItemSlot(EquipmentSlot.MAINHAND, book);
+                ItemStack pen = new ItemStack(ModItems.INK_PEN.get());
+                InkPenItem.setLoaded(pen, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
+                p.setItemSlot(EquipmentSlot.OFFHAND, pen);
+            }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
+        }
+
         SHOTS.add(new Shot("wiki_icons_black", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
         SHOTS.add(new Shot("wiki_icons_white", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
         SHOTS.add(new Shot("jei_awakening", 60, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
         SHOTS.add(new Shot("emi_awakening", 40, l -> {}, new Vec3(0.5, 222.62, 3.5), 180, 10, false));
-        // a dormant artifact on the canvas: the glyph it wants shows faintly, to be traced
+
         for (String what : new String[]{"raincleaver", "boots"}) {
             SHOTS.add(new Shot("canvas_" + what, 40, l -> {
                 ServerPlayer p = player(l.getServer());
                 if (p == null) return;
                 ItemStack pen = new ItemStack(ModItems.INK_PEN.get());
-                com.fimkov.witchsatelier.item.InkPenItem.setLoaded(pen, com.fimkov.witchsatelier.glyph.ink.InkType.CONJURING, com.fimkov.witchsatelier.item.InkPenItem.NIB_CAPACITY);
+                InkPenItem.setLoaded(pen, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
                 p.setItemSlot(EquipmentSlot.MAINHAND, pen);
                 ItemStack held = what.equals("boots") ? new ItemStack(ModItems.WITCH_BOOTS.get()) : new ItemStack(ModItems.RAINCLEAVER.get());
-                if (!what.equals("boots")) held.set(com.fimkov.witchsatelier.registry.ModComponents.DORMANT.get(), true);
+                if (!what.equals("boots")) held.set(ModComponents.DORMANT.get(), true);
                 p.setItemSlot(EquipmentSlot.OFFHAND, held);
             }, new Vec3(0.5, 222.62, 0.5), 180, 0, true));
         }
@@ -280,15 +344,15 @@ public final class VisualCheck {
             platform(l, BASE, 10);
             ServerPlayer p = player(l.getServer());
             if (p != null) {
-                ItemStack book = com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(net.minecraft.util.RandomSource.create(5), 4, "pillar_of_flame");
-                var gp = book.get(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get());
-                book.set(com.fimkov.witchsatelier.registry.ModComponents.GLYPH_PAGES.get(), gp.withCurrent(2));
+                ItemStack book = GlyphLibrary.grimoireBook(RandomSource.create(5), 4, "pillar_of_flame");
+                var gp = book.get(ModComponents.GLYPH_PAGES.get());
+                book.set(ModComponents.GLYPH_PAGES.get(), gp.withCurrent(2));
                 p.setItemSlot(EquipmentSlot.OFFHAND, book);
                 ItemStack pen = new ItemStack(ModItems.INK_PEN.get());
-                com.fimkov.witchsatelier.item.InkPenItem.setLoaded(pen, com.fimkov.witchsatelier.glyph.ink.InkType.CONJURING, com.fimkov.witchsatelier.item.InkPenItem.NIB_CAPACITY);
+                InkPenItem.setLoaded(pen, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
                 p.setItemSlot(EquipmentSlot.MAINHAND, pen);
             }
-            // half the ring already inked over the guide: the ink must lie on top of it
+
             SurfacePlane floor = SurfacePlane.of(BASE, Direction.UP);
             Pt at = floor.toUV(new Vec3(0.5, BASE.getY() + 1, 1.5));
             GlyphService.inscribe(l, floor, new GlyphSketch(at, 1.7).ring(200, 420).strokes, null);
@@ -299,9 +363,9 @@ public final class VisualCheck {
         SHOTS.add(new Shot("walking", 18, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 14);
-            net.minecraft.world.entity.EntityType<?>[] types = {ModEntities.BRIMHAT.get(), ModEntities.STRANGER.get(), ModEntities.KNIGHT_MORALIS.get()};
+            EntityType<?>[] types = {ModEntities.BRIMHAT.get(), ModEntities.STRANGER.get(), ModEntities.KNIGHT_MORALIS.get()};
             for (int i = 0; i < types.length; i++) {
-                var m = (net.minecraft.world.entity.Mob) types[i].spawn(l, BASE.offset(-5 + i * 3, 1, -9), MobSpawnType.COMMAND);
+                var m = (Mob) types[i].spawn(l, BASE.offset(-5 + i * 3, 1, -9), MobSpawnType.COMMAND);
                 if (m == null) continue;
                 m.setTarget(null);
                 m.getNavigation().moveTo(BASE.getX() - 5 + i * 3 + 0.5, BASE.getY() + 1, BASE.getZ() + 14, 0.8);
@@ -309,7 +373,6 @@ public final class VisualCheck {
         }, new Vec3(0.5, 222.8, 6.5), 180, 8, false));
     }
 
-    /** The apple no book shows, as its glyph fades into the ring and once the film is playing. */
     private static void appleShots() {
         for (int[] at : new int[][]{{25}, {100}, {700}}) {
             SHOTS.add(new Shot("apple_" + at[0], at[0], l -> {
@@ -317,8 +380,8 @@ public final class VisualCheck {
                 platform(l, BASE, 10);
                 SurfacePlane floor = SurfacePlane.of(BASE, Direction.UP);
                 Pt c = floor.toUV(new Vec3(0.5, BASE.getY() + 1, 0.5));
-                var g = new com.fimkov.witchsatelier.gametest.GlyphSketch(c, 1.4).ring(0, 362).sigil(com.fimkov.witchsatelier.glyph.model.Sigil.APPLE, 1.0);
-                com.fimkov.witchsatelier.glyph.GlyphService.inscribe(l, floor, g.strokes, player(l.getServer()));
+                var g = new GlyphSketch(c, 1.4).ring(0, 362).sigil(Sigil.APPLE, 1.0);
+                GlyphService.inscribe(l, floor, g.strokes, player(l.getServer()));
             }, new Vec3(0.5, 224.2, 3.0), 180, 52, false));
         }
     }
@@ -330,36 +393,33 @@ public final class VisualCheck {
         }, new Vec3(0.5, 223.2, 4.5), 180, 45, true));
     }
 
-    /** Where a visit_ shot found its place; the camera goes there instead of to the shot's own eye. */
     private static Vec3 visitEye;
 
-    /** Finds the nearest of each place as /locate does, goes there, and looks: it must have been built. */
     private static void visitShots() {
         for (String k : new String[]{"library_ruin"}) {
             SHOTS.add(new Shot("visit_" + k, 160, l -> {
-                var reg = l.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
-                var holder = reg.getHolder(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE,
-                        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, k)));
-                var found = holder.isEmpty() ? null : l.getChunkSource().getGenerator().findNearestMapStructure(l, net.minecraft.core.HolderSet.direct(holder.get()), BASE, 100, false);
+                var reg = l.registryAccess().registryOrThrow(Registries.STRUCTURE);
+                var holder = reg.getHolder(ResourceKey.create(Registries.STRUCTURE,
+                        ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, k)));
+                var found = holder.isEmpty() ? null : l.getChunkSource().getGenerator().findNearestMapStructure(l, HolderSet.direct(holder.get()), BASE, 100, false);
                 if (found == null) { WitchsAtelier.LOGGER.info("[visualcheck] visit {}: none found", k); return; }
                 BlockPos at = found.getFirst();
-                l.getChunk(at.getX() >> 4, at.getZ() >> 4); // generate it
-                int y = l.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING, at.getX(), at.getZ());
+                l.getChunk(at.getX() >> 4, at.getZ() >> 4);
+                int y = l.getHeight(Heightmap.Types.MOTION_BLOCKING, at.getX(), at.getZ());
                 visitEye = new Vec3(at.getX() + 0.5, y + 14, at.getZ() + 14.5);
                 WitchsAtelier.LOGGER.info("[visualcheck] visit {}: {} (ground {})", k, at, y);
             }, new Vec3(0.5, 222.62, 0.5), 180, 40, false));
         }
     }
 
-    /** Logs where the nearest of each witch place is, as /locate structure finds them. */
     private static void locateShot() {
         SHOTS.add(new Shot("locate", 5, l -> {
-            var reg = l.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            var reg = l.registryAccess().registryOrThrow(Registries.STRUCTURE);
             for (String k : new String[]{"library_ruin"}) {
-                var holder = reg.getHolder(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE,
-                        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, k)));
+                var holder = reg.getHolder(ResourceKey.create(Registries.STRUCTURE,
+                        ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, k)));
                 if (holder.isEmpty()) { WitchsAtelier.LOGGER.info("[visualcheck] locate {}: not registered", k); continue; }
-                var found = l.getChunkSource().getGenerator().findNearestMapStructure(l, net.minecraft.core.HolderSet.direct(holder.get()), BASE, 100, false);
+                var found = l.getChunkSource().getGenerator().findNearestMapStructure(l, HolderSet.direct(holder.get()), BASE, 100, false);
                 WitchsAtelier.LOGGER.info("[visualcheck] locate {}: {}", k, found == null ? "none within range" : found.getFirst());
             }
         }, new Vec3(0.5, 222.62, 0.5), 180, 20, false));
@@ -372,7 +432,7 @@ public final class VisualCheck {
                 platform(l, BASE, 10);
                 ServerPlayer p = player(l.getServer());
                 if (p == null) return;
-                ItemStack book = com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(net.minecraft.util.RandomSource.create(5), 4, "pillar_of_flame");
+                ItemStack book = GlyphLibrary.grimoireBook(RandomSource.create(5), 4, "pillar_of_flame");
                 p.setItemSlot(EquipmentSlot.MAINHAND, hand.equals("book_main") ? book : new ItemStack(ModItems.INK_PEN.get()));
                 p.setItemSlot(EquipmentSlot.OFFHAND, hand.equals("book_off") ? book : ItemStack.EMPTY);
             }, new Vec3(0.5, 222.62, 0.5), 180, 20, true));
@@ -383,14 +443,14 @@ public final class VisualCheck {
         for (String flip : new String[]{"flip_fwd", "flip_back"}) {
             SHOTS.add(new Shot(flip, 30, l -> {
                 ServerPlayer p = player(l.getServer());
-                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(
-                        net.minecraft.util.RandomSource.create(5), 4, "birds_of_light"));
+                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.grimoireBook(
+                        RandomSource.create(5), 4, "birds_of_light"));
             }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
         }
         SHOTS.add(new Shot("birdpage", 30, l -> {
             ServerPlayer p = player(l.getServer());
-            if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(
-                    net.minecraft.util.RandomSource.create(5), 4, "birds_of_light"));
+            if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.grimoireBook(
+                    RandomSource.create(5), 4, "birds_of_light"));
         }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
         for (String name : new String[]{"pennant_hand", "pennant_bind", "pennant_wrap"}) {
             SHOTS.add(new Shot(name, 44, l -> {
@@ -402,7 +462,7 @@ public final class VisualCheck {
                     p.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
                 }
                 if (!name.equals("pennant_hand")) {
-                    var z = net.minecraft.world.entity.EntityType.ZOMBIE.create(l);
+                    var z = EntityType.ZOMBIE.create(l);
                     if (z != null) {
                         z.moveTo(BASE.getX() + 0.5, BASE.getY() + 1, BASE.getZ() - 5.5, 0, 0);
                         z.setNoAi(true);
@@ -411,7 +471,7 @@ public final class VisualCheck {
                         l.addFreshEntity(z);
                     }
                 }
-                var k = (net.minecraft.world.entity.Mob) ModEntities.KNIGHT_MORALIS.get().spawn(l, BASE.offset(3, 1, -4), MobSpawnType.COMMAND);
+                var k = (Mob) ModEntities.KNIGHT_MORALIS.get().spawn(l, BASE.offset(3, 1, -4), MobSpawnType.COMMAND);
                 if (k != null) {
                     k.setNoAi(true);
                     k.setYRot(150);
@@ -426,37 +486,34 @@ public final class VisualCheck {
         for (int pg = 0; pg < 3; pg++) {
             SHOTS.add(new Shot("grimoire_" + pg, 30, l -> {
                 ServerPlayer p = player(l.getServer());
-                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, com.fimkov.witchsatelier.glyph.page.GlyphLibrary.grimoireBook(
-                        net.minecraft.util.RandomSource.create(5), 4, "pillar_of_flame"));
+                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.grimoireBook(
+                        RandomSource.create(5), 4, "pillar_of_flame"));
             }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
         }
     }
 
-    /** -Dwitchsatelier.visualcheck=all, or a comma-separated list of shot name prefixes. */
     private static void filter() {
         String want = System.getProperty("witchsatelier.visualcheck", "all");
         if (want.equals("all")) {
-            SHOTS.removeIf(s -> s.film() > 0); // films take minutes: only when asked for (-Pshots=film or film_<spell>)
+            SHOTS.removeIf(s -> s.film() > 0);
             return;
         }
-        java.util.List<String> keep = java.util.Arrays.asList(want.split(","));
+        List<String> keep = Arrays.asList(want.split(","));
         SHOTS.removeIf(s -> keep.stream().noneMatch(k -> s.name().startsWith(k)));
     }
 
     private static void tick(ClientTickEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
-        // nobody is at the keyboard: the game must not pause when the window is not focused
+
         mc.options.pauseOnLostFocus = false;
-        if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
-        // the test world, opened after the mod changed (things removed, a dimension added), asks before loading:
-        // nobody is there to answer, so go on (only ever the throw-away test world is opened)
-        if (mc.screen != null && mc.level == null && !(mc.screen instanceof net.minecraft.client.gui.screens.TitleScreen)) proceed(mc.screen);
+        if (mc.screen instanceof PauseScreen) mc.setScreen(null);
+
+        if (mc.screen != null && mc.level == null && !(mc.screen instanceof TitleScreen)) proceed(mc.screen);
         MinecraftServer server = mc.getSingleplayerServer();
         if (mc.player == null || server == null || mc.level == null) return;
         if (ready < 60) { ready++; return; }
         if (index < 0 && server.getPlayerList().getPlayer(mc.player.getUUID()) == null) return;
         if (index < 0 && !TEST_WORLD.equals(worldFolder(server))) {
-            // never build scenes in a real world: if anything but the test world is open, leave it untouched
             if (System.getProperty("witchsatelier.visualcheck").equals("cleanup")) {
                 cleanup(mc, server);
             } else {
@@ -481,43 +538,45 @@ public final class VisualCheck {
                 p.getAbilities().flying = true;
                 p.onUpdateAbilities();
                 ItemStack pen = new ItemStack(ModItems.INK_PEN.get());
-                com.fimkov.witchsatelier.item.InkPenItem.setLoaded(pen, com.fimkov.witchsatelier.glyph.ink.InkType.CONJURING, com.fimkov.witchsatelier.item.InkPenItem.NIB_CAPACITY);
+                InkPenItem.setLoaded(pen, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
                 p.setItemSlot(EquipmentSlot.MAINHAND, pen);
                 p.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(ModItems.PALM_QUIRE.get()));
             });
             next(mc, server);
             return;
         }
-        if (!sceneReady) return; // the server is still building the scene
+        if (!sceneReady) return;
         Shot now = SHOTS.get(index);
-        if (timer == 30 && now.name().startsWith("grimoire_") && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
-            mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.MAIN_HAND,
+        if (timer == 30 && now.name().startsWith("grimoire_") && !(mc.screen instanceof PageScreen)) {
+            mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND,
                     Integer.parseInt(now.name().substring("grimoire_".length()))));
         }
-        if (timer == 20 && now.name().startsWith("canvas_") && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
-            mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.OFF_HAND));
+        if (timer == 20 && now.name().startsWith("canvas_") && !(mc.screen instanceof PageScreen)) {
+            mc.setScreen(new PageScreen(InteractionHand.OFF_HAND));
         }
         if (timer == 20 && now.name().startsWith("wiki_icons_")) mc.setScreen(new IconSheetScreen(now.name().endsWith("black") ? 0xFF000000 : 0xFFFFFFFF));
-        if (timer == 30 && now.name().equals("jei_awakening") && net.neoforged.fml.ModList.get().isLoaded("jei")) JeiShot.open();
-        if (timer == 20 && now.name().equals("emi_awakening") && net.neoforged.fml.ModList.get().isLoaded("emi"))
-            dev.emi.emi.api.EmiApi.displayRecipeCategory(com.fimkov.witchsatelier.compat.AwakeningEmiRecipe.CATEGORY);
-        if (timer == 30 && now.name().startsWith("volume_") && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
+        if (timer == 30 && now.name().equals("jei_awakening") && ModList.get().isLoaded("jei")) JeiShot.open();
+        if (timer == 20 && now.name().equals("emi_awakening") && ModList.get().isLoaded("emi"))
+            EmiApi.displayRecipeCategory(AwakeningEmiRecipe.CATEGORY);
+        if (timer == 30 && now.name().startsWith("witch_grimoire_") && !(mc.screen instanceof PageScreen))
+            mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND,
+                    Integer.parseInt(now.name().substring("witch_grimoire_".length()))));
+        if (timer == 30 && now.name().startsWith("volume_") && !(mc.screen instanceof PageScreen)) {
             String[] parts = now.name().split("_");
-            mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.MAIN_HAND, Integer.parseInt(parts[parts.length - 1])));
+            mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND, Integer.parseInt(parts[parts.length - 1])));
         }
-        if (timer == 30 && (now.name().equals("birdpage") || now.name().startsWith("flip_")) && !(mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen)) {
-            mc.setScreen(new com.fimkov.witchsatelier.client.PageScreen(net.minecraft.world.InteractionHand.MAIN_HAND, 2));
+        if (timer == 30 && (now.name().equals("birdpage") || now.name().startsWith("flip_")) && !(mc.screen instanceof PageScreen)) {
+            mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND, 2));
         }
-        // a page caught halfway over: turned four ticks (200 ms of 420) before the picture
-        if (timer == 4 && now.name().startsWith("flip_") && mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen ps)
+
+        if (timer == 4 && now.name().startsWith("flip_") && mc.screen instanceof PageScreen ps)
             ps.debugTurn(now.name().equals("flip_fwd") ? 1 : -1);
         if ((timer == 15 && now.name().equals("pennant_bind")) || (timer == 40 && now.name().equals("pennant_wrap"))) {
-            var z = mc.level.getEntitiesOfClass(net.minecraft.world.entity.monster.Zombie.class, mc.player.getBoundingBox().inflate(12)).stream().findFirst().orElse(null);
-            if (z != null) com.fimkov.witchsatelier.client.PennantRibbons.add(new com.fimkov.witchsatelier.network.Payloads.PennantFx(mc.player.getId(), z.getId(),
+            var z = mc.level.getEntitiesOfClass(Zombie.class, mc.player.getBoundingBox().inflate(12)).stream().findFirst().orElse(null);
+            if (z != null) PennantRibbons.add(new Payloads.PennantFx(mc.player.getId(), z.getId(),
                     (float) z.getX(), (float) z.getY(), (float) z.getZ(), 100));
         }
         if (timer == 20 && now.name().equals("imagined")) {
-            // one and a half laps of a shaky ring on the floor, held in the air
             SurfacePlane floor = SurfacePlane.of(BASE, Direction.UP);
             Pt c = floor.toUV(Vec3.atCenterOf(BASE).add(0.5, 0.5, 0.5));
             int n = 160;
@@ -528,7 +587,7 @@ public final class VisualCheck {
                 uv[i * 2] = c.x() + Math.cos(a) * rr;
                 uv[i * 2 + 1] = c.y() + Math.sin(a) * rr;
             }
-            com.fimkov.witchsatelier.client.ClientDrawing.debugImagine(floor, uv);
+            ClientDrawing.debugImagine(floor, uv);
         }
         if (recorder != null) {
             int t = ++filmTick;
@@ -543,8 +602,7 @@ public final class VisualCheck {
         if (--timer == 0) {
             Shot s = SHOTS.get(index);
             if (s.film() > 0) {
-                // films go to run/films/<spell>.mp4
-                recorder = FilmRecorder.start(new java.io.File(mc.gameDirectory, "films/" + s.name().substring("film_".length()) + ".mp4"));
+                recorder = FilmRecorder.start(new File(mc.gameDirectory, "films/" + s.name().substring("film_".length()) + ".mp4"));
                 filmTick = 0;
                 return;
             }
@@ -555,15 +613,15 @@ public final class VisualCheck {
 
     private static String lastScreen = "";
 
-    private static void proceed(net.minecraft.client.gui.screens.Screen screen) {
+    private static void proceed(Screen screen) {
         String name = screen.getClass().getName();
         if (!name.equals(lastScreen)) {
             lastScreen = name;
             WitchsAtelier.LOGGER.info("[visualcheck] screen before the world: {} '{}'", name, screen.getTitle().getString());
         }
         for (var c : screen.children()) {
-            if (!(c instanceof net.minecraft.client.gui.components.Button b)) continue;
-            String t = b.getMessage().getString().toLowerCase(java.util.Locale.ROOT);
+            if (!(c instanceof Button b)) continue;
+            String t = b.getMessage().getString().toLowerCase(Locale.ROOT);
             if (t.contains("without backup") || t.contains("proceed") || t.contains("continue") || t.equals("yes") || t.contains("load anyway")) {
                 WitchsAtelier.LOGGER.info("[visualcheck] pressing '{}'", b.getMessage().getString());
                 b.onPress();
@@ -584,9 +642,9 @@ public final class VisualCheck {
         }
         Shot s = SHOTS.get(index);
         sceneReady = false;
-        if (mc.screen instanceof com.fimkov.witchsatelier.client.PageScreen) mc.setScreen(null);
-        mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
-        mc.options.hideGui = !s.firstPerson(); // the hands are hidden along with the HUD
+        if (mc.screen instanceof PageScreen) mc.setScreen(null);
+        mc.options.setCameraType(CameraType.FIRST_PERSON);
+        mc.options.hideGui = !s.firstPerson();
         server.execute(() -> {
             ServerLevel l = server.overworld();
             try {
@@ -616,8 +674,6 @@ public final class VisualCheck {
         return p;
     }
 
-    // ------------------------------------------------------------------ scene helpers
-
     static void platform(ServerLevel l, BlockPos c, int r) {
         for (int x = -r; x <= r; x++) for (int z = -r; z <= r; z++) {
             l.setBlock(c.offset(x, 0, z), (x + z) % 2 == 0 ? Blocks.SMOOTH_STONE.defaultBlockState() : Blocks.POLISHED_ANDESITE.defaultBlockState(), 3);
@@ -627,8 +683,8 @@ public final class VisualCheck {
     static void clear(ServerLevel l, BlockPos c, int r) {
         for (var s : GlyphService.activeSpells(l)) GlyphService.stop(l, s);
         GlyphService.eraseArea(l, Vec3.atCenterOf(c), r * 1.5 + 4);
-        for (var e : l.getEntities((net.minecraft.world.entity.Entity) null, new net.minecraft.world.phys.AABB(c).inflate(r + 6, 16, r + 6),
-                en -> !(en instanceof net.minecraft.world.entity.player.Player))) e.discard();
+        for (var e : l.getEntities((Entity) null, new AABB(c).inflate(r + 6, 16, r + 6),
+                en -> !(en instanceof Player))) e.discard();
         for (int x = -r - 2; x <= r + 2; x++) for (int z = -r - 2; z <= r + 2; z++) for (int y = 1; y <= 14; y++) {
             if (!l.getBlockState(c.offset(x, y, z)).isAir()) l.setBlock(c.offset(x, y, z), Blocks.AIR.defaultBlockState(), 2);
         }
@@ -646,20 +702,19 @@ public final class VisualCheck {
         GlyphService.inscribe(l, plane, strokes, null);
     }
 
-    static void spawn(ServerLevel l, net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.Mob> type, BlockPos at) {
+    static void spawn(ServerLevel l, EntityType<? extends Mob> type, BlockPos at) {
         var m = type.spawn(l, at, MobSpawnType.COMMAND);
         if (m != null) {
             m.setNoAi(true);
-            // facing the camera (which looks north)
+
             m.setYRot(0);
             m.setYHeadRot(0);
             m.setYBodyRot(0);
         }
     }
 
-    private static void place(ServerLevel l, net.minecraft.world.level.levelgen.feature.Feature<net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConfiguration> f, BlockPos at) {
-        f.place(new net.minecraft.world.level.levelgen.feature.FeaturePlaceContext<>(java.util.Optional.empty(), l, l.getChunkSource().getGenerator(), l.random, at,
-                net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConfiguration.INSTANCE));
+    private static void place(ServerLevel l, Feature<NoneFeatureConfiguration> f, BlockPos at) {
+        f.place(new FeaturePlaceContext<>(Optional.empty(), l, l.getChunkSource().getGenerator(), l.random, at,
+                NoneFeatureConfiguration.INSTANCE));
     }
-
 }

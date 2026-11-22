@@ -1,5 +1,16 @@
 package com.fimkov.witchsatelier.glyph;
 
+import com.fimkov.witchsatelier.advancement.MagicTrigger;
+import com.fimkov.witchsatelier.block.ArcaneLensBlock;
+import com.fimkov.witchsatelier.block.Starfall;
+import com.fimkov.witchsatelier.compat.Ships;
+import com.fimkov.witchsatelier.entity.Taboo;
+import com.fimkov.witchsatelier.entity.Witnesses;
+import com.fimkov.witchsatelier.glyph.ink.InkSupply;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
+import com.fimkov.witchsatelier.glyph.model.Sigil;
+import com.fimkov.witchsatelier.glyph.model.SignType;
+import com.fimkov.witchsatelier.glyph.page.GlyphPages;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphAnalyzer;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
@@ -8,89 +19,99 @@ import com.fimkov.witchsatelier.glyph.storage.GlyphLevelData;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
 import com.fimkov.witchsatelier.glyph.surface.StrokeState;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
-import com.fimkov.witchsatelier.glyph.ink.InkSupply;
-import com.fimkov.witchsatelier.glyph.ink.InkType;
-import com.fimkov.witchsatelier.glyph.ink.LoadedInk;
-import com.fimkov.witchsatelier.item.InkBottleItem;
 import com.fimkov.witchsatelier.item.InkPenItem;
-import net.minecraft.world.item.Items;
+import com.fimkov.witchsatelier.item.RagItem;
+import com.fimkov.witchsatelier.network.Net;
 import com.fimkov.witchsatelier.network.Payloads;
+import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModParticles;
 import com.fimkov.witchsatelier.spell.ActiveSpell;
 import com.fimkov.witchsatelier.spell.ElementLook;
+import com.fimkov.witchsatelier.spell.GlyphFrame;
 import com.fimkov.witchsatelier.spell.SpellCompiler;
 import com.fimkov.witchsatelier.spell.SpellProgram;
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import com.fimkov.witchsatelier.network.Net;
+import org.joml.Vector3f;
+import org.slf4j.Logger;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
-/** Server-side heart of the mod: accepts ink, reads glyphs, starts and stops spells. */
 public final class GlyphService {
-    /** Width of a pen line in blocks (one texture pixel). */
     public static final double INK_WIDTH = 1.0 / 16;
-    /** Ink units spent per block of line. */
+
     public static final double INK_PER_BLOCK = 4;
     public static final double REACH = 7;
     public static final double RAG_RADIUS = 0.24, RAG_MIN = 0.08, RAG_MAX = 0.8, PEN_ERASE_RADIUS = 0.12;
-    /** An empty ring smaller than this does nothing instead of bursting. */
+
     public static final double MIN_BURST_RADIUS = 0.75;
-    /** Rings smaller than this never cast: they are loops inside symbols (a sigil's triangle, an eye...). */
+
     public static final double MIN_GLYPH_RADIUS = 0.4;
-    /** How long a flight glyph drawn on a ship keeps it flying (ten minutes; it ends sooner if its ring is broken). */
-    /** Sent with a spell's visuals: it is worn (shoes), so it is drawn as a little cloud at the feet, nothing more. */
+
     public static final int WORN_FX = 1 << 20;
-    /** ...and its signs are reversed: it lets the wearer down softly instead of flying them. */
+
     public static final int WORN_SINKING = 1 << 21;
 
-    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<ResourceKey<Level>, Map<Long, ActiveSpell>> ACTIVE = new HashMap<>();
     private static long nextSpellId = 1;
 
     private GlyphService() {}
-
-    // ------------------------------------------------------------------ input from players
 
     public static void handleDraw(ServerPlayer player, SurfacePlane plane, double[] uv) {
         ServerLevel level = player.serverLevel();
         InkSupply supply = InkSupply.of(player);
         if (supply == null || uv.length < 2 || uv.length % 2 != 0 || player.isSpectator()) return;
         InkType ink = supply.ink;
-        if (ink == InkType.BLOOD) com.fimkov.witchsatelier.entity.Taboo.add(player, 1);
+        if (ink == InkType.BLOOD) Taboo.add(player, 1);
         int inkLeft = supply.available();
         if (inkLeft <= 0) {
             player.displayClientMessage(Component.translatable("message.witchsatelier.pen_dry"), true);
             return;
         }
-        // no one but a witch may watch magic being made
-        com.fimkov.witchsatelier.entity.Witnesses.saw(player);
 
-        // keep only points that lie on a real, exposed face within reach; split where the line leaves the surface
+        Witnesses.saw(player);
+
         List<double[]> pieces = new ArrayList<>();
         List<Double> cur = new ArrayList<>();
         Vec3 eye = player.getEyePosition();
-        // on a ship the line is kept in the ship's plot: measure the reach from where the eye is there
-        var toPlot = com.fimkov.witchsatelier.compat.Ships.toPlot(level, BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), 1f, false);
+
+        var toPlot = Ships.toPlot(level, BlockPos.containing(plane.toWorld(uv[0], uv[1], -0.01)), 1f, false);
         if (toPlot != null) eye = toPlot.apply(eye);
         double spent = 0;
         for (int i = 0; i + 1 < uv.length; i += 2) {
@@ -101,7 +122,7 @@ public final class GlyphService {
             if (ok && !cur.isEmpty()) {
                 int n = cur.size();
                 seg = Math.hypot(u - cur.get(n - 2), v - cur.get(n - 1));
-                if (seg > 1.5) ok = false; // a jump, not a line
+                if (seg > 1.5) ok = false;
             }
             if ((spent + seg) * INK_PER_BLOCK > inkLeft) {
                 player.displayClientMessage(Component.translatable("message.witchsatelier.pen_dry"), true);
@@ -124,7 +145,6 @@ public final class GlyphService {
         inscribe(level, plane, pieces, ink, player);
     }
 
-    /** Puts already-validated ink on a plane and reacts to it (reads glyphs, starts spells). */
     public static List<InkStroke> inscribe(ServerLevel level, SurfacePlane plane, List<double[]> pieces, InkType ink, ServerPlayer caster) {
         GlyphLevelData data = GlyphLevelData.get(level);
         List<InkStroke> added = new ArrayList<>();
@@ -139,10 +159,6 @@ public final class GlyphService {
         return added;
     }
 
-    /**
-     * Puts ink down without reading it as a glyph (a creature's drawing whose meaning it decides itself, such as the
-     * Brimhat Elder's great ring); it is still ink in the world, to be rubbed out, washed off or broken like any.
-     */
     public static List<InkStroke> inkWithoutReading(ServerLevel level, SurfacePlane plane, List<double[]> pieces, InkType ink, UUID author) {
         GlyphLevelData data = GlyphLevelData.get(level);
         List<InkStroke> added = new ArrayList<>();
@@ -156,7 +172,6 @@ public final class GlyphService {
         return added;
     }
 
-    /** Removes these strokes (those still there). */
     public static void eraseStrokes(ServerLevel level, Collection<Long> ids) {
         GlyphLevelData data = GlyphLevelData.get(level);
         List<Long> there = new ArrayList<>();
@@ -168,12 +183,10 @@ public final class GlyphService {
         return inscribe(level, plane, pieces, InkType.CONJURING, caster);
     }
 
-    /** Starts a spell that has no ink in the world (cast from a page in the hand). */
     public static ActiveSpell startSpell(ServerLevel level, SurfacePlane plane, SpellProgram program, ServerPlayer caster, boolean handheld) {
         return startSpell(level, plane, program, caster == null ? null : caster.getUUID(), handheld);
     }
 
-    /** A spell cast by anyone, players or creatures. */
     public static ActiveSpell startSpell(ServerLevel level, SurfacePlane plane, SpellProgram program, UUID who, boolean handheld) {
         ActiveSpell spell = handheld ? ActiveSpell.handheld(nextSpellId++, who, program)
                 : new ActiveSpell(nextSpellId++, plane, Set.of(), who, program);
@@ -181,7 +194,6 @@ public final class GlyphService {
         return spell;
     }
 
-    /** The boots spell the player is running, if any. */
     public static ActiveSpell wornSpell(ServerLevel level, UUID caster) {
         Map<Long, ActiveSpell> m = ACTIVE.get(level.dimension());
         if (m == null) return null;
@@ -198,11 +210,10 @@ public final class GlyphService {
         return m == null ? List.of() : List.copyOf(m.values());
     }
 
-    /** Rubbing ink out with a rag (wide) or the pen (narrow): only the points under it go. */
     public static void handleErase(ServerPlayer player, SurfacePlane plane, double u, double v, double wanted) {
         ServerLevel level = player.serverLevel();
-        boolean rag = player.getMainHandItem().getItem() instanceof com.fimkov.witchsatelier.item.RagItem
-                || player.getOffhandItem().getItem() instanceof com.fimkov.witchsatelier.item.RagItem;
+        boolean rag = player.getMainHandItem().getItem() instanceof RagItem
+                || player.getOffhandItem().getItem() instanceof RagItem;
         if ((!rag && penHand(player) == null) || plane.toWorld(u, v, 0).distanceTo(player.getEyePosition()) > REACH) return;
         double r = rag ? Math.max(RAG_MIN, Math.min(RAG_MAX, wanted)) : PEN_ERASE_RADIUS;
         GlyphLevelData data = GlyphLevelData.get(level);
@@ -220,14 +231,12 @@ public final class GlyphService {
         }
         if (!cuts.isEmpty() && rag) {
             Vec3 w = plane.toWorld(u, v, 0.05);
-            level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(0.15f, 0.12f, 0.25f), 0.6f),
+            level.sendParticles(new DustParticleOptions(new Vector3f(0.15f, 0.12f, 0.25f), 0.6f),
                     w.x, w.y, w.z, 3, 0.1, 0.1, 0.1, 0);
         }
         applyCuts(level, cuts);
     }
 
-    /** Blocks that disappeared take the ink on their faces with them. */
-    /** Removes every stroke that starts within {@code radius} of {@code center} (tools and tests). */
     public static void eraseArea(ServerLevel level, Vec3 center, double radius) {
         GlyphLevelData data = GlyphLevelData.get(level);
         List<Long> gone = new ArrayList<>();
@@ -262,25 +271,21 @@ public final class GlyphService {
         applyCuts(level, cuts);
     }
 
-    // ------------------------------------------------------------------ pistons carry ink
+    private static final Set<PistonMovingBlockEntity> CARRIED =
+            Collections.newSetFromMap(new WeakHashMap<>());
 
-    /** Moving blocks already handled (a piston event can see blocks moved by another piston the same tick). */
-    private static final Set<net.minecraft.world.level.block.piston.PistonMovingBlockEntity> CARRIED =
-            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
-    /** Ink a piston moved, to be read again once its blocks have arrived: {due game time, stroke id}. */
     private static final Map<ResourceKey<Level>, List<long[]>> REREAD = new HashMap<>();
     private static final int ARRIVAL_TICKS = 3;
 
-    /** After a piston moved: every block that set off this tick takes the ink on its faces along. */
     public static void onPistonMoved(ServerLevel level, BlockPos piston) {
         if (GlyphLevelData.get(level).ids().isEmpty()) return;
-        Map<Direction, List<BlockPos>> moved = new java.util.EnumMap<>(Direction.class);
-        net.minecraft.world.level.ChunkPos c = new net.minecraft.world.level.ChunkPos(piston);
-        // a piston moves at most 12 blocks, never further than the next chunk over
+        Map<Direction, List<BlockPos>> moved = new EnumMap<>(Direction.class);
+        ChunkPos c = new ChunkPos(piston);
+
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
             if (!level.hasChunk(c.x + dx, c.z + dz)) continue;
             for (var be : level.getChunk(c.x + dx, c.z + dz).getBlockEntities().values()) {
-                if (be instanceof net.minecraft.world.level.block.piston.PistonMovingBlockEntity m && !m.isSourcePiston()
+                if (be instanceof PistonMovingBlockEntity m && !m.isSourcePiston()
                         && m.getProgress(1) == 0 && CARRIED.add(m)) {
                     Direction d = m.getMovementDirection();
                     moved.computeIfAbsent(d, k -> new ArrayList<>()).add(m.getBlockPos().relative(d.getOpposite()));
@@ -290,16 +295,11 @@ public final class GlyphService {
         for (var e : moved.entrySet()) onBlocksMoved(level, e.getValue(), e.getKey());
     }
 
-    /**
-     * Blocks moved one step {@code dir} carry the ink on their faces: those points go with them, the rest stays (a
-     * line half on a moved block tears in two). Ink of a running glyph that moves stops its spell; everything that
-     * moved is read again where it arrives, so two halves of a glyph pushed together wake as one.
-     */
     public static void onBlocksMoved(ServerLevel level, Collection<BlockPos> from, Direction dir) {
         GlyphLevelData data = GlyphLevelData.get(level);
         if (from.isEmpty() || data.ids().isEmpty()) return;
         Set<BlockPos> moving = new HashSet<>(from);
-        Map<Long, SurfacePlane> touched = new java.util.LinkedHashMap<>();
+        Map<Long, SurfacePlane> touched = new LinkedHashMap<>();
         for (BlockPos pos : moving) {
             for (Direction d : Direction.values()) {
                 SurfacePlane plane = SurfacePlane.of(pos, d);
@@ -309,7 +309,7 @@ public final class GlyphService {
         }
         Vec3 step = Vec3.atLowerCornerOf(dir.getNormal());
         List<Long> gone = new ArrayList<>();
-        Map<SurfacePlane, List<InkStroke>> pieces = new java.util.LinkedHashMap<>();
+        Map<SurfacePlane, List<InkStroke>> pieces = new LinkedHashMap<>();
         for (Map.Entry<Long, SurfacePlane> e : touched.entrySet()) {
             InkStroke s = data.get(e.getKey());
             SurfacePlane plane = e.getValue();
@@ -320,7 +320,7 @@ public final class GlyphService {
             if (!any) continue;
             gone.add(s.id());
             SurfacePlane to = new SurfacePlane(plane.face(), plane.layer() + dir.getNormal().get(plane.face().getAxis()));
-            // spent ink stays spent; ink of a running glyph is fresh again and gets read where it ends up
+
             StrokeState st = s.state() == StrokeState.SPENT ? StrokeState.SPENT : StrokeState.IDLE;
             List<Double> cur = new ArrayList<>();
             for (int i = 0; i <= s.size(); i++) {
@@ -355,7 +355,6 @@ public final class GlyphService {
         removeStrokes(level, gone);
     }
 
-    /** Reads again the ink pistons moved, once the blocks under it have come to rest. */
     private static void rereadMoved(ServerLevel level) {
         List<long[]> queue = REREAD.get(level.dimension());
         if (queue == null || queue.isEmpty()) return;
@@ -366,23 +365,19 @@ public final class GlyphService {
         for (long[] e : due) {
             InkStroke s = data.get(e[1]);
             SurfacePlane plane = data.planeOf(e[1]);
-            // a piece already woken with another of its glyph needs no second reading
+
             if (s == null || plane == null || s.state() != StrokeState.IDLE) continue;
             ServerPlayer author = level.getPlayerByUUID(s.author()) instanceof ServerPlayer p ? p : null;
             evaluate(level, plane, s, author);
         }
     }
 
-    /**
-     * Removes the marked points of each stroke; what is left of a stroke becomes new, shorter strokes.
-     * A cut through a ring breaks it, so its spell stops.
-     */
     public static void applyCuts(ServerLevel level, Map<Long, boolean[]> cuts) {
         if (cuts.isEmpty()) return;
         GlyphLevelData data = GlyphLevelData.get(level);
         List<Long> removed = new ArrayList<>();
         Map<SurfacePlane, List<InkStroke>> pieces = new HashMap<>();
-        // what each cut line became, and how worn each piece still is
+
         Map<Long, List<Long>> piecesOf = new HashMap<>();
         Map<Long, byte[]> pieceWear = new HashMap<>();
         for (Map.Entry<Long, boolean[]> e : cuts.entrySet()) {
@@ -401,21 +396,18 @@ public final class GlyphService {
                     cur.add(s.u(i));
                     cur.add(s.v(i));
                 } else if (!cur.isEmpty()) {
-                    // a lone leftover point of a long line is just a smudge
                     if (cur.size() >= 4 || s.size() == 1) {
-                        // spent ink stays spent, and a piece of a running glyph stays alight while what is left of the
-                        // glyph is read again (see removeStrokes); the rest is fresh ink again
                         StrokeState st = s.state();
                         InkStroke piece = InkStroke.of(data.newId(), toArray(cur), s.ink(), s.author(), st, st == StrokeState.ACTIVE ? s.color() : 0);
                         pieces.computeIfAbsent(plane, k -> new ArrayList<>()).add(piece);
                         piecesOf.computeIfAbsent(s.id(), k -> new ArrayList<>()).add(piece.id());
-                        if (worn != null && worn.length == s.size()) pieceWear.put(piece.id(), java.util.Arrays.copyOfRange(worn, from, i));
+                        if (worn != null && worn.length == s.size()) pieceWear.put(piece.id(), Arrays.copyOfRange(worn, from, i));
                     }
                     cur.clear();
                 }
             }
         }
-        // add what is left first, so a spell that re-reads its glyph after the cut sees the remaining pieces
+
         for (Map.Entry<SurfacePlane, List<InkStroke>> e : pieces.entrySet()) {
             for (InkStroke piece : e.getValue()) data.add(e.getKey(), piece);
             Net.toDimension(level, new Payloads.StrokesAdded(e.getKey(), e.getValue()));
@@ -437,8 +429,6 @@ public final class GlyphService {
         Net.toDimension(level, new Payloads.StrokeWear(ids, w));
     }
 
-    // ------------------------------------------------------------------ reading glyphs
-
     private record Found(GlyphReading reading, List<InkStroke> strokes) {
         Set<Long> usedIds() {
             Set<Long> ids = new HashSet<>();
@@ -447,7 +437,6 @@ public final class GlyphService {
         }
     }
 
-    /** Finds the glyph that {@code focus} belongs to (the largest ring that contains it), if any. */
     private static Found find(ServerLevel level, SurfacePlane plane, InkStroke focus, ServerPlayer player) {
         GlyphLevelData data = GlyphLevelData.get(level);
         List<InkStroke> candidates = new ArrayList<>();
@@ -482,11 +471,37 @@ public final class GlyphService {
             }
         }
         double up = upAngle(plane, player);
-        boolean flat = Math.abs(plane.normal().y) >= 0.5; // floors and ceilings can be read from any side
+        boolean flat = Math.abs(plane.normal().y) >= 0.5;
         return new Found(flat ? GlyphAnalyzer.analyzeFromAnySide(subPts, INK_WIDTH, up) : GlyphAnalyzer.analyze(subPts, INK_WIDTH, up), subset);
     }
 
-    /** Which way was "up" for the drawer, in the plane's coordinates (on floors and ceilings: where they faced). */
+    public static GlyphPages.Page glyphAsPage(ServerLevel level, SurfacePlane plane, Pt at, ServerPlayer player) {
+        GlyphLevelData data = GlyphLevelData.get(level);
+        List<InkStroke> candidates = data.near(plane, at.x(), at.y(), 1);
+        if (candidates.isEmpty()) return null;
+        List<List<Pt>> pts = new ArrayList<>();
+        for (InkStroke s : candidates) pts.add(s.points());
+        RingFinder.Ring best = null;
+        for (RingFinder.Ring ring : RingFinder.find(pts, INK_WIDTH)) {
+            if (at.dist(ring.center()) <= ring.radius() * 1.1 && (best == null || ring.radius() > best.radius())) best = ring;
+        }
+        if (best == null) return null;
+        double k = 0.85 / best.radius(), rot = Math.PI / 2 - upAngle(plane, player), c = Math.cos(rot), sn = Math.sin(rot);
+        List<GlyphPages.PageStroke> out = new ArrayList<>();
+        for (int i = 0; i < candidates.size(); i++) {
+            InkStroke s = candidates.get(i);
+            if (!best.strokes().contains(i) && s.centroid().dist(best.center()) >= best.radius() * 1.02) continue;
+            float[] f = new float[s.size() * 2];
+            for (int j = 0; j < s.size(); j++) {
+                double x = (s.u(j) - best.center().x()) * k, y = (s.v(j) - best.center().y()) * k;
+                f[j * 2] = (float) (x * c - y * sn);
+                f[j * 2 + 1] = (float) (x * sn + y * c);
+            }
+            out.add(new GlyphPages.PageStroke(f, s.ink()));
+        }
+        return out.isEmpty() ? null : new GlyphPages.Page(List.copyOf(out));
+    }
+
     static double upAngle(SurfacePlane plane, ServerPlayer player) {
         Vec3 n = plane.normal();
         Vec3 up;
@@ -510,11 +525,10 @@ public final class GlyphService {
             LOGGER.debug("[glyph] {}", describeOpen(r));
             return;
         }
-        // a copy traced over a pinned page is the page's glyph, all of its ink
+
         List<Integer> inked = r.usedStrokes();
         Tracing.Result copy = Tracing.traced(player, plane, f.strokes(), r, INK_WIDTH);
         if (copy.waiting()) {
-            // a copy of a pinned page still being traced: its ring is closed, but the rest is yet to come
             if (running != null) stopSpell(level, running, false);
             return;
         }
@@ -529,16 +543,15 @@ public final class GlyphService {
             if (running == null) running = spellUsing(level, ids);
             LOGGER.debug("[glyph] traced from the page: {}", r.describe());
         }
-        // among the stars beyond the Void Basin, any glyph drawn on them is a way home for whoever drew it
-        if (player != null && com.fimkov.witchsatelier.block.Starfall.among(level, player.position()) && r.ring().radius() >= MIN_GLYPH_RADIUS
-                && level.getBlockState(BlockPos.containing(plane.toWorld(r.ring().center(), -0.5))).is(com.fimkov.witchsatelier.registry.ModBlocks.STAR_BLOCK.get())) {
-            // the glyph flares, the stars whirl round whoever drew it, and a moment later they are carried home
-            setStates(level, ids, StrokeState.ACTIVE, 0xFFE8D8FF, com.fimkov.witchsatelier.block.Starfall.RETURN_TICKS);
-            com.fimkov.witchsatelier.block.Starfall.beginReturn(player, ids);
+
+        if (player != null && Starfall.among(level, player.position()) && r.ring().radius() >= MIN_GLYPH_RADIUS
+                && level.getBlockState(BlockPos.containing(plane.toWorld(r.ring().center(), -0.5))).is(ModBlocks.STAR_BLOCK.get())) {
+            setStates(level, ids, StrokeState.ACTIVE, 0xFFE8D8FF, Starfall.RETURN_TICKS);
+            Starfall.beginReturn(player, ids);
             return;
         }
-        // an apple in a ring, which no book shows: the glyph plays itself out in shadows and is gone
-        if (r.sigil() == com.fimkov.witchsatelier.glyph.model.Sigil.APPLE && r.ring().radius() >= MIN_GLYPH_RADIUS) {
+
+        if (r.sigil() == Sigil.APPLE && r.ring().radius() >= MIN_GLYPH_RADIUS) {
             if (running != null) stopSpell(level, running, false);
             Pt c = r.ring().center();
             Net.toNear(level, plane.toWorld(c, 0.05), 96, new Payloads.BadApple(plane, c.x(), c.y(), (float) r.ring().radius(),
@@ -546,7 +559,7 @@ public final class GlyphService {
             eraseStrokes(level, ids);
             return;
         }
-        // the ink mix of the glyph, weighted by line length
+
         double len = 0, pot = 0, dur = 0, mis = 0;
         for (int i : inked) {
             InkStroke st = f.strokes().get(i);
@@ -559,15 +572,15 @@ public final class GlyphService {
         SpellProgram program = len > 0
                 ? SpellCompiler.compile(r, plane, pot / len, dur / len, mis / len)
                 : SpellCompiler.compile(r, plane, 1.0);
-        // an Arcane Lense right at the glyph makes far more of it
-        if (com.fimkov.witchsatelier.block.ArcaneLensBlock.near(level, program.origin()) || com.fimkov.witchsatelier.block.ArcaneLensBlock.near(level, plane.toWorld(r.ring().center(), -0.5))) {
-            program = program.amplified(com.fimkov.witchsatelier.block.ArcaneLensBlock.AMPLIFY);
-            if (player != null) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(player, "cast_amplified");
-            level.sendParticles(net.minecraft.core.particles.ParticleTypes.END_ROD, program.origin().x, program.origin().y, program.origin().z, 12, 0.4, 0.4, 0.4, 0.03);
+
+        if (ArcaneLensBlock.near(level, program.origin()) || ArcaneLensBlock.near(level, plane.toWorld(r.ring().center(), -0.5))) {
+            program = program.amplified(ArcaneLensBlock.AMPLIFY);
+            if (player != null) MagicTrigger.fire(player, "cast_amplified");
+            level.sendParticles(ParticleTypes.END_ROD, program.origin().x, program.origin().y, program.origin().z, 12, 0.4, 0.4, 0.4, 0.03);
         }
-        // nothing readable inside, or a small empty loop (often just a sigil's triangle): wait for more ink
+
         boolean tooSmallToBurst = program.form() == SpellProgram.Form.BURST && r.ring().radius() < MIN_BURST_RADIUS;
-        if (r.ring().radius() < MIN_GLYPH_RADIUS) return; // a loop this small is part of a symbol, not a glyph's ring
+        if (r.ring().radius() < MIN_GLYPH_RADIUS) return;
         if (!tooSmallToBurst) DrawingDump.save(f.strokes(), upAngle(plane, player), r);
         if (program.form() == SpellProgram.Form.FIZZLE || tooSmallToBurst) {
             if (running != null) stopSpell(level, running, false);
@@ -578,28 +591,22 @@ public final class GlyphService {
             return;
         }
         if (running != null) {
-            // the glyph was edited while running: the spell changes with it
             running.program = program;
             running.strokes.addAll(ids);
             setStates(level, running.strokes, StrokeState.ACTIVE, ElementLook.color(program.element(), program.centerSign()), running.ticksLeft);
         } else {
             ActiveSpell spell = new ActiveSpell(nextSpellId++, plane, ids, player != null ? player.getUUID() : null, program);
             spell.toughness = Math.max(0.3, (len > 0 ? dur / len : 1) * (0.6 + 0.8 * r.neatness()));
-            spell.mending = r.core() != null && r.count(com.fimkov.witchsatelier.glyph.model.SignType.REPETITION) > 0;
+            spell.mending = r.core() != null && r.count(SignType.REPETITION) > 0;
             ACTIVE.computeIfAbsent(level.dimension(), k -> new HashMap<>()).put(spell.id, spell);
             setStates(level, ids, StrokeState.ACTIVE, litColor(program), program.has(SpellProgram.TREAD) ? 0 : spell.ticksLeft);
-            if (player != null && program.form() == SpellProgram.Form.PETRIFY) com.fimkov.witchsatelier.entity.Taboo.add(player, 40);
-            if (player != null) com.fimkov.witchsatelier.advancement.MagicTrigger.cast(player, program, "surface");
+            if (player != null && program.form() == SpellProgram.Form.PETRIFY) Taboo.add(player, 40);
+            if (player != null) MagicTrigger.cast(player, program, "surface");
             wakeLinked(level, plane, spell, r, player);
         }
         LOGGER.debug("[cast] {}", program.summary());
     }
 
-    /**
-     * Glyphs joined by lines of ink are one work: when one wakes, every glyph joined to it wakes too (even with its
-     * own ring still open), and each makes the others stronger: many small glyphs joined beat one big one.
-     */
-    /** Colour bit a client reads as "awake but holding": a snare waiting for a step. */
     public static final int ARMED = 0x01000000;
 
     private static int litColor(SpellProgram program) {
@@ -607,17 +614,50 @@ public final class GlyphService {
         return program.has(SpellProgram.TREAD) ? c | ARMED : c;
     }
 
-    /** A snare was stepped on: its lines catch fire as any glyph's do when it wakes. */
     public static void sprung(ServerLevel level, ActiveSpell spell) {
         setStates(level, spell.strokes, StrokeState.ACTIVE, ElementLook.color(spell.program.element(), spell.program.centerSign()) & 0xFFFFFF,
                 spell.program.duration());
+
+        long now = level.getGameTime();
+        for (ActiveSpell s : chainOf(level, spell)) {
+            if (!s.held) continue;
+            s.releaseAt = now + CHAIN_STEP * Math.max(1, Math.abs(s.hop - spell.hop));
+        }
+    }
+
+    public static final int CHAIN_STEP = 6;
+
+    public static void released(ServerLevel level, ActiveSpell spell) {
+        setStates(level, spell.strokes, StrokeState.ACTIVE, ElementLook.color(spell.program.element(), spell.program.centerSign()) & 0xFFFFFF,
+                spell.program.duration());
+    }
+
+    public static void rearmed(ServerLevel level, ActiveSpell spell) {
+        setStates(level, spell.strokes, StrokeState.ACTIVE, litColor(spell.program) | ARMED, 0);
+        for (ActiveSpell s : chainOf(level, spell)) {
+            if (s.program.has(SpellProgram.TREAD)) continue;
+            s.held = true;
+            s.releaseAt = 0;
+            s.pause(level);
+            setStates(level, s.strokes, StrokeState.ACTIVE, litColor(s.program) | ARMED, 0);
+        }
+    }
+
+    private static List<ActiveSpell> chainOf(ServerLevel level, ActiveSpell spell) {
+        Map<Long, ActiveSpell> spells = ACTIVE.get(level.dimension());
+        List<ActiveSpell> out = new ArrayList<>();
+        if (spells == null || spell.chain == 0) return out;
+        for (ActiveSpell s : spells.values()) if (s != spell && s.chain == spell.chain) out.add(s);
+        return out;
     }
 
     private static void wakeLinked(ServerLevel level, SurfacePlane plane, ActiveSpell first, GlyphReading firstReading, ServerPlayer player) {
         List<ActiveSpell> woken = new ArrayList<>();
         woken.add(first);
-        java.util.ArrayDeque<Object[]> queue = new java.util.ArrayDeque<>();
-        queue.add(new Object[]{firstReading.ring(), new HashSet<>(first.strokes)});
+        first.chain = first.id;
+        first.hop = 0;
+        ArrayDeque<Object[]> queue = new ArrayDeque<>();
+        queue.add(new Object[]{firstReading.ring(), new HashSet<>(first.strokes), 0});
         Set<Long> claimed = new HashSet<>(first.strokes);
         while (!queue.isEmpty() && woken.size() < 12) {
             Object[] q = queue.poll();
@@ -625,28 +665,45 @@ public final class GlyphService {
             for (Object[] hit : linkedTo(level, plane, ring, claimed, player)) {
                 Found next = (Found) hit[0];
                 Set<Long> ids = new HashSet<>(next.usedIds());
-                // the joining line is part of the work: it lights up with it, the light running along it
+
                 ids.add((Long) hit[1]);
                 if (spellUsing(level, ids) != null) continue;
                 SpellProgram program = compileFound(level, plane, next);
                 if (program == null) continue;
                 ActiveSpell spell = new ActiveSpell(nextSpellId++, plane, ids, player != null ? player.getUUID() : null, program);
+                spell.chain = first.id;
+                spell.hop = (Integer) q[2] + 1;
                 ACTIVE.computeIfAbsent(level.dimension(), k -> new HashMap<>()).put(spell.id, spell);
                 setStates(level, ids, StrokeState.ACTIVE, litColor(program), program.has(SpellProgram.TREAD) ? 0 : program.duration());
                 claimed.addAll(ids);
                 woken.add(spell);
-                queue.add(new Object[]{next.reading().ring(), ids});
+                queue.add(new Object[]{next.reading().ring(), ids, spell.hop});
             }
         }
-        if (woken.size() < 2) return;
+        if (woken.size() < 2) {
+            first.chain = 0;
+            return;
+        }
         double boost = Math.min(2.0, 1 + 0.2 * (woken.size() - 1));
         for (ActiveSpell s : woken) s.program = s.program.amplified(boost);
-        if (player != null) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(player, "linked_glyphs");
+
+        boolean trigger = woken.stream().anyMatch(s -> s.program.has(SpellProgram.TREAD));
+        long now = level.getGameTime();
+        for (ActiveSpell s : woken) {
+            if (s.program.has(SpellProgram.TREAD)) continue;
+            if (trigger) {
+                s.held = true;
+                setStates(level, s.strokes, StrokeState.ACTIVE, litColor(s.program) | ARMED, 0);
+            } else if (s.hop > 0) {
+                s.held = true;
+                s.releaseAt = now + (long) CHAIN_STEP * s.hop;
+                setStates(level, s.strokes, StrokeState.ACTIVE, litColor(s.program) | ARMED, 0);
+            }
+        }
+        if (player != null) MagicTrigger.fire(player, "linked_glyphs");
         LOGGER.debug("[cast] {} linked glyphs woke together (x{})", woken.size(), boost);
     }
 
-    /** Other glyphs reached from {@code ring} by a line of ink leaving its rim and ending on theirs. */
-    /** Each result is {the glyph found, the id of the line that joins it}. */
     private static List<Object[]> linkedTo(ServerLevel level, SurfacePlane plane, RingFinder.Ring ring, Set<Long> claimed, ServerPlayer player) {
         GlyphLevelData data = GlyphLevelData.get(level);
         Pt c = ring.center();
@@ -659,8 +716,8 @@ public final class GlyphService {
             Pt near = Math.abs(a.dist(c) - rr) <= rim ? a : Math.abs(b.dist(c) - rr) <= rim ? b : null;
             if (near == null) continue;
             Pt far = near == a ? b : a;
-            if (far.dist(c) < rr + 0.5) continue; // it stays by this ring: a sign, a closer, not a link
-            // the far end must lie on another glyph's ring
+            if (far.dist(c) < rr + 0.5) continue;
+
             for (InkStroke t : data.near(plane, far.x(), far.y(), 1)) {
                 if (t.id() == link.id() || seen.contains(t.id()) || t.state() == StrokeState.SPENT) continue;
                 boolean touches = false;
@@ -672,7 +729,7 @@ public final class GlyphService {
                 if (Math.abs(far.dist(other.center()) - other.radius()) > Math.max(0.25, other.radius() * 0.12)) continue;
                 if (other.center().dist(c) < 0.2) continue;
                 Set<Long> ids = f.usedIds();
-                if (!java.util.Collections.disjoint(ids, seen)) continue;
+                if (!Collections.disjoint(ids, seen)) continue;
                 seen.addAll(ids);
                 seen.add(link.id());
                 out.add(new Object[]{f, link.id()});
@@ -682,7 +739,6 @@ public final class GlyphService {
         return out;
     }
 
-    /** The spell a glyph found on a surface would cast, or null if it would cast nothing. */
     private static SpellProgram compileFound(ServerLevel level, SurfacePlane plane, Found f) {
         GlyphReading r = f.reading();
         if (r.ring().radius() < MIN_GLYPH_RADIUS) return null;
@@ -700,14 +756,13 @@ public final class GlyphService {
         return program;
     }
 
-    /** A closed ring that reads as nothing: it sputters (smoke and grey sparks around the ring), no ink is spent. */
-    public static void fizzle(ServerLevel level, Vec3 at, com.fimkov.witchsatelier.spell.GlyphFrame frame, double radius) {
-        level.playSound(null, at.x, at.y, at.z, net.minecraft.sounds.SoundEvents.CANDLE_EXTINGUISH, net.minecraft.sounds.SoundSource.PLAYERS, 1.2f, 0.7f);
+    public static void fizzle(ServerLevel level, Vec3 at, GlyphFrame frame, double radius) {
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.CANDLE_EXTINGUISH, SoundSource.PLAYERS, 1.2f, 0.7f);
         for (int k = 0; k < 24; k++) {
             double a = k * Math.PI * 2 / 24;
             Vec3 p = at.add(frame.planeVector(Math.cos(a), Math.sin(a)).scale(radius));
-            level.sendParticles(net.minecraft.core.particles.ParticleTypes.SMOKE, p.x, p.y, p.z, 1, 0.02, 0.05, 0.02, 0.01);
-            if (k % 3 == 0) level.sendParticles(com.fimkov.witchsatelier.registry.ModParticles.spark(0xB0A0A0A8), p.x, p.y, p.z, 1, 0.05, 0.05, 0.05, 0.02);
+            level.sendParticles(ParticleTypes.SMOKE, p.x, p.y, p.z, 1, 0.02, 0.05, 0.02, 0.01);
+            if (k % 3 == 0) level.sendParticles(ModParticles.spark(0xB0A0A0A8), p.x, p.y, p.z, 1, 0.05, 0.05, 0.05, 0.02);
         }
     }
 
@@ -722,8 +777,6 @@ public final class GlyphService {
         return sb.toString();
     }
 
-    // ------------------------------------------------------------------ running spells
-
     public static void tick(ServerLevel level) {
         if (level.getGameTime() % 20 == 7) washSweep(level);
         wear(level);
@@ -736,32 +789,23 @@ public final class GlyphService {
             try {
                 alive = s.tick(level);
             } catch (RuntimeException e) {
-                com.mojang.logging.LogUtils.getLogger().error("WitchsAtelier spell {} failed", s.id, e);
+                LogUtils.getLogger().error("WitchsAtelier spell {} failed", s.id, e);
                 alive = false;
             }
             if (!alive && spells.containsKey(s.id)) stopSpell(level, s, true);
+            if (alive && s.waiting()) {
+                if (!s.fxOff) sendFx(level, s, 0);
+                s.fxOff = true;
+                continue;
+            }
+            s.fxOff = false;
             sendFx(level, s, alive ? s.ticksLeft : 0);
         }
     }
 
-    // ------------------------------------------------------------------ water washes ink away
-
     private static final Map<ResourceKey<Level>, Integer> WASH_CURSOR = new HashMap<>();
     private static final int WASH_BATCH = 256;
 
-    /**
-     * Checks a slice of all ink each second. Points under water or out in the rain wash off (unless the ink is
-     * waterproof); points touching lava or fire burn away whatever the ink; points whose block has gone
-     * (pushed by a piston, replaced) fall off with it.
-     */
-    // ------------------------------------------------------------------ wear
-
-    /**
-     * A working glyph lasts as long as it is whole, and things wear it: rain and water eat at ink that is not made
-     * to stand them, a little at a time, and feet walking over a glyph on the floor scuff it. Sooner or later a
-     * line breaks, and if it is the ring, the spell is over. Good ink and a neat hand last longer; a glyph with
-     * Repetition in its band mends itself and does not wear at all.
-     */
     private static void wear(ServerLevel level) {
         Map<Long, ActiveSpell> spells = ACTIVE.get(level.dimension());
         if (spells == null || spells.isEmpty()) return;
@@ -776,7 +820,7 @@ public final class GlyphService {
             if (stepTurn && s.plane.face() == Direction.UP) footWear(level, data, s, worn);
         }
         if (worn.isEmpty()) return;
-        // the ink wears a little at a time; only where a point is quite gone does the line part there
+
         Map<Long, boolean[]> cuts = new HashMap<>();
         for (Map.Entry<Long, byte[]> e : worn.entrySet()) {
             data.setWear(e.getKey(), e.getValue());
@@ -789,7 +833,6 @@ public final class GlyphService {
         applyCuts(level, cuts);
     }
 
-    /** The stroke's wear being built up this turn (a copy of what it had). */
     private static byte[] wearOf(GlyphLevelData data, Map<Long, byte[]> worn, InkStroke st) {
         return worn.computeIfAbsent(st.id(), k -> {
             byte[] w = data.wear(k);
@@ -797,7 +840,6 @@ public final class GlyphService {
         });
     }
 
-    /** Rain or water on a glyph of ordinary ink: the ink thins and runs, most where it is already weakest. */
     private static void rainWear(ServerLevel level, GlyphLevelData data, ActiveSpell s, Map<Long, byte[]> worn) {
         if (level.random.nextDouble() > 0.6) return;
         List<InkStroke> wet = new ArrayList<>();
@@ -812,7 +854,6 @@ public final class GlyphService {
         byte[] w = wearOf(data, worn, st);
         int at = level.random.nextInt(st.size());
         if (level.random.nextBoolean()) {
-            // water finds the thin places: a worn patch keeps wearing
             for (int i = 0; i < w.length; i++) if (InkWear.amount(w[i]) > InkWear.amount(w[at])) at = i;
         }
         int spread = 2 + level.random.nextInt(3);
@@ -824,22 +865,20 @@ public final class GlyphService {
         }
         if (level.random.nextInt(3) == 0) {
             Vec3 p = s.plane.toWorld(st.u(at), st.v(at), 0.05);
-            level.sendParticles(net.minecraft.core.particles.ParticleTypes.SPLASH, p.x, p.y, p.z, 4, 0.1, 0.02, 0.1, 0.02);
+            level.sendParticles(ParticleTypes.SPLASH, p.x, p.y, p.z, 4, 0.1, 0.02, 0.1, 0.02);
         }
     }
 
-    /** How much faster ink wears than it should: only the harness's films turn this up, to show hours in seconds. */
     public static double wearBoost = 1;
 
-    private static final Map<net.minecraft.world.entity.Entity, Float> WALKED = new java.util.WeakHashMap<>();
+    private static final Map<Entity, Float> WALKED = new WeakHashMap<>();
 
-    /** Whoever walks over a glyph on the floor scuffs the lines under their feet, a little with every step. */
     private static void footWear(ServerLevel level, GlyphLevelData data, ActiveSpell s, Map<Long, byte[]> worn) {
         Vec3 o = s.program.origin();
         double r = s.program.radius() + 0.4, reach = 0.26;
-        for (net.minecraft.world.entity.LivingEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, new net.minecraft.world.phys.AABB(o, o).inflate(r, 1.2, r))) {
-            if (!e.onGround() || e.isSpectator() || e.isShiftKeyDown()) continue; // creeping carefully does no harm
-            // how far it has walked since the last step turn (a player's xo is already caught up by now, walkDist is not)
+        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(r, 1.2, r))) {
+            if (!e.onGround() || e.isSpectator() || e.isShiftKeyDown()) continue;
+
             Float before = WALKED.put(e, e.walkDist);
             if (before == null || e.walkDist - before < 0.1 || level.random.nextDouble() > 0.7) continue;
             Pt at = s.plane.toUV(e.position());
@@ -855,9 +894,8 @@ public final class GlyphService {
                     w[i] = InkWear.add(w[i], by * (1 - 0.5 * d / reach), false);
                 }
                 if (w != null && level.random.nextInt(4) == 0) {
-                    // a few crumbs of ink kicked up
                     int c = st.ink().color;
-                    var dust = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(((c >> 16) & 0xFF) / 255f, ((c >> 8) & 0xFF) / 255f, (c & 0xFF) / 255f), 0.5f);
+                    var dust = new DustParticleOptions(new Vector3f(((c >> 16) & 0xFF) / 255f, ((c >> 8) & 0xFF) / 255f, (c & 0xFF) / 255f), 0.5f);
                     Vec3 p = s.plane.toWorld(at.x(), at.y(), 0.04);
                     level.sendParticles(dust, p.x, p.y, p.z, 2, 0.12, 0.01, 0.12, 0);
                 }
@@ -883,7 +921,6 @@ public final class GlyphService {
         applyCuts(level, cuts);
     }
 
-    /** Which points of the stroke are lost to water, fire or a missing block; null if none (or not loaded). */
     private static boolean[] exposure(ServerLevel level, SurfacePlane plane, InkStroke s) {
         Map<BlockPos, Boolean> cache = new HashMap<>();
         boolean[] drop = null;
@@ -903,15 +940,11 @@ public final class GlyphService {
         return drop;
     }
 
-    /**
-     * @param awake the stroke belongs to a running glyph: its own magic holds it, so the fire or water it makes
-     *              (or any around it) does not take it; only losing the block under it does
-     */
-    private static boolean lost(ServerLevel level, SurfacePlane plane, BlockPos pos, com.fimkov.witchsatelier.glyph.ink.InkType ink, boolean awake) {
+    private static boolean lost(ServerLevel level, SurfacePlane plane, BlockPos pos, InkType ink, boolean awake) {
         boolean waterproof = ink.waterproof;
         BlockState block = level.getBlockState(pos);
-        if (block.is(com.fimkov.witchsatelier.registry.ModBlocks.WINDOWWAY_GAP.get())) return false; // the wall only stepped aside
-        if (block.is(net.minecraft.world.level.block.Blocks.MOVING_PISTON)) return false; // a block still sliding into place
+        if (block.is(ModBlocks.WINDOWWAY_GAP.get())) return false;
+        if (block.is(Blocks.MOVING_PISTON)) return false;
         if (block.isAir() || block.getCollisionShape(level, pos).isEmpty()) return true;
         if (awake) return false;
         BlockPos front = pos.relative(plane.face());
@@ -921,7 +954,6 @@ public final class GlyphService {
         return f.getFluidState().is(FluidTags.WATER) || level.isRainingAt(front);
     }
 
-    /** Water magic rinses non-waterproof ink around {@code center} (except the spell's own glyph). */
     public static void washArea(ServerLevel level, Vec3 center, double radius, Set<Long> keep) {
         GlyphLevelData data = GlyphLevelData.get(level);
         Map<Long, boolean[]> cuts = new HashMap<>();
@@ -947,7 +979,6 @@ public final class GlyphService {
         applyCuts(level, cuts);
     }
 
-    /** Form in the low four bits, element + 1 in the high four (0: none). */
     private static byte fxForm(SpellProgram p) {
         return (byte) (p.form().ordinal() | ((p.element() == null ? 0 : p.element().ordinal() + 1) << 4));
     }
@@ -960,12 +991,13 @@ public final class GlyphService {
                     (float) b.vel.x, (float) b.vel.y, (float) b.vel.z, b.age, b.life));
         }
         Vec3 o = p.origin(), n = p.normal(), d = p.direction();
-        // to those near where it is seen (a glyph on a ship is kept in the ship's far-off plot)
-        Vec3 near = s.handheld ? o : com.fimkov.witchsatelier.compat.Ships.seen(level, o.subtract(n.scale(0.2)));
+
+        Vec3 near = s.handheld ? o : Ships.seen(level, o.subtract(n.scale(0.2)));
+        int mods = p.mods() | (s.worn ? WORN_FX : 0) | (s.worn && p.inverted() ? WORN_SINKING : 0);
         Net.toNear(level, near, 96, new Payloads.SpellFx(s.id, ElementLook.color(p.element(), p.centerSign()), fxForm(p),
                 s.handheld && !s.worn, s.caster == null ? InkStroke.NOBODY : s.caster, o.x, o.y, o.z, (float) n.x, (float) n.y, (float) n.z,
-                (float) d.x, (float) d.y, (float) d.z, (float) p.radius(), s.fxLength, s.fxWidth, ticksLeft, p.duration(), p.mods() | (s.worn ? WORN_FX : 0) | (s.worn && p.inverted() ? WORN_SINKING : 0)));
-        // each outer layer of a nested glyph shows as its own wider ring and its own beam
+                (float) d.x, (float) d.y, (float) d.z, (float) p.radius(), s.fxLength, s.fxWidth, ticksLeft, p.duration(), mods));
+
         for (int k = 0; k < p.layers().size(); k++) {
             SpellProgram l = p.layers().get(k);
             float len = k * 2 < s.layerFx.length ? s.layerFx[k * 2] : 0, wid = k * 2 + 1 < s.layerFx.length ? s.layerFx[k * 2 + 1] : 0;
@@ -999,15 +1031,12 @@ public final class GlyphService {
         removeStrokes(level, ids, Map.of());
     }
 
-    /** @param piecesOf for lines that were cut rather than wiped out: the pieces left of each */
     private static void removeStrokes(ServerLevel level, List<Long> ids, Map<Long, List<Long>> piecesOf) {
         if (ids.isEmpty()) return;
         GlyphLevelData data = GlyphLevelData.get(level);
         for (long id : ids) data.remove(id);
         Net.toDimension(level, new Payloads.StrokesRemoved(ids.stream().mapToLong(Long::longValue).toArray()));
 
-        // a spell whose ink was removed reads what is left of its glyph: while that still makes the spell it goes on
-        // (changing with it, as when a running glyph is drawn on), and once it no longer does the spell stops
         Map<Long, ActiveSpell> spells = ACTIVE.get(level.dimension());
         if (spells == null) return;
         for (ActiveSpell s : new ArrayList<>(spells.values())) {
@@ -1043,9 +1072,6 @@ public final class GlyphService {
                 new Payloads.StrokeStates(ids.stream().mapToLong(Long::longValue).toArray(), (byte) state.ordinal(), color, ticksLeft));
     }
 
-    // ------------------------------------------------------------------ sync & helpers
-
-    /** Sends every stroke of the player's current dimension, in packets of bounded size. */
     public static void syncAll(ServerPlayer player) {
         Net.toPlayer(player, new Payloads.ResetGlyphs());
         GlyphLevelData data = GlyphLevelData.get(player.serverLevel());
@@ -1065,7 +1091,7 @@ public final class GlyphService {
         }
         if (!data.allWear().isEmpty()) {
             long[] ids = data.allWear().keySet().stream().mapToLong(Long::longValue).toArray();
-            Net.toPlayer(player, new Payloads.StrokeWear(ids, java.util.Arrays.stream(ids).mapToObj(data::wear).toList()));
+            Net.toPlayer(player, new Payloads.StrokeWear(ids, Arrays.stream(ids).mapToObj(data::wear).toList()));
         }
     }
 
@@ -1074,7 +1100,6 @@ public final class GlyphService {
         REREAD.remove(dim);
     }
 
-    /** True if (u, v) lies on a solid face that is not covered by the next block. */
     public static boolean isDrawable(Level level, SurfacePlane plane, double u, double v) {
         BlockPos pos = plane.blockAt(u, v);
         BlockState s = level.getBlockState(pos);

@@ -10,13 +10,9 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 
-/**
- * Screenshot harness only: every item of the mod drawn large, as the inventory shows it, on a flat colour, in a
- * grid of {@link #CELL}-pixel squares, for cutting into icons (the order is logged).
- */
 final class IconSheetScreen extends Screen {
     static final int CELL = 128, COLS = 14;
-    /** Drawn once on black and once on white: the two together give each pixel's true colour and transparency. */
+
     private final int key;
 
     IconSheetScreen(int key) {
@@ -42,7 +38,7 @@ final class IconSheetScreen extends Screen {
         List<Item> items = items();
         for (int i = 0; i < items.size(); i++) {
             g.pose().pushPose();
-            // a margin round each, so a wide model does not spill into its neighbour
+
             g.pose().translate((i % COLS) * cell + cell * 0.1f, (i / COLS) * cell + cell * 0.1f, 0);
             g.pose().scale(k * 0.8f, k * 0.8f, 1);
             g.renderItem(new ItemStack(items.get(i)), 0, 0);

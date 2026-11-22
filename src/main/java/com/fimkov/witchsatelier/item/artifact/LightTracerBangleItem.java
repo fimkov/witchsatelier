@@ -2,6 +2,7 @@ package com.fimkov.witchsatelier.item.artifact;
 
 import com.fimkov.witchsatelier.registry.ModComponents;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.network.chat.Component;
@@ -27,13 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Crystal Fragment Bangles: bracelets cut from one crystal, each bearing a Light Tracer glyph. Magic remembers
- * that they were once one stone: press the glyph (hold use) and a ribbon of light runs out towards the others,
- * however far they are. A fresh pair is bound the first time you use the stack; split it to give one away.
- */
 public class LightTracerBangleItem extends Item {
-    /** Where each bangle was last seen, by bond and by the bangle's own id. */
     private static final Map<UUID, Map<UUID, GlobalPos>> SEEN = new HashMap<>();
 
     public LightTracerBangleItem(Properties props) {
@@ -44,7 +39,6 @@ public class LightTracerBangleItem extends Item {
         return s.get(ModComponents.BOND.get());
     }
 
-    /** Each physical bangle needs its own identity within the bond, so it does not point at itself. */
     private static UUID self(ItemStack s) {
         UUID id = s.get(ModComponents.SELF_ID.get());
         if (id == null) {
@@ -57,7 +51,7 @@ public class LightTracerBangleItem extends Item {
     private static void seen(ItemStack s, Level level, Vec3 at) {
         UUID b = bond(s);
         if (b == null || level.isClientSide) return;
-        SEEN.computeIfAbsent(b, k -> new HashMap<>()).put(self(s), GlobalPos.of(level.dimension(), net.minecraft.core.BlockPos.containing(at)));
+        SEEN.computeIfAbsent(b, k -> new HashMap<>()).put(self(s), GlobalPos.of(level.dimension(), BlockPos.containing(at)));
     }
 
     @Override
@@ -76,7 +70,7 @@ public class LightTracerBangleItem extends Item {
         ItemStack stack = player.getItemInHand(hand);
         if (bond(stack) == null) {
             if (stack.getCount() < 2) return InteractionResultHolder.fail(stack);
-            // binding: the whole stack becomes pieces of one crystal
+
             if (!level.isClientSide) {
                 stack.set(ModComponents.BOND.get(), UUID.randomUUID());
                 level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.AMETHYST_CLUSTER_PLACE, SoundSource.PLAYERS, 1f, 1.4f);
@@ -110,7 +104,7 @@ public class LightTracerBangleItem extends Item {
         Vec3 dir = to.subtract(from);
         double dist = dir.length();
         dir = dir.normalize();
-        // a ribbon of light, gently waving, reaching out up to twenty blocks towards the other piece
+
         double reach = Math.min(dist, 20);
         double t0 = level.getGameTime() * 0.3;
         Vec3 side = dir.cross(new Vec3(0, 1, 0));

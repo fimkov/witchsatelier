@@ -8,32 +8,22 @@ import net.minecraft.world.entity.LivingEntity;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-/**
- * Cloth that moves with whoever wears it: skirts and tunic hems kick out in front of the striding leg and trail
- * behind the other, capes lift and stream back with speed and breathe a little standing still, ribbons and ties
- * swing, the soft tip of a pointed hat nods. Applied on top of the posed humanoid (after the wearer's own pose is
- * copied in), to witches' garments on players and creatures alike.
- */
 public final class ClothMotion {
     private ClothMotion() {}
 
-    /** Rest pose of every animated panel, taken the first time it is seen (x and z rotation). */
     private static final Map<ModelPart, float[]> REST = new WeakHashMap<>();
 
     private static float[] rest(ModelPart p) {
         return REST.computeIfAbsent(p, k -> new float[]{k.xRot, k.yRot, k.zRot});
     }
 
-    /**
-     * @param flare 0..1, how much the cloth billows out on its own (a Brimhat drawing a glyph in the air)
-     */
     public static void apply(HumanoidModel<?> m, LivingEntity e, float limbSwing, float amount, float age, float flare) {
         amount = Mth.clamp(amount, 0, 1);
         boolean airborne = e != null && !e.onGround() && !e.isPassenger();
         float fall = e == null ? 0 : (float) Mth.clamp(-e.getDeltaMovement().y * 1.5, 0, 1);
-        // forward stride of each leg (positive = in front)
+
         float left = -m.leftLeg.xRot, right = -m.rightLeg.xRot;
-        if (e != null && e.isPassenger()) { left = 0.6f; right = 0.6f; } // seated: the hem drapes forward over the knees
+        if (e != null && e.isPassenger()) { left = 0.6f; right = 0.6f; }
 
         for (String prefix : new String[]{"skirt_", "tunic_"}) {
             for (int i = 0; i < 12; i++) {
@@ -41,7 +31,7 @@ public final class ClothMotion {
                 if (!m.body.hasChild(name)) continue;
                 ModelPart p = m.body.getChild(name);
                 float[] r = rest(p);
-                double th = Math.toRadians(i * 30); // 0 front, 90 left, 180 back, 270 right
+                double th = Math.toRadians(i * 30);
                 float front = (float) Math.cos(th), side = (float) Math.sin(th);
                 float leg = left * (0.5f + 0.5f * side) + right * (0.5f - 0.5f * side);
                 float push = front > 0 ? front * Math.max(0, leg) : -front * Math.max(0, -leg);
@@ -60,7 +50,7 @@ public final class ClothMotion {
             float breathe = Mth.sin(age * 0.06f + i * 0.7f) * 0.02f;
             float stream = back ? amount * 0.55f + fall * 0.8f : sideways ? amount * 0.22f + fall * 0.35f : amount * 0.08f;
             float flutter = amount > 0.2f ? Mth.sin(age * 0.45f + i * 1.3f) * 0.05f * amount : 0;
-            // never more than a strong wind would lift it
+
             float lift = Math.min(back ? 0.95f : 0.5f, stream + flutter + flare * (back ? 0.3f : 0.15f) + (airborne ? 0.12f : 0));
             p.xRot = r[0] - (lift + breathe);
         }
@@ -83,7 +73,6 @@ public final class ClothMotion {
             p.zRot = r[2] + sgn * (0.1f * amount + flare * 0.3f);
         }
 
-        // a pointed hat's tip is soft: it nods with each step and leans back with speed
         if (m.head.hasChild("tip")) {
             ModelPart tip = m.head.getChild("tip");
             float[] r = rest(tip);

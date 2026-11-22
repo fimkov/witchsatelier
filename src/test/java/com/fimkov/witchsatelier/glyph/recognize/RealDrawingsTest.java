@@ -1,5 +1,7 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
+import com.fimkov.witchsatelier.glyph.model.Sigil;
+import com.fimkov.witchsatelier.glyph.model.SignType;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -7,7 +9,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Reads glyphs dumped from a real game (one stroke per line, "x y x y ..."), if any are given. */
 class RealDrawingsTest {
     private static List<List<Pt>> load(String resource) throws Exception {
         List<List<Pt>> strokes = new ArrayList<>();
@@ -21,51 +22,37 @@ class RealDrawingsTest {
         return strokes;
     }
 
-    /** From a real game: Column bars lying just inside the ring must not count as part of the ring. */
     @Test
     void columnBarsNextToTheRingDoNotOpenIt() throws Exception {
         GlyphReading r = GlyphAnalyzer.analyze(load("quire_fire_columns.txt"), 0.035);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.Sigil.FIRE, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(com.fimkov.witchsatelier.glyph.model.SignType.COLUMN), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
-    /** From a real game: shaky arrows drawn as a set are read as the set (three of four, at least). */
     @Test
     void shakyLevitationArrowsAreReadAsASet() throws Exception {
         GlyphReading r = GlyphAnalyzer.analyze(load("ice_wind_levitation.txt"), 1.0 / 16);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertTrue(r.count(com.fimkov.witchsatelier.glyph.model.SignType.LEVITATION) >= 3, r.describe());
+        org.junit.jupiter.api.Assertions.assertTrue(r.count(SignType.LEVITATION) >= 3, r.describe());
     }
 
-    /**
-     * From a real game, drawn on grass: the ring spiralled past its start (one end inside the line, one outside)
-     * and was joined with a short stroke across; the witch then walked round to the far side before it closed.
-     */
     @Test
     void spiralRingJoinedAcrossClosesAndReadsFromAnySide() throws Exception {
         var strokes = load("floor_spiral_fire_columns.txt");
-        // the sigil's up is +u for the witch who drew it; they closed it facing a quarter-turn away
+
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, Math.PI / 2);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.Sigil.FIRE, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(com.fimkov.witchsatelier.glyph.model.SignType.COLUMN), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
-    /**
-     * From a real game, on sand: the earth sigil drawn as a downward triangle on its stem with the dots by its point,
-     * and four eyes with a small pupil each. It once read as fire and four diamonds.
-     */
-    /**
-     * A windowway drawn on a floor: a square box across a cross, once with the cross running off to one side of the
-     * box. Both read as the Light's diamond, which the point cloud scores nearly alike.
-     */
     @Test
     void squareAcrossACrossReadsAsWindowNotLight() throws Exception {
         for (String f : List.of("floor_window_square_cross.txt", "floor_window_offset_cross.txt")) {
             GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(load(f), 1.0 / 16, Math.PI / 2);
             org.junit.jupiter.api.Assertions.assertTrue(r.closed(), f + ": " + r.describe());
-            org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.SignType.WINDOW, r.centerSign(), f + ": " + r.describe());
+            org.junit.jupiter.api.Assertions.assertEquals(SignType.WINDOW, r.centerSign(), f + ": " + r.describe());
         }
     }
 
@@ -74,39 +61,30 @@ class RealDrawingsTest {
         var strokes = load("floor_earth_four_eyes.txt");
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, 0.3);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.Sigil.EARTH, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(com.fimkov.witchsatelier.glyph.model.SignType.EYE), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(0, r.count(com.fimkov.witchsatelier.glyph.model.SignType.DIAMOND), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(Sigil.EARTH, r.sigil(), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.EYE), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(0, r.count(SignType.DIAMOND), r.describe());
     }
 
-    /**
-     * The same glyph drawn again with care: each eye in two arcs with a round pupil floating in the middle, the
-     * earth sigil's dots a little way off. The pupils once read as signs of their own and the dots as an eye.
-     */
     @Test
     void floatingPupilsAndSigilDotsAreNotSignsOfTheirOwn() throws Exception {
         var strokes = load("floor_earth_four_round_pupils.txt");
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, 0.3);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.Sigil.EARTH, r.sigil(), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(Sigil.EARTH, r.sigil(), r.describe());
         org.junit.jupiter.api.Assertions.assertEquals(4, r.signs().size(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(com.fimkov.witchsatelier.glyph.model.SignType.EYE), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.EYE), r.describe());
         org.junit.jupiter.api.Assertions.assertEquals(0, r.unknown(), r.describe());
     }
 
-    /**
-     * From a real palm quire: Pillar of Flame with one Column's bar drawn across the middle of its staff (a little
-     * cross that half reads as a Bolt), and the closing gone over on the ring line itself. It once read as fire with
-     * three Columns, a Bolt and a Bend.
-     */
     @Test
     void aSetOfColumnsKeepsItsOddOneAndRingTouchUpsAreNoSigns() throws Exception {
         var strokes = load("quire_fire_columns_crossed_bar.txt");
         GlyphReading r = GlyphAnalyzer.analyze(strokes, 0.035);
         org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(com.fimkov.witchsatelier.glyph.model.Sigil.FIRE, r.sigil(), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
         org.junit.jupiter.api.Assertions.assertEquals(4, r.signs().size(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(com.fimkov.witchsatelier.glyph.model.SignType.COLUMN), r.describe());
+        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
     @Test
@@ -122,7 +100,7 @@ class RealDrawingsTest {
                     if (line.isBlank()) continue;
                     if (line.startsWith("#ink ")) { ink = Double.parseDouble(line.substring(5).trim()); continue; }
                     if (line.startsWith("#up ")) { up = Math.toRadians(Double.parseDouble(line.substring(4).trim())); continue; }
-                    if (line.startsWith("#")) continue; // notes, such as what the game read it as
+                    if (line.startsWith("#")) continue;
                     String[] t = line.trim().split(" ");
                     List<Pt> s = new ArrayList<>();
                     for (int i = 0; i + 1 < t.length; i += 2) s.add(new Pt(Double.parseDouble(t[i]), Double.parseDouble(t[i + 1])));

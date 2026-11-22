@@ -11,9 +11,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Holds the ink poured into an inkwell. */
 public class InkwellBlockEntity extends BlockEntity {
-    /** Four bottles. */
     public static final int CAPACITY = 4096;
     private InkType ink = InkType.CONJURING;
     private int amount;
@@ -25,7 +23,6 @@ public class InkwellBlockEntity extends BlockEntity {
     public InkType ink() { return ink; }
     public int amount() { return amount; }
 
-    /** Adds ink if it is the same kind (or the well is empty). */
     public boolean pour(InkType type, int units) {
         if (amount > 0 && type != ink) return false;
         if (amount >= CAPACITY) return false;

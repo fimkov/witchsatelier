@@ -1,5 +1,6 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
+import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
 
@@ -7,17 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Draws a grimoire recipe the way a person copies it onto a floor: the ring a little squashed and wavy, in one to
- * three strokes overlapping where it closes; each symbol a little off in place, size, slant and proportion; lines
- * that wobble, ends that fall short or run on, the pen sometimes lifted mid-line; dots as small scribbles. The
- * {@code sloppiness} scales every one of these (0.5 careful, 1 ordinary, 1.6 hasty).
- */
 final class HandDrawn {
     final Random rnd;
     final double sloppiness;
     final List<List<Pt>> strokes = new ArrayList<>();
-    /** Blocks per page unit, and the turn of the whole drawing (the drawer's "up" is turn + 90 degrees). */
+
     double scale, turn;
 
     HandDrawn(long seed, double sloppiness) {
@@ -29,9 +24,8 @@ final class HandDrawn {
         return rnd.nextGaussian() * sd * sloppiness;
     }
 
-    /** The whole glyph, ring of radius {@code ringRadius} blocks, turned by {@code turn} radians. */
     HandDrawn recipe(GlyphLibrary.Recipe r, double ringRadius, double turn) {
-        double radius = 0.85; // page units, as the grimoire draws it
+        double radius = 0.85;
         this.scale = ringRadius / radius;
         this.turn = turn;
         ring(radius);
@@ -48,8 +42,7 @@ final class HandDrawn {
         return this;
     }
 
-    /** Only a sigil, {@code size} page units across, at {@code scale} blocks per page unit (no ring). */
-    HandDrawn sigilOnly(com.fimkov.witchsatelier.glyph.model.Sigil s, double size, double scale) {
+    HandDrawn sigilOnly(Sigil s, double size, double scale) {
         this.scale = scale;
         this.turn = 0;
         symbol(sigil(s), new Pt(0, 0), size, 0);
@@ -69,7 +62,7 @@ final class HandDrawn {
         }
     }
 
-    private static List<List<Pt>> sigil(com.fimkov.witchsatelier.glyph.model.Sigil s) {
+    private static List<List<Pt>> sigil(Sigil s) {
         return Templates.SIGILS.stream().filter(t -> t.sigil() == s).findFirst().orElseThrow().strokes();
     }
 
@@ -77,12 +70,10 @@ final class HandDrawn {
         return Templates.SIGNS.stream().filter(x -> x.sign() == t && !x.reversed()).findFirst().orElseThrow().strokes();
     }
 
-    /** Page point to blocks on the floor. */
     private Pt world(Pt p) {
         return p.rotate(turn).scale(scale);
     }
 
-    /** The ring: squashed, wavy, drifting a little like a spiral, in one to three overlapping strokes. */
     private void ring(double radius) {
         double ecc = Math.abs(g(0.035)), eccAt = rnd.nextDouble() * Math.PI;
         double w3 = g(0.015), w5 = g(0.01), p3 = rnd.nextDouble() * 6, p5 = rnd.nextDouble() * 6;
@@ -104,7 +95,6 @@ final class HandDrawn {
         }
     }
 
-    /** One symbol: placed, sized, slanted and proportioned a little wrong, each line wobbling. */
     private void symbol(List<List<Pt>> template, Pt at, double size, double rot) {
         double unit = size / 2;
         Pt c = at.plus(new Pt(g(0.04), g(0.04)));
@@ -115,7 +105,6 @@ final class HandDrawn {
         double wob = 0.035, f1 = 2 + rnd.nextDouble() * 3, f2 = 2 + rnd.nextDouble() * 3, ph1 = rnd.nextDouble() * 6, ph2 = rnd.nextDouble() * 6;
         for (List<Pt> st : template) {
             if (st.size() == 1) {
-                // a dot: a small scribble where it goes
                 Pt d = st.get(0);
                 Pt q = c.plus(new Pt((d.x() * sx + d.y() * shear) * s, d.y() * sy * s).rotate(r));
                 double rr = (0.025 + rnd.nextDouble() * 0.03) / scale;
@@ -139,7 +128,7 @@ final class HandDrawn {
                 out.add(world(c.plus(local.rotate(r))));
             }
             out = resampleWorld(out, 0.035);
-            // now and then the pen is lifted mid-line and set down again
+
             if (out.size() > 12 && rnd.nextDouble() < 0.12 * sloppiness) {
                 int cut = 4 + rnd.nextInt(out.size() - 8);
                 strokes.add(jitter(new ArrayList<>(out.subList(0, cut)), 0.003));
@@ -150,7 +139,6 @@ final class HandDrawn {
         }
     }
 
-    /** Ends that stop a little short or run a little on. */
     private List<Pt> trimEnds(List<Pt> line) {
         if (line.size() < 4) return line;
         List<Pt> out = new ArrayList<>(line);
@@ -190,7 +178,6 @@ final class HandDrawn {
         return out;
     }
 
-    /** Points about {@code step} blocks apart, as a pen moving across a surface leaves them. */
     private static List<Pt> resampleWorld(List<Pt> s, double step) {
         List<Pt> out = new ArrayList<>();
         out.add(s.get(0));

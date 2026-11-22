@@ -1,8 +1,13 @@
 package com.fimkov.witchsatelier.block;
 
 import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.ink.InkType;
+import com.fimkov.witchsatelier.item.InkPenItem;
 import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -12,40 +17,43 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
-/**
- * Where the Void Basin goes: a world of its own, a starry nothing with a hall of stars in it (see
- * mixin.WorldDimensionsMixin for why it does not mark worlds "experimental"). Whoever jumps into the basin falls
- * here; any glyph drawn on the stars, its ring closed, takes them back to where they jumped from. Falling off the
- * island does too, the long way round, so nobody is lost here for want of a pen.
- */
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 public final class Starfall {
     private Starfall() {}
 
     public static final ResourceKey<Level> LEVEL = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "starfall"));
     private static final String RETURN = "witchsatelier_starfall_return";
-    /** Game time at which someone whose glyph has flared is carried home. */
+
     private static final String LEAVING = "witchsatelier_starfall_leaving";
-    /** How long the glyph flares and the stars whirl before the way home opens. */
+
     public static final int RETURN_TICKS = 40;
-    private static final java.util.Map<java.util.UUID, java.util.Collection<Long>> GLYPHS = new java.util.HashMap<>();
+    private static final Map<UUID, Collection<Long>> GLYPHS = new HashMap<>();
     private static final BlockPos ISLAND = new BlockPos(0, 100, 0);
-    /** The radius of the hall's dome. */
+
     private static final int DOME = 10;
 
     public static boolean isStarfall(Level level) {
         return level.dimension().equals(LEVEL);
     }
 
-    /** Out among the stars. */
     public static boolean among(Level level, Vec3 at) {
         return isStarfall(level);
     }
 
-    /** Down through the basin at {@code basin}: remember where to come back to, and arrive on the island. */
     public static void fallIn(ServerPlayer p, BlockPos basin) {
         ServerLevel stars = p.server.getLevel(LEVEL);
         if (stars == null || among(p.level(), p.position())) return;
@@ -61,29 +69,25 @@ public final class Starfall {
         p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8f, 0.5f);
         p.teleportTo(stars, ISLAND.getX() + 0.5, ISLAND.getY() + 1, ISLAND.getZ() + 0.5, p.getYRot(), p.getXRot());
         p.resetFallDistance();
-        p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SLOW_FALLING, 40, 0, false, false));
+        p.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 40, 0, false, false));
         stars.sendParticles(ParticleTypes.END_ROD, p.getX(), p.getY() + 1, p.getZ(), 80, 1.2, 1.2, 1.2, 0.08);
         stars.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 0.25f, 1.6f);
         stars.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1f, 0.6f);
-        // nobody is shut in here for want of a pen: the stars lend one
+
         boolean pen = false;
-        for (net.minecraft.world.item.ItemStack st : p.getInventory().items) if (st.getItem() instanceof com.fimkov.witchsatelier.item.InkPenItem) pen = true;
+        for (ItemStack st : p.getInventory().items) if (st.getItem() instanceof InkPenItem) pen = true;
         if (!pen) {
-            net.minecraft.world.item.ItemStack lent = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.INK_PEN.get());
-            com.fimkov.witchsatelier.item.InkPenItem.setLoaded(lent, com.fimkov.witchsatelier.glyph.ink.InkType.CONJURING, com.fimkov.witchsatelier.item.InkPenItem.NIB_CAPACITY);
+            ItemStack lent = new ItemStack(ModItems.INK_PEN.get());
+            InkPenItem.setLoaded(lent, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
             if (!p.getInventory().add(lent)) p.drop(lent, false);
         }
     }
 
-    /**
-     * Where to set them down on the way back: beside the basin, not in it (they would fall straight back), on the
-     * side they came from if there is room, else any side with room.
-     */
     private static Vec3 beside(ServerPlayer p, BlockPos basin) {
         Level level = p.level();
-        net.minecraft.core.Direction from = p.getDirection().getOpposite();
-        java.util.List<net.minecraft.core.Direction> order = new java.util.ArrayList<>(java.util.List.of(from));
-        for (var d : net.minecraft.core.Direction.Plane.HORIZONTAL) if (d != from) order.add(d);
+        Direction from = p.getDirection().getOpposite();
+        List<Direction> order = new ArrayList<>(List.of(from));
+        for (var d : Direction.Plane.HORIZONTAL) if (d != from) order.add(d);
         for (var d : order) {
             BlockPos at = basin.relative(d);
             for (int up = 0; up <= 1; up++) {
@@ -97,7 +101,6 @@ public final class Starfall {
         return new Vec3(basin.getX() + 0.5, basin.getY() + 1.1, basin.getZ() + 1.5);
     }
 
-    /** Back to where they jumped from (the world's spawn if that is lost). */
     public static void goHome(ServerPlayer p) {
         CompoundTag back = p.getPersistentData().getCompound(RETURN);
         ServerLevel to = null;
@@ -117,8 +120,8 @@ public final class Starfall {
         p.getPersistentData().remove(LEAVING);
         p.teleportTo(to, at.x, at.y, at.z, p.getYRot(), p.getXRot());
         p.resetFallDistance();
-        p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.SLOW_FALLING, 60, 0, false, false));
-        // the basin spills its stars as they come back out of it
+        p.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 60, 0, false, false));
+
         to.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 1, at.z, 70, 0.6, 1.0, 0.6, 0.12);
         to.sendParticles(ParticleTypes.REVERSE_PORTAL, at.x, at.y + 0.2, at.z, 120, 1.4, 0.1, 1.4, 0.05);
         to.sendParticles(ParticleTypes.FLASH, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
@@ -126,15 +129,11 @@ public final class Starfall {
         to.playSound(null, at.x, at.y, at.z, SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1f, 1.4f);
     }
 
-    /**
-     * A hall of stars, raised the first time anyone comes: a round floor under a dome, all of it night sky, with a
-     * few stones of stars floating inside.
-     */
     private static void chamber(ServerLevel stars) {
         BlockPos top = ISLAND.above(DOME);
         if (stars.getBlockState(top).is(ModBlocks.STAR_BLOCK.get())) return;
         var star = ModBlocks.STAR_BLOCK.get().defaultBlockState();
-        var air = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+        var air = Blocks.AIR.defaultBlockState();
         int r = DOME + 1;
         for (BlockPos q : BlockPos.betweenClosed(ISLAND.offset(-r, -1, -r), ISLAND.offset(r, r, r))) {
             int dx = q.getX() - ISLAND.getX(), dy = q.getY() - ISLAND.getY(), dz = q.getZ() - ISLAND.getZ();
@@ -148,19 +147,17 @@ public final class Starfall {
             double a = rnd.nextDouble() * Math.PI * 2, dist = 4 + rnd.nextDouble() * 4;
             BlockPos c = ISLAND.offset((int) (Math.cos(a) * dist), 3 + rnd.nextInt(4), (int) (Math.sin(a) * dist));
             stars.setBlock(c, star, 2);
-            if (rnd.nextBoolean()) stars.setBlock(c.relative(net.minecraft.core.Direction.getRandom(rnd)), star, 2);
+            if (rnd.nextBoolean()) stars.setBlock(c.relative(Direction.getRandom(rnd)), star, 2);
         }
     }
 
-    /** Their glyph on the stars has closed: in a moment they go home (the glyph's lines go with them). */
-    public static void beginReturn(ServerPlayer p, java.util.Collection<Long> glyph) {
+    public static void beginReturn(ServerPlayer p, Collection<Long> glyph) {
         if (p.getPersistentData().contains(LEAVING)) return;
         p.getPersistentData().putLong(LEAVING, p.level().getGameTime() + RETURN_TICKS);
-        GLYPHS.put(p.getUUID(), java.util.List.copyOf(glyph));
+        GLYPHS.put(p.getUUID(), List.copyOf(glyph));
         p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1f, 1.5f);
     }
 
-    /** The whirl of stars round someone about to go home. */
     private static void whirl(ServerPlayer p, long left) {
         ServerLevel l = (ServerLevel) p.level();
         double t = (RETURN_TICKS - left) / (double) RETURN_TICKS;
@@ -172,7 +169,6 @@ public final class Starfall {
         if (left == 10) l.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.AMETHYST_CLUSTER_BREAK, SoundSource.PLAYERS, 1f, 1.8f);
     }
 
-    /** Off the edge of the island and down into nothing: back home, the long way round. */
     public static void onPlayerTick(PlayerTickEvent.Post e) {
         if (e.getEntity() instanceof ServerPlayer p && p.getPersistentData().contains(LEAVING)) {
             long left = p.getPersistentData().getLong(LEAVING) - p.level().getGameTime();
@@ -181,8 +177,8 @@ public final class Starfall {
             } else if (left > 0) {
                 whirl(p, left);
             } else {
-                java.util.Collection<Long> glyph = GLYPHS.remove(p.getUUID());
-                if (glyph != null) com.fimkov.witchsatelier.glyph.GlyphService.eraseStrokes((ServerLevel) p.level(), glyph);
+                Collection<Long> glyph = GLYPHS.remove(p.getUUID());
+                if (glyph != null) GlyphService.eraseStrokes((ServerLevel) p.level(), glyph);
                 ((ServerLevel) p.level()).sendParticles(ParticleTypes.FLASH, p.getX(), p.getY() + 1, p.getZ(), 1, 0, 0, 0, 0);
                 goHome(p);
                 return;

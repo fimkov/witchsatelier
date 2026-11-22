@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/** Builds pen strokes for a glyph the way a player would draw them (for in-game tests). */
 public final class GlyphSketch {
     private final Pt center;
     private final double radius;
@@ -22,7 +21,6 @@ public final class GlyphSketch {
         this.radius = radius;
     }
 
-    /** Ring arc from a0 to a1 degrees, as one stroke. */
     public GlyphSketch ring(double a0, double a1) {
         List<Pt> pts = new ArrayList<>();
         int n = (int) Math.ceil(Math.abs(a1 - a0) / 360 * Math.PI * 2 * radius / 0.03);
@@ -41,14 +39,12 @@ public final class GlyphSketch {
         return this;
     }
 
-    /** A sign drawn alone in the middle (instead of a sigil). */
     public GlyphSketch centerSign(SignType type, double size) {
         var t = Templates.SIGNS.stream().filter(x -> x.sign() == type && !x.reversed()).findFirst().orElseThrow();
         put(t.strokes(), center, size, 0);
         return this;
     }
 
-    /** {@code count} copies of a sign evenly around the centre at 0.62 of the radius. */
     public GlyphSketch signs(SignType type, int count, Orientation o, double size, double startDeg) {
         var t = Templates.SIGNS.stream().filter(x -> x.sign() == type && !x.reversed()).findFirst().orElseThrow();
         for (int k = 0; k < count; k++) {

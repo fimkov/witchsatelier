@@ -1,29 +1,24 @@
 package com.fimkov.witchsatelier.advancement;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.spell.SpellProgram;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.advancements.CriterionTrigger;
 import net.minecraft.advancements.critereon.ContextAwarePredicate;
 import net.minecraft.advancements.critereon.EntityPredicate;
 import net.minecraft.advancements.critereon.SimpleCriterionTrigger;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-/**
- * One criterion trigger for everything magical a witch does, told apart by an event name: "cast", "cast_page",
- * "cast_boots", "cast_nested", "cast_birds", "cast_amplified", "form_beam", "element_fire", "windowway",
- * "stranger_gift", "revive", "petrify"...
- */
 public class MagicTrigger extends SimpleCriterionTrigger<MagicTrigger.Instance> {
-    public static final DeferredRegister<net.minecraft.advancements.CriterionTrigger<?>> TRIGGERS = DeferredRegister.create(Registries.TRIGGER_TYPE, WitchsAtelier.MODID);
+    public static final DeferredRegister<CriterionTrigger<?>> TRIGGERS = DeferredRegister.create(Registries.TRIGGER_TYPE, WitchsAtelier.MODID);
     public static final Supplier<MagicTrigger> MAGIC = TRIGGERS.register("magic", MagicTrigger::new);
 
     @Override
@@ -41,7 +36,6 @@ public class MagicTrigger extends SimpleCriterionTrigger<MagicTrigger.Instance> 
         if (player instanceof ServerPlayer sp) MAGIC.get().trigger(sp, inst -> inst.event().equals(event));
     }
 
-    /** A spell was cast: everything about it that an advancement might care for. */
     public static void cast(Player player, SpellProgram p, String source) {
         if (!(player instanceof ServerPlayer)) return;
         fire(player, "cast");

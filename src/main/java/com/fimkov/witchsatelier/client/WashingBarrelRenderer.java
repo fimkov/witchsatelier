@@ -11,7 +11,6 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
-/** What lies in a Washing Barrel, turning slowly over the water while the seal works on it. */
 public class WashingBarrelRenderer implements BlockEntityRenderer<WashingBarrelBlock.Entity> {
     public WashingBarrelRenderer(BlockEntityRendererProvider.Context ctx) {}
 

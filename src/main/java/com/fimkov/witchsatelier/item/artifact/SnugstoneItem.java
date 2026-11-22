@@ -17,11 +17,6 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
-/**
- * Snugstone: a slice of stone with a fire glyph whose columns face inward and a Radial sign to soften it, so it
- * gives off a gentle warmth and never a flame. Carried, it keeps the cold away; held, it thaws snow and ice
- * around you; in a furnace it burns for a long time.
- */
 public class SnugstoneItem extends Item {
     public SnugstoneItem(Properties props) {
         super(props);
@@ -29,7 +24,7 @@ public class SnugstoneItem extends Item {
 
     @Override
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        if (com.fimkov.witchsatelier.item.artifact.Awakening.dormant(stack)) return;
+        if (Awakening.dormant(stack)) return;
         if (!(entity instanceof LivingEntity le) || level.isClientSide) return;
         if (le.getTicksFrozen() > 0) le.setTicksFrozen(Math.max(0, le.getTicksFrozen() - 4));
         boolean held = le.getMainHandItem() == stack || le.getOffhandItem() == stack;

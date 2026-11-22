@@ -11,6 +11,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,11 +25,6 @@ import net.minecraft.world.level.block.Blocks;
 
 import java.util.List;
 
-/**
- * Vapor Bubble: two trays with a water glyph in the lower one. Pull them apart and the moisture of the air
- * gathers into a big bubble of water: pour it out where you point (it soaks away again after a while) or into
- * an empty bottle you carry. It needs a little while to gather again.
- */
 public class VaporBubbleItem extends Item {
     public VaporBubbleItem(Properties props) {
         super(props);
@@ -51,13 +47,12 @@ public class VaporBubbleItem extends Item {
                 sl.playSound(null, at, SoundEvents.BUCKET_EMPTY, SoundSource.PLAYERS, 1f, 1.1f);
             }
             ctx.getItemInHand().hurtAndBreak(1, p, ctx.getHand() == InteractionHand.MAIN_HAND
-                    ? net.minecraft.world.entity.EquipmentSlot.MAINHAND : net.minecraft.world.entity.EquipmentSlot.OFFHAND);
+                    ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
         }
         p.getCooldowns().addCooldown(this, 100);
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
-    /** Used in the air: the bubble goes into an empty bottle, if you have one. */
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player p, InteractionHand hand) {
         ItemStack self = p.getItemInHand(hand);

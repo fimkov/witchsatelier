@@ -1,21 +1,19 @@
 package com.fimkov.witchsatelier.client.dev;
 
-import com.mojang.blaze3d.platform.NativeImage;
 import com.fimkov.witchsatelier.WitchsAtelier;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Screenshot harness only: films what the game shows into an mp4 by handing each rendered frame to ffmpeg. Frames
- * are paced by the clock (repeated when the game draws slower than the film runs), so the film plays in real time.
- */
 final class FilmRecorder {
     static final int FPS = 30;
     private static final List<Process> ENCODING = new ArrayList<>();
@@ -37,7 +35,6 @@ final class FilmRecorder {
         return new FilmRecorder(file);
     }
 
-    /** Called once each frame, after it is drawn. */
     void frame() {
         Minecraft mc = Minecraft.getInstance();
         long now = System.nanoTime();
@@ -46,7 +43,7 @@ final class FilmRecorder {
         if (ffmpeg != null && written >= due) return;
         try (NativeImage img = Screenshot.takeScreenshot(mc.getMainRenderTarget())) {
             if (ffmpeg == null) open(img.getWidth(), img.getHeight());
-            if (img.getWidth() != w || img.getHeight() != h) return; // the window changed size: skip the frame
+            if (img.getWidth() != w || img.getHeight() != h) return;
             int[] px = img.getPixelsRGBA();
             ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(px);
             while (written < due) {
@@ -59,7 +56,7 @@ final class FilmRecorder {
         }
     }
 
-    private void open(int width, int height) throws java.io.IOException {
+    private void open(int width, int height) throws IOException {
         w = width;
         h = height;
         buf = new byte[w * h * 4];
@@ -67,10 +64,9 @@ final class FilmRecorder {
                 "-r", String.valueOf(FPS), "-i", "-", "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", file.getAbsolutePath())
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.INHERIT).start();
-        out = new java.io.BufferedOutputStream(ffmpeg.getOutputStream(), 1 << 22);
+        out = new BufferedOutputStream(ffmpeg.getOutputStream(), 1 << 22);
     }
 
-    /** Ends the film; ffmpeg finishes it in the background. */
     void close() {
         if (ffmpeg == null) return;
         try {
@@ -84,7 +80,6 @@ final class FilmRecorder {
         ffmpeg = null;
     }
 
-    /** Waits for every film to be written out (before the game quits). */
     static void finishAll() {
         synchronized (ENCODING) {
             for (Process p : ENCODING) {

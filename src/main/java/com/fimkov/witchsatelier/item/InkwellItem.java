@@ -18,10 +18,6 @@ import net.minecraft.world.level.block.Block;
 
 import java.util.List;
 
-/**
- * An inkwell you can carry: hold it in the other hand and the pen dips into it while you draw, or place it on a
- * desk. Click ink bottles onto it in the inventory to fill it.
- */
 public class InkwellItem extends BlockItem {
     public InkwellItem(Block block, Properties props) {
         super(block, props.stacksTo(1));
@@ -36,7 +32,6 @@ public class InkwellItem extends BlockItem {
         else stack.set(ModComponents.INKWELL_INK.get(), ink);
     }
 
-    /** Clicking a bottle of ink onto the inkwell pours it in. */
     @Override
     public boolean overrideOtherStackedOnMe(ItemStack self, ItemStack other, Slot slot, ClickAction action, Player player, SlotAccess carried) {
         if (action != ClickAction.PRIMARY || !(other.getItem() instanceof InkBottleItem bottle)) return false;

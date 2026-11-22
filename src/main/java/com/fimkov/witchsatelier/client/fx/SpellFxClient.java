@@ -1,25 +1,47 @@
 package com.fimkov.witchsatelier.client.fx;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.compat.Ships;
+import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.model.Sigil;
+import com.fimkov.witchsatelier.glyph.page.PageKind;
 import com.fimkov.witchsatelier.network.Payloads;
 import com.fimkov.witchsatelier.spell.SpellProgram.Form;
+import com.fimkov.witchsatelier.spell.SpellProgram;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
-/**
- * Light shapes drawn around running spells: the ring flaring up as it closes, a slowly turning circle of runes
- * over the glyph (or hanging in the air before a caster's hand), beams of layered light, lift columns and
- * pulsing rings for pulls and spills.
- */
 public final class SpellFxClient {
     private static final class Fx {
         Payloads.SpellFx p;
@@ -28,32 +50,29 @@ public final class SpellFxClient {
 
     private static final Map<Long, Fx> FX = new HashMap<>();
 
-    /** How fast (blocks a tick) {@code e}'s sylph shoes carry them, or 0 if they are not flying on them. */
-    public static double soarSpeed(net.minecraft.world.entity.Entity e) {
+    public static double soarSpeed(Entity e) {
         for (Fx fx : FX.values()) {
             Payloads.SpellFx p = fx.p;
-            if (fx.ended >= 0 || !e.getUUID().equals(p.caster()) || (p.mods() & com.fimkov.witchsatelier.glyph.GlyphService.WORN_FX) == 0) continue;
-            if (FORMS[Math.floorMod(p.form() & 15, FORMS.length)] == Form.LIFT && (p.mods() & com.fimkov.witchsatelier.glyph.GlyphService.WORN_SINKING) == 0)
+            if (fx.ended >= 0 || !e.getUUID().equals(p.caster()) || (p.mods() & GlyphService.WORN_FX) == 0) continue;
+            if (FORMS[Math.floorMod(p.form() & 15, FORMS.length)] == Form.LIFT && (p.mods() & GlyphService.WORN_SINKING) == 0)
                 return Math.max(0.2, p.length());
         }
         return 0;
     }
 
-    /** True while {@code e} is being borne up by a lift of their own at their feet: flying on sylph shoes. */
-    public static boolean soaring(net.minecraft.world.entity.Entity e) {
+    public static boolean soaring(Entity e) {
         for (Fx fx : FX.values()) {
             Payloads.SpellFx p = fx.p;
-            if (fx.ended >= 0 || !e.getUUID().equals(p.caster()) || (p.mods() & com.fimkov.witchsatelier.glyph.GlyphService.WORN_FX) == 0) continue;
+            if (fx.ended >= 0 || !e.getUUID().equals(p.caster()) || (p.mods() & GlyphService.WORN_FX) == 0) continue;
             if (FORMS[Math.floorMod(p.form() & 15, FORMS.length)] == Form.LIFT) return true;
         }
         return false;
     }
 
-    /** A bird of light, between server updates carried on by its own speed, with a short ribbon of a trail. */
     private static final class Bird {
         Payloads.BirdFx p;
         double seen, born;
-        final java.util.ArrayDeque<Vec3> trail = new java.util.ArrayDeque<>();
+        final ArrayDeque<Vec3> trail = new ArrayDeque<>();
     }
 
     private static final Map<Long, Bird> BIRDS = new HashMap<>();
@@ -71,7 +90,7 @@ public final class SpellFxClient {
         while (b.trail.size() > TRAIL) b.trail.removeLast();
     }
     private static final Form[] FORMS = Form.values();
-    /** Development: -Dwitchsatelier.fxoff=rings,mods,beam,column,birds switches parts of the visuals off. */
+
     private static final String OFF = System.getProperty("witchsatelier.fxoff", "");
 
     private SpellFxClient() {}
@@ -85,15 +104,15 @@ public final class SpellFxClient {
             fx = new Fx();
             fx.born = now;
             FX.put(p.id(), fx);
-            // our own spell leaving the page: the hand that holds it flicks forward
+
             var me = Minecraft.getInstance().player;
             if (me != null && p.handheld() && p.id() > 0 && me.getUUID().equals(p.caster())) {
-                boolean off = com.fimkov.witchsatelier.glyph.page.PageKind.of(me.getOffhandItem()) != null;
-                me.swing(off ? net.minecraft.world.InteractionHand.OFF_HAND : net.minecraft.world.InteractionHand.MAIN_HAND);
+                boolean off = PageKind.of(me.getOffhandItem()) != null;
+                me.swing(off ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
             }
         }
         fx.p = p;
-        // the client clock can be set back when the server catches up: never let a spell look younger than born
+
         if (now < fx.born) fx.born = now;
         fx.seen = now;
         if (p.ticksLeft() == 0 && fx.ended < 0) fx.ended = now;
@@ -105,7 +124,6 @@ public final class SpellFxClient {
     }
 
     public static void render(RenderLevelStageEvent e) {
-        // after clouds, rain and translucent water, so nothing drawn later paints over the glow
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER || (FX.isEmpty() && BIRDS.isEmpty())) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -117,7 +135,7 @@ public final class SpellFxClient {
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         VertexConsumer vc = buffers.getBuffer(WitchRenderTypes.GLOW);
         LocalPlayer me = mc.player;
-        java.util.List<Object[]> waterJets = new java.util.ArrayList<>(), rains = new java.util.ArrayList<>(), clouds = new java.util.ArrayList<>();
+        List<Object[]> waterJets = new ArrayList<>(), rains = new ArrayList<>(), clouds = new ArrayList<>();
         Vec3 camLook = new Vec3(e.getCamera().getLookVector());
 
         for (Iterator<Fx> it = FX.values().iterator(); it.hasNext(); ) {
@@ -131,8 +149,8 @@ public final class SpellFxClient {
             Vec3 o = new Vec3(p.ox(), p.oy(), p.oz());
             Vec3 n = new Vec3(p.nx(), p.ny(), p.nz());
             Vec3 d = new Vec3(p.dx(), p.dy(), p.dz());
-            // a glyph drawn on a ship is kept in the ship's plot: shown where the ship is
-            var onShip = p.handheld() ? null : com.fimkov.witchsatelier.compat.Ships.toWorld(mc.level, net.minecraft.core.BlockPos.containing(o.subtract(n.scale(0.2))), pt);
+
+            var onShip = p.handheld() ? null : Ships.toWorld(mc.level, BlockPos.containing(o.subtract(n.scale(0.2))), pt);
             if (onShip != null) {
                 Vec3 so = onShip.apply(o);
                 n = onShip.apply(o.add(n)).subtract(so).normalize();
@@ -141,8 +159,6 @@ public final class SpellFxClient {
             }
             boolean mine = me != null && p.handheld() && me.getUUID().equals(p.caster());
             if (mine) {
-                // our own hand-held spell follows our view exactly, without network lag; the server's aim help
-                // (bending towards a creature under the crosshair) is kept as an offset from the view
                 Vec3 look = me.getViewVector(pt);
                 o = me.getEyePosition(pt).add(look.scale(0.9)).subtract(0, 0.25, 0);
                 d = look.add(d.subtract(n)).normalize();
@@ -154,19 +170,17 @@ public final class SpellFxClient {
             Vec3 ringAt = lo.add(n.scale(0.012));
             double age = Math.max(0, time - fx.born);
 
-            boolean worn = (p.mods() & com.fimkov.witchsatelier.glyph.GlyphService.WORN_FX) != 0;
+            boolean worn = (p.mods() & GlyphService.WORN_FX) != 0;
             if (worn) {
-                // worn on the soles: no rings round the wearer, only the little cloud under the feet, kept right
-                // under them as they move (not where the server last said they were)
                 if (FORMS[Math.floorMod(p.form() & 15, FORMS.length)] == Form.LIFT && !OFF.contains("cloud")) {
                     var wearer = mc.level.getPlayerByUUID(p.caster());
                     Vec3 feet = wearer != null ? wearer.getPosition(pt).subtract(cam) : lo;
-                    // under the soles, its top just touching them (not up round the ankles, where the legs would hide it)
+
                     clouds.add(new Object[]{feet.add(0, -0.36 * 1.5 * 0.55, 0), 0.36, color, life * fade, (double) p.id()});
                 }
                 continue;
             }
-            if (OFF.contains("rings")) { /* skip */ } else if (age < 18) {
+            if (OFF.contains("rings")) {  } else if (age < 18) {
                 double f = Math.min(1, Math.max(0, age / 18.0));
                 ring(vc, m, ringAt, ab, radius * (0.85 + 0.75 * f), radius * (0.08 + 0.12 * (1 - f)), color, (1 - f) * 0.95, 1, 0);
             }
@@ -179,7 +193,7 @@ public final class SpellFxClient {
             Form form = FORMS[Math.floorMod(p.form() & 15, FORMS.length)];
             if (!OFF.contains("mods")) mods(vc, m, lo, n, ab, radius, p, color, life * fade, time, form);
             int el = ((p.form() & 0xFF) >> 4) - 1;
-            boolean water = el == com.fimkov.witchsatelier.glyph.model.Sigil.WATER.ordinal();
+            boolean water = el == Sigil.WATER.ordinal();
             double flicker = 0.82 + 0.18 * Math.sin(time * 1.3 + p.id());
             switch (form) {
                 case BEAM -> {
@@ -204,12 +218,10 @@ public final class SpellFxClient {
                     }
                 }
                 case BOLTS -> {
-                    // each shot leaves the ring with a flash that widens and fades
                     double ph = (age % 4) / 4.0;
                     ring(vc, m, lo.add(d.scale(0.2)), basis(d), radius * (0.6 + 0.9 * ph), 0.06, color, 0.7 * (1 - ph) * fade, 1, 0);
                 }
                 case PETRIFY -> {
-                    // grey rings closing in on the glyph, again and again, like a stare
                     for (int k = 0; k < 2; k++) {
                         double ph = ((time * 0.025 + k * 0.5) % 1.0);
                         double rr = Math.max(radius, p.length()) * (1.6 - 0.9 * ph);
@@ -238,7 +250,7 @@ public final class SpellFxClient {
             Vec3 vel = new Vec3(p.vx(), p.vy(), p.vz());
             Vec3 at = new Vec3(p.x(), p.y(), p.z()).add(vel.scale(Math.min(since, 2)));
             bird(vc, m, at.subtract(cam), vel, p.color(), alpha, time + p.bird() * 7.3, p.age() + since);
-            // trail: a fading ribbon through where it has been
+
             Vec3 prev = at;
             int k = 0;
             for (Vec3 q : b.trail) {
@@ -270,14 +282,11 @@ public final class SpellFxClient {
         }
     }
 
-    // ------------------------------------------------------------------ what the extra signs look like
-
     private static void mods(VertexConsumer vc, Matrix4f m, Vec3 c, Vec3 n, Vec3[] ab, double radius, Payloads.SpellFx p, int color,
                              double alpha, double time, Form form) {
         int mods = p.mods();
         double r = Math.max(2.5, radius * 2.2);
-        if ((mods & com.fimkov.witchsatelier.spell.SpellProgram.WARD) != 0) {
-            // a shell of light: latitude rings and meridians that slowly turn
+        if ((mods & SpellProgram.WARD) != 0) {
             for (int k = 1; k <= 4; k++) {
                 double phi = k * Math.PI / 10;
                 ring(vc, m, c.add(n.scale(Math.sin(phi) * r)), ab, Math.cos(phi) * r, 0.04, color, 0.28 * alpha, 1, 0);
@@ -295,8 +304,7 @@ public final class SpellFxClient {
                 }
             }
         }
-        if ((mods & com.fimkov.witchsatelier.spell.SpellProgram.BIND) != 0) {
-            // threads spiralling up out of the ring
+        if ((mods & SpellProgram.BIND) != 0) {
             for (int k = 0; k < 6; k++) {
                 Vec3 prev = null;
                 for (int i = 0; i <= 14; i++) {
@@ -308,8 +316,7 @@ public final class SpellFxClient {
                 }
             }
         }
-        if ((mods & com.fimkov.witchsatelier.spell.SpellProgram.PUPPET) != 0) {
-            // strings hanging from nowhere, swaying
+        if ((mods & SpellProgram.PUPPET) != 0) {
             for (int k = 0; k < 8; k++) {
                 double a = k * Math.PI / 4 + Math.sin(time * 0.05 + k) * 0.2;
                 Vec3 foot = c.add(ab[0].scale(Math.cos(a) * r * 0.6)).add(ab[1].scale(Math.sin(a) * r * 0.6));
@@ -317,8 +324,7 @@ public final class SpellFxClient {
                 fan(vc, m, foot, top, ab[0], 0.015, 0.015, color, 0.55 * alpha, 0);
             }
         }
-        if ((mods & com.fimkov.witchsatelier.spell.SpellProgram.GATHER) != 0) {
-            // streams drawn inward in a spiral
+        if ((mods & SpellProgram.GATHER) != 0) {
             for (int k = 0; k < 4; k++) {
                 Vec3 prev = null;
                 for (int i = 0; i <= 20; i++) {
@@ -331,8 +337,7 @@ public final class SpellFxClient {
                 }
             }
         }
-        if ((mods & com.fimkov.witchsatelier.spell.SpellProgram.AIM) != 0) {
-            // a reticle out along the spell's aim
+        if ((mods & SpellProgram.AIM) != 0) {
             Vec3 d = new Vec3(p.dx(), p.dy(), p.dz());
             Vec3[] db = basis(d);
             Vec3 at = c.add(d.scale(1.2));
@@ -342,8 +347,7 @@ public final class SpellFxClient {
                 fan(vc, m, at.add(dir.scale(0.2)), at.add(dir.scale(0.5)), d, 0.02, 0.02, color, 0.7 * alpha, 0.7 * alpha);
             }
         }
-        if (form == Form.MANIFEST && ((p.form() & 0xFF) >> 4) - 1 == com.fimkov.witchsatelier.glyph.model.Sigil.LIGHT.ordinal()) {
-            // the lantern: a soft ball of light bobbing above the glyph
+        if (form == Form.MANIFEST && ((p.form() & 0xFF) >> 4) - 1 == Sigil.LIGHT.ordinal()) {
             Vec3 at = c.add(n.scale(0.9 + Math.sin(time * 0.06) * 0.08));
             for (int k = 0; k < 3; k++) {
                 double rr = (0.18 + k * 0.16) * (1 + 0.05 * Math.sin(time * 0.3 + k));
@@ -353,22 +357,16 @@ public final class SpellFxClient {
         }
     }
 
-    // ------------------------------------------------------------------ water
-
-    /**
-     * The body of a water jet: a clear, pale tube with darker rippling bands running along it (the drops that
-     * make it look heavy come as particles from the server).
-     */
     private static void waterJet(VertexConsumer vc, Matrix4f m, Vec3 from, Vec3 dir, double len, double width, double fade, double time) {
         Vec3[] ab = basis(dir);
         int sections = Math.max(6, (int) Math.ceil(len / 0.6));
         for (int i = 0; i < sections; i++) {
             double t0 = (double) i / sections, t1 = (double) (i + 1) / sections;
-            // falls a little on its way, like a real stream
+
             Vec3 a = from.add(dir.scale(len * t0)).add(0, -0.25 * t0 * t0 * len / 10, 0);
             Vec3 b = from.add(dir.scale(len * t1)).add(0, -0.25 * t1 * t1 * len / 10, 0);
             double band0 = 0.75 + 0.25 * Math.sin(t0 * len * 4 - time * 1.6), band1 = 0.75 + 0.25 * Math.sin(t1 * len * 4 - time * 1.6);
-            double w0 = width * 0.32 * (0.8 + 0.4 * t0), w1 = width * 0.32 * (0.8 + 0.4 * t1); // it spreads as it goes
+            double w0 = width * 0.32 * (0.8 + 0.4 * t0), w1 = width * 0.32 * (0.8 + 0.4 * t1);
             double f0 = fade * fadeOut(t0), f1 = fade * fadeOut(t1);
             for (int k = 0; k < 3; k++) {
                 double ang = k * Math.PI / 3 + time * 0.05;
@@ -383,14 +381,13 @@ public final class SpellFxClient {
         return t < 0.85 ? 1 : Math.max(0, 1 - (t - 0.85) / 0.15);
     }
 
-    /** Rain of water: a low grey cloud over the glyph and streaks falling from it, each on its own beat. */
     private static void rain(VertexConsumer vc, Matrix4f m, Vec3 base, Vec3 n, double reach, double radius, double fade, double seed, double time) {
         if (fade <= 0.01) return;
         double height = 4 + radius;
         Vec3 top = base.add(n.scale(height));
         Vec3[] ab = basis(n);
-        // the cloud: soft overlapping discs, darker in the middle
-        java.util.Random rnd = new java.util.Random((long) seed * 31 + 7);
+
+        Random rnd = new Random((long) seed * 31 + 7);
         int puffs = (int) Math.min(40, 8 + reach * reach * 0.8);
         for (int i = 0; i < puffs; i++) {
             double a = rnd.nextDouble() * Math.PI * 2, d = Math.sqrt(rnd.nextDouble()) * reach * 0.9;
@@ -400,7 +397,7 @@ public final class SpellFxClient {
             int shade = d < reach * 0.4 ? 0xFF6E747C : 0xFF9AA1A9;
             puff(vc, m, c, n, ab, pr, shade, 0.35 * fade);
         }
-        // the streaks
+
         int streaks = (int) Math.min(220, 30 + reach * reach * 6);
         for (int i = 0; i < streaks; i++) {
             double a = rnd.nextDouble() * Math.PI * 2, d = Math.sqrt(rnd.nextDouble()) * reach;
@@ -413,20 +410,11 @@ public final class SpellFxClient {
         }
     }
 
-    /** A soft, round, flat-ish blob facing along n. */
-    // ------------------------------------------------------------------ the little cloud under a levitation glyph
-
-    /**
-     * What bears a levitating thing up, seen: a little cloud under it, soft and lumpy, washed with the spell's
-     * colour, swelling and settling a little, with two smaller puffs drifting at its sides. Always turned to the
-     * eye, as clouds are drawn.
-     */
     private static void liftCloud(VertexConsumer vc, Matrix4f m, Vec3 c, Vec3 up, Vec3 left, double r, int color, double alpha, double seed, double time) {
         double swell = 1 + 0.05 * Math.sin(time * 0.2 + seed);
         cloudQuad(vc, m, c, up, left, r * 1.5 * swell, r * 1.5 * swell, color, alpha, false);
     }
 
-    /** One cloud picture, {@code w} by {@code h} round {@code c}, facing the eye (mirrored for variety). */
     private static void cloudQuad(VertexConsumer vc, Matrix4f m, Vec3 c, Vec3 up, Vec3 left, double w, double h, int color, double alpha, boolean flip) {
         int r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255, a = (int) (Math.min(1, alpha) * 255);
         float u0 = flip ? 1 : 0, u1 = flip ? 0 : 1;
@@ -437,51 +425,50 @@ public final class SpellFxClient {
             vc.addVertex(m, (float) corners[i].x, (float) corners[i].y, (float) corners[i].z).setUv(uv[i][0], uv[i][1]).setColor(r, g, b, a);
     }
 
-    private static net.minecraft.client.renderer.ShaderInstance glassShader;
-    private static com.mojang.blaze3d.pipeline.RenderTarget sceneCopy;
-    private static final net.minecraft.resources.ResourceLocation CLOUD_TEXTURE =
-            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.fimkov.witchsatelier.WitchsAtelier.MODID, "textures/fx/lift_cloud.png");
+    private static ShaderInstance glassShader;
+    private static RenderTarget sceneCopy;
+    private static final ResourceLocation CLOUD_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/fx/lift_cloud.png");
 
-    public static void registerShaders(net.neoforged.neoforge.client.event.RegisterShadersEvent e) {
+    public static void registerShaders(RegisterShadersEvent e) {
         try {
-            e.registerShader(new net.minecraft.client.renderer.ShaderInstance(e.getResourceProvider(),
-                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.fimkov.witchsatelier.WitchsAtelier.MODID, "cloud_glass"),
-                    com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX_COLOR), s -> glassShader = s);
-        } catch (java.io.IOException ex) {
+            e.registerShader(new ShaderInstance(e.getResourceProvider(),
+                    ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "cloud_glass"),
+                    DefaultVertexFormat.POSITION_TEX_COLOR), s -> glassShader = s);
+        } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    /** The little clouds as frosted glass (see cloud_glass.fsh): drawn over a copy of the frame so far. */
-    private static void glassClouds(Minecraft mc, Matrix4f m, java.util.List<Object[]> clouds, Vec3 up, Vec3 left, double time) {
+    private static void glassClouds(Minecraft mc, Matrix4f m, List<Object[]> clouds, Vec3 up, Vec3 left, double time) {
         var main = mc.getMainRenderTarget();
         if (sceneCopy == null) {
-            sceneCopy = new com.mojang.blaze3d.pipeline.TextureTarget(main.width, main.height, false, Minecraft.ON_OSX);
+            sceneCopy = new TextureTarget(main.width, main.height, false, Minecraft.ON_OSX);
             sceneCopy.setClearColor(0, 0, 0, 0);
         }
         if (sceneCopy.width != main.width || sceneCopy.height != main.height) sceneCopy.resize(main.width, main.height, Minecraft.ON_OSX);
-        com.mojang.blaze3d.platform.GlStateManager._glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
-        com.mojang.blaze3d.platform.GlStateManager._glBindFramebuffer(org.lwjgl.opengl.GL30.GL_DRAW_FRAMEBUFFER, sceneCopy.frameBufferId);
-        com.mojang.blaze3d.platform.GlStateManager._glBlitFrameBuffer(0, 0, main.width, main.height, 0, 0, main.width, main.height,
-                org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT, org.lwjgl.opengl.GL11.GL_NEAREST);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, sceneCopy.frameBufferId);
+        GlStateManager._glBlitFrameBuffer(0, 0, main.width, main.height, 0, 0, main.width, main.height,
+                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
         main.bindWrite(false);
 
-        var b = com.mojang.blaze3d.vertex.Tesselator.getInstance().begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS,
-                com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX_COLOR);
+        var b = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS,
+                DefaultVertexFormat.POSITION_TEX_COLOR);
         for (Object[] c : clouds) liftCloud(b, m, (Vec3) c[0], up, left, (double) c[1], (int) c[2], (double) c[3], (double) c[4], time);
         var mesh = b.build();
         if (mesh == null) return;
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-        com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
-        com.mojang.blaze3d.systems.RenderSystem.depthMask(false);
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-        com.mojang.blaze3d.systems.RenderSystem.setShader(() -> glassShader);
-        com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0, CLOUD_TEXTURE);
-        com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(1, sceneCopy.getColorTextureId());
-        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(mesh);
-        com.mojang.blaze3d.systems.RenderSystem.enableCull();
-        com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.disableCull();
+        RenderSystem.setShader(() -> glassShader);
+        RenderSystem.setShaderTexture(0, CLOUD_TEXTURE);
+        RenderSystem.setShaderTexture(1, sceneCopy.getColorTextureId());
+        BufferUploader.drawWithShader(mesh);
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
     }
 
     private static int mixColor(int a, int b, double t) {
@@ -505,22 +492,16 @@ public final class SpellFxClient {
         }
     }
 
-    // ------------------------------------------------------------------ shapes
-
-    /**
-     * A bird drawn in light: a bright body, two long swept wings beating (harder while it climbs, a slow glide
-     * once it circles) and a forked tail, every edge fading out softly.
-     */
     private static void bird(VertexConsumer vc, Matrix4f m, Vec3 c, Vec3 vel, int color, double alpha, double time, double age) {
         Vec3 f = vel.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : vel.normalize();
         Vec3 r = f.cross(new Vec3(0, 1, 0));
         r = r.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : r.normalize();
         Vec3 u = r.cross(f).normalize();
-        double s = 0.55; // size
+        double s = 0.55;
         double beat = age < 34 ? 0.55 : 0.28;
         double flap = Math.sin(time * (age < 34 ? 0.9 : 0.35)) * beat;
         Vec3 head = c.add(f.scale(0.45 * s)), tailRoot = c.subtract(f.scale(0.35 * s));
-        // body
+
         fan(vc, m, tailRoot, head, r, 0.09 * s, 0.05 * s, 0xFFFFFFFF, alpha * 0.9, alpha * 0.9);
         fan(vc, m, tailRoot, head, u, 0.09 * s, 0.05 * s, 0xFFFFFFFF, alpha * 0.9, alpha * 0.9);
         fan(vc, m, tailRoot, head, r, 0.25 * s, 0.15 * s, color, alpha * 0.5, alpha * 0.5);
@@ -531,22 +512,21 @@ public final class SpellFxClient {
             Vec3 tip = elbow.add(out2.scale(0.75 * s)).subtract(f.scale(0.45 * s));
             Vec3 front = c.add(f.scale(0.15 * s)), back = c.subtract(f.scale(0.2 * s));
             Vec3 elbowBack = elbow.subtract(f.scale(0.35 * s));
-            // inner wing and outer wing as soft quads
+
             quad(vc, m, front, elbow, elbowBack, back, color, alpha * 0.85, alpha * 0.35);
             quad(vc, m, elbow, tip, tip, elbowBack, color, alpha * 0.6, 0);
-            // bright leading edge
+
             fan(vc, m, front, elbow, f, 0.035 * s, 0.03 * s, 0xFFFFFFFF, alpha * 0.8, alpha * 0.6);
             fan(vc, m, elbow, tip, f, 0.03 * s, 0.0, 0xFFFFFFFF, alpha * 0.6, 0);
-            // forked tail
+
             Vec3 tail = tailRoot.subtract(f.scale(0.4 * s)).add(r.scale(side * 0.16 * s)).add(u.scale(-flap * 0.1 * s));
             quad(vc, m, tailRoot.add(r.scale(side * 0.03 * s)), tailRoot, tail, tail, color, alpha * 0.7, 0);
         }
-        // a halo around it
+
         Vec3[] ab = {r, u};
         ring(vc, m, c, ab, 0.28 * s, 0.5 * s, color, alpha * 0.18, 1, 0);
     }
 
-    /** Quad with the first two corners at {@code a0} and the other two at {@code a1} alpha. */
     private static void quad(VertexConsumer vc, Matrix4f m, Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3, int color, double a0, double a1) {
         int x = (int) (Math.min(1, a0) * 255), y = (int) (Math.min(1, Math.max(0, a1)) * 255);
         v(vc, m, p0, color, x);
@@ -562,7 +542,6 @@ public final class SpellFxClient {
         return new Vec3[]{a, b};
     }
 
-    /** Flat ring around {@code c}; with dashes > 1 every other arc of the ring is left out. */
     private static void ring(VertexConsumer vc, Matrix4f m, Vec3 c, Vec3[] ab, double r, double thick, int color,
                              double alpha, int dashes, double rotate) {
         if (alpha <= 0.01) return;
@@ -581,10 +560,6 @@ public final class SpellFxClient {
         }
     }
 
-    /**
-     * Three crossed planes of light along the beam: a bright core and a soft halo, with rings racing along it.
-     * The last stretch fades out and narrows, so the beam dissolves instead of stopping dead.
-     */
     private static void beam(VertexConsumer vc, Matrix4f m, Vec3 from, Vec3 dir, double len, double width, int color, double alpha, double time) {
         Vec3[] ab = basis(dir);
         int sections = Math.max(4, (int) Math.ceil(len / 1.5));
@@ -604,7 +579,7 @@ public final class SpellFxClient {
             double f = fade(at / len);
             ring(vc, m, from.add(dir.scale(at)), ab, width * 0.55 * taper(at / len), width * 0.12, color, alpha * 0.5 * f, 1, 0);
         }
-        // a soft spark at the tip
+
         double pulse = 0.6 + 0.4 * Math.sin(time * 0.9);
         Vec3 tip = from.add(dir.scale(len * 0.97));
         for (int k = 0; k < 3; k++) {
@@ -614,7 +589,6 @@ public final class SpellFxClient {
         }
     }
 
-    /** 1 along most of the beam, easing to 0 over the last 40%. */
     private static double fade(double t) {
         if (t < 0.6) return 1;
         double x = (t - 0.6) / 0.4;
@@ -635,7 +609,6 @@ public final class SpellFxClient {
         }
     }
 
-    /** A strip of light from the axis out to {@code side * w}, fading to nothing at the edge (both sides). */
     private static void fan(VertexConsumer vc, Matrix4f m, Vec3 a, Vec3 b, Vec3 side, double w, int color, double alpha) {
         int al = (int) (Math.min(1, alpha) * 255);
         for (int s = -1; s <= 1; s += 2) {
@@ -647,7 +620,6 @@ public final class SpellFxClient {
         }
     }
 
-    /** Hollow cylinder of light rising along {@code n}, fading upward. */
     private static void column(VertexConsumer vc, Matrix4f m, Vec3 base, Vec3 n, double r, double h, int color, double alpha) {
         Vec3[] ab = basis(n);
         int seg = 32;

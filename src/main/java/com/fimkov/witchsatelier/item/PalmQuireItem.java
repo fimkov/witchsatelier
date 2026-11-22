@@ -24,20 +24,13 @@ import net.minecraft.world.level.Level;
 
 import java.util.function.Consumer;
 
-/**
- * Palm quire: a small round notebook. Use it to open its pages and draw on them with a pen in the other hand.
- * Ink cannot be rubbed out of it, but pages can be torn out (T while it is open) and put back, and paper
- * clicked onto it adds blank pages.
- */
 public class PalmQuireItem extends Item {
-    /** Set by the client: opens the page screen for the item in the given hand. */
     public static Consumer<InteractionHand> clientOpener = h -> {};
 
     public PalmQuireItem(Properties props) {
         super(props.stacksTo(1));
     }
 
-    /** Clicking paper or a crumpled page onto the quire in the inventory puts it in. */
     @Override
     public boolean overrideOtherStackedOnMe(ItemStack self, ItemStack other, Slot slot, ClickAction action, Player player, SlotAccess carried) {
         if (action != ClickAction.PRIMARY) return false;

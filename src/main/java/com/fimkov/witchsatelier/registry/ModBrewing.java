@@ -9,10 +9,6 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.neoforge.common.crafting.DataComponentIngredient;
 import net.neoforged.neoforge.event.brewing.RegisterBrewingRecipesEvent;
 
-/**
- * Ink is brewed. Water + a blackened silverwood twig gives woodcruor; woodcruor + glowstone gives conjuring ink;
- * conjuring ink takes one more ingredient for each special ink.
- */
 public final class ModBrewing {
     private ModBrewing() {}
 

@@ -1,10 +1,10 @@
 package com.fimkov.witchsatelier.client;
 
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
 import com.fimkov.witchsatelier.network.Payloads;
 import com.fimkov.witchsatelier.registry.ModSounds;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
@@ -17,26 +17,18 @@ import org.joml.Matrix4f;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.zip.InflaterInputStream;
 
-/**
- * The apple no book shows. Its glyph's lines fade into a clean ring, and inside it the ink plays out a shadow
- * film; then the ring and all of it are gone.
- *
- * <p>The film is {@code assets/witchsatelier/badapple/frames.bin}, made by {@code tools/bad_apple.py} from a video:
- * "WCBA", then version, width, height (ints), frames per second (float), frame count (int), then zlib-deflated
- * frames, each a 1-bit picture (rows of whole bytes, high bit first, set = ink) XORed with the frame before it.
- * Without it the glyph only fades away.
- */
 public final class BadAppleShow {
     private BadAppleShow() {}
 
     private static final ResourceLocation FILM = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "badapple/frames.bin");
-    /** Seconds the glyph takes to fade into the ring, and the ring and last picture to fade away at the end. */
+
     private static final double MORPH = 2.0, FADE = 2.0;
     private static final int INK = 0x16121C;
     private static final double LIFT = 0.0032;
@@ -48,7 +40,6 @@ public final class BadAppleShow {
     private static final Film NONE = new Film(1, 1, 1, new byte[0][]);
     private static CompletableFuture<Film> film;
 
-    /** The film, once it has been read (null while it still is). */
     private static Film film() {
         if (film == null) film = CompletableFuture.supplyAsync(BadAppleShow::load);
         return film.isDone() ? film.getNow(NONE) : null;
@@ -60,7 +51,7 @@ public final class BadAppleShow {
         try (InputStream raw = res.get().open(); DataInputStream in = new DataInputStream(new BufferedInputStream(raw))) {
             byte[] magic = new byte[4];
             in.readFully(magic);
-            if (!new String(magic, java.nio.charset.StandardCharsets.US_ASCII).equals("WCBA") || in.readInt() != 1) return NONE;
+            if (!new String(magic, StandardCharsets.US_ASCII).equals("WCBA") || in.readInt() != 1) return NONE;
             int w = in.readInt(), h = in.readInt();
             float fps = in.readFloat();
             int count = in.readInt();
@@ -89,7 +80,7 @@ public final class BadAppleShow {
     private static final class Show {
         SurfacePlane plane;
         double cu, cv, radius;
-        /** Which way is up and which is right on the plane, as the drawer saw it. */
+
         double upU, upV, rightU, rightV;
         long start;
         final List<Line> lines = new ArrayList<>();
@@ -100,7 +91,6 @@ public final class BadAppleShow {
     private static final List<Show> SHOWS = new ArrayList<>();
 
     static void start(Payloads.BadApple p) {
-        // one at a time: a new apple takes over from any still playing (several at once is only noise)
         clear();
         Show s = new Show();
         s.plane = p.plane();
@@ -112,7 +102,7 @@ public final class BadAppleShow {
             ClientGlyphs.Entry e = ClientGlyphs.INSTANCE.get(id);
             if (e != null) s.lines.add(new Line(e.plane(), e.abs(), e.stroke().size(), e.stroke().ink().color & 0xFFFFFF));
         }
-        // up as the drawer saw it; right is up turned the way a viewer facing the surface sees it (never mirrored)
+
         Vec3 up = s.plane.planeVector(Math.cos(p.up()), Math.sin(p.up())).normalize();
         Vec3 right = s.plane.normal().reverse().cross(up);
         Vec3 pu = s.plane.planeVector(1, 0), pv = s.plane.planeVector(0, 1);
@@ -123,7 +113,7 @@ public final class BadAppleShow {
         s.rightU = rl > 1e-6 ? ru / rl : s.upV;
         s.rightV = rl > 1e-6 ? rv / rl : -s.upU;
         SHOWS.add(s);
-        film(); // start reading it now
+        film();
     }
 
     static void clear() {
@@ -142,7 +132,7 @@ public final class BadAppleShow {
         long now = System.nanoTime();
         for (Iterator<Show> it = SHOWS.iterator(); it.hasNext(); ) {
             Show s = it.next();
-            if (f == null) s.start = now; // still reading the film: wait for it
+            if (f == null) s.start = now;
             else if (!s.playing) begin(s, f);
             double t = (now - s.start) / 1e9;
             double length = f == null || f == NONE ? 0 : f.seconds();
@@ -155,7 +145,7 @@ public final class BadAppleShow {
             if (s.plane.toWorld(s.cu, s.cv, 0).distanceToSqr(cam) > 96 * 96) continue;
             double in = Math.min(1, t / MORPH);
             double out = t <= end ? 1 : Math.max(0, 1 - (t - end) / FADE);
-            // the glyph's own lines lift away as the ring and the shadows come
+
             for (Line l : s.lines) {
                 int a = (int) (255 * (1 - in) * (1 - in));
                 if (a > 0) GlyphRenderer.drawStroke(vc, pose, cam, l.plane(), l.uv(), l.n(), inkWidth, (a << 24) | l.color(), LIFT * 1.4);
@@ -193,7 +183,6 @@ public final class BadAppleShow {
         GlyphRenderer.drawStroke(vc, pose, cam, s.plane, uv, seg + 1, width * 1.3f, argb, LIFT);
     }
 
-    /** One picture of the film, its corners on the ring, each run of ink in a row one quad. */
     private static void picture(VertexConsumer vc, Matrix4f pose, Vec3 cam, Show s, Film f, byte[] bits, int argb) {
         int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
         double aspect = f.w() / (double) f.h();

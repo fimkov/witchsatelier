@@ -8,20 +8,14 @@ import net.minecraft.util.RandomSource;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Pictures for the text pages of the black-bound book, drawn in its blood ink so that no spread is left blank.
- * Page units, y up, everything within the page's circle of radius about 0.9.
- */
 public final class Illustrations {
     private Illustrations() {}
 
-    /** The picture facing a text entry, or null if that entry has none. */
     public static Page of(String entry, RandomSource rnd) {
         List<PageStroke> out = new ArrayList<>();
         Pen p = new Pen(out, rnd, InkType.BLOOD);
         switch (entry) {
             case "forbidden_magic" -> {
-                // a glyph with an eye in it, struck through
                 p.arc(0, 0, 0.85, 0, 360);
                 p.arc(0, -0.28, 0.48, 35, 145);
                 p.arc(0, 0.28, 0.48, 215, 325);
@@ -30,7 +24,6 @@ public final class Illustrations {
                 p.line(-0.72, -0.72, 0.72, 0.72);
             }
             case "the_pact" -> {
-                // the closed book, sealed
                 p.poly(-0.5, -0.7, 0.5, -0.7, 0.5, 0.7, -0.5, 0.7, -0.5, -0.7);
                 p.line(-0.36, -0.7, -0.36, 0.7);
                 p.arc(0.07, 0, 0.22, 0, 360);
@@ -39,14 +32,12 @@ public final class Illustrations {
                 p.poly(0.29, 0.06, 0.62, 0.06, 0.62, -0.06, 0.29, -0.06);
             }
             case "blood_ink" -> {
-                // a bottle, and a drop falling into it
                 p.poly(-0.16, 0.3, -0.16, 0.12, -0.5, -0.12, -0.5, -0.72, 0.5, -0.72, 0.5, -0.12, 0.16, 0.12, 0.16, 0.3);
                 p.poly(-0.22, 0.3, 0.22, 0.3, 0.22, 0.44, -0.22, 0.44, -0.22, 0.3);
                 p.line(-0.5, -0.36, 0.5, -0.36);
                 p.drop(0, 0.72, 0.11);
             }
             case "brimhats" -> {
-                // the brimmed hat, and the mask beneath it
                 p.ellipse(0, 0.2, 0.86, 0.16);
                 p.poly(-0.36, 0.28, -0.12, 0.86, 0.08, 0.92, 0.3, 0.8, 0.18, 0.74, 0.36, 0.28);
                 p.ellipse(0, -0.42, 0.34, 0.42);
@@ -55,7 +46,6 @@ public final class Illustrations {
                 p.line(-0.1, -0.62, 0.1, -0.62);
             }
             case "knights_moralis" -> {
-                // the silver-white pennant on its staff, streaming
                 p.line(-0.55, -0.88, -0.55, 0.86);
                 p.poly(-0.55, 0.78, -0.1, 0.66, 0.3, 0.6, 0.82, 0.46, 0.3, 0.38, -0.1, 0.32, -0.55, 0.22);
                 p.arc(-0.15, 0.5, 0.12, 0, 360);
@@ -68,7 +58,6 @@ public final class Illustrations {
         return new Page(List.copyOf(out));
     }
 
-    /** A steady hand: lines a little off true, as everything in the books is drawn. */
     private record Pen(List<PageStroke> out, RandomSource rnd, InkType ink) {
         float w() {
             return (float) ((rnd.nextDouble() - 0.5) * 0.012);
@@ -117,7 +106,6 @@ public final class Illustrations {
             add(pts);
         }
 
-        /** A falling drop, point up. */
         void drop(double cx, double cy, double r) {
             List<Float> pts = new ArrayList<>();
             pts.add((float) cx);

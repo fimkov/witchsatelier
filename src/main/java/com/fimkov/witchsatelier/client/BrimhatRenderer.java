@@ -24,7 +24,6 @@ import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
-/** A Brimhat: porcelain mask, broad drooping brim, a dark mantle, red seals inked on the hands. */
 public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatRenderer.Model> {
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "brimhat"), "main");
     public static final ModelLayerLocation HAT = new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "brimhat"), "hat");
@@ -40,13 +39,12 @@ public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatR
         return LayerDefinition.create(HumanoidModel.createMesh(CubeDeformation.NONE, 0), 64, 64);
     }
 
-    /** The broad hat: a wide, slightly drooping brim and a low crown with a red band. */
     public static LayerDefinition hat() {
         MeshDefinition mesh = HumanoidModel.createMesh(CubeDeformation.NONE, 0);
         PartDefinition head = mesh.getRoot().getChild("head");
         head.addOrReplaceChild("crown", CubeListBuilder.create().texOffs(0, 0).addBox(-4.5f, -12.5f, -4.5f, 9, 5, 9, new CubeDeformation(0.05f)), PartPose.ZERO);
         head.addOrReplaceChild("band", CubeListBuilder.create().texOffs(0, 14).addBox(-4.6f, -9.0f, -4.6f, 9.2f, 1.2f, 9.2f), PartPose.ZERO);
-        // four brim panels, each tipped down a little: a hat that has seen weather
+
         float droop = 0.12f;
         head.addOrReplaceChild("brim_front", CubeListBuilder.create().texOffs(0, 26).addBox(-9, 0, -5, 18, 0.6f, 5), PartPose.offsetAndRotation(0, -7.6f, -4.5f, droop, 0, 0));
         head.addOrReplaceChild("brim_back", CubeListBuilder.create().texOffs(0, 26).addBox(-9, 0, 0, 18, 0.6f, 5), PartPose.offsetAndRotation(0, -7.6f, 4.5f, -droop, 0, 0));
@@ -72,7 +70,6 @@ public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatR
         return SKIN;
     }
 
-    /** Arms raised to draw in the air while a glyph is being cast. */
     public static class Model extends HumanoidModel<BrimhatEntity> {
         public Model(ModelPart root) {
             super(root);
@@ -81,7 +78,7 @@ public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatR
         @Override
         public void setupAnim(BrimhatEntity e, float limbSwing, float limbSwingAmount, float age, float yaw, float pitch) {
             super.setupAnim(e, limbSwing, limbSwingAmount, age, yaw, pitch);
-            // Brimhats move like shadows: hands kept close in the robe, a slow lean and breath when still
+
             rightArm.xRot *= 0.35f;
             leftArm.xRot *= 0.35f;
             rightArm.zRot += 0.08f;
@@ -90,7 +87,6 @@ public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatR
             head.y = Mth.sin(age * 0.05f) * 0.25f;
             hat.y = head.y;
             if (e.isAggressive() && e.casting() <= 0) {
-                // stalking: head low, the pen hand ready at the hip
                 head.xRot += 0.15f;
                 rightArm.xRot = -0.35f;
                 rightArm.yRot = -0.2f;
@@ -98,7 +94,7 @@ public class BrimhatRenderer extends HumanoidMobRenderer<BrimhatEntity, BrimhatR
             int c = e.casting();
             if (c > 0) {
                 float t = c / 18f;
-                // the pen hand traces a ring in the air
+
                 rightArm.xRot = -1.45f + Mth.sin(age * 0.9f) * 0.25f * t;
                 rightArm.yRot = -0.15f + Mth.cos(age * 0.9f) * 0.25f * t;
                 leftArm.xRot = -0.9f;

@@ -1,22 +1,25 @@
 package com.fimkov.witchsatelier.windowway;
 
+import com.fimkov.witchsatelier.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Holds the block the gap replaced, so it can always come back (even after a restart). */
 public class WindowwayGapBlockEntity extends BlockEntity {
     private BlockState original = Blocks.STONE.defaultBlockState();
 
     public WindowwayGapBlockEntity(BlockPos pos, BlockState state) {
-        super(com.fimkov.witchsatelier.registry.ModBlocks.WINDOWWAY_GAP_BE.get(), pos, state);
+        super(ModBlocks.WINDOWWAY_GAP_BE.get(), pos, state);
     }
 
     public void setOriginal(BlockState state) {
@@ -41,8 +44,8 @@ public class WindowwayGapBlockEntity extends BlockEntity {
     }
 
     @Override
-    public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> getUpdatePacket() {
-        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override

@@ -4,19 +4,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Finds rings among strokes. A ring may be drawn in several strokes (for example a spell prepared with a gap
- * that is closed later with one short stroke). It counts as closed when its strokes cover every angle around
- * the fitted circle with no gap wider than about one ink width.
- */
 public final class RingFinder {
     static final double MIN_RADIUS = 0.15;
-    /**
-     * rms distance from the fitted circle / radius. Circles drawn by turning the camera wobble a lot, so this is
-     * generous; polygons are told apart by their corners instead (see {@link #corners}).
-     */
+
     static final double MAX_ARC_RESIDUAL = 0.14;
-    /** A ring may have at most this many sharp turns: hand-drawn rings can be squarish. Small loops inside a glyph are read as symbols anyway. */
+
     static final int MAX_CORNERS = 4;
     static final double CORNER_TURN = Math.toRadians(60);
     static final double MIN_ARC_SWEEP = Math.toRadians(50);
@@ -58,8 +50,7 @@ public final class RingFinder {
                     members.add(other.index());
                 }
             }
-            // a ring drawn in long arcs that each fit a slightly different circle (it was a little oval): an arc that
-            // lies along the circle of the arcs gathered so far and runs on from one of them belongs to it too
+
             boolean more = true;
             while (more) {
                 more = false;
@@ -70,8 +61,8 @@ public final class RingFinder {
                 for (Arc other : arcs) {
                     if (used[other.index()] || members.contains(other.index())) continue;
                     List<Pt> s = strokes.get(other.index());
-                    if (other.length() < 0.6 * now.radius()) continue; // short pieces come in below, where they can be let go again
-                    // together they must still make a good circle (each alone fits an oval's half badly)
+                    if (other.length() < 0.6 * now.radius()) continue;
+
                     List<Pt> both = new ArrayList<>(sofar);
                     both.addAll(s);
                     Circle joint = fit(both);
@@ -83,11 +74,7 @@ public final class RingFinder {
                 }
             }
             int arcMembers = members.size();
-            // short strokes lying on the circle line (gap closers, small arcs too short to fit on their own)
-            // (most of the stroke within the same band that counts towards closing the ring)
-            // A piece only joins if it also touches ink already in the ring at one of its ends: that is what a gap
-            // closer or a ring drawn in pieces does, while the bar of a Column sign lying just inside the ring
-            // runs along it but never touches it. Pieces are taken in as they connect, so a chain of arcs works.
+
             double band = band(c.radius(), inkWidth);
             double touch = inkWidth * 2.2;
             boolean grew = true;
@@ -99,16 +86,13 @@ public final class RingFinder {
                     if (s.isEmpty() || PointCloud.pathLength(s) > c.radius() * 1.5) continue;
                     int on = 0;
                     for (Pt p : s) if (Math.abs(p.dist(c.center()) - c.radius()) <= band) on++;
-                    // it must also run along the ring, not across it (a sign touching the ring line is not part of it)
+
                     if (on < s.size() * 0.8) continue;
                     if (!tangential(s, c.center())) {
-                        // a bridge: a short line across the ring line, from one end of the ring to the other (a ring
-                        // that spiralled past its start, one end inside the line and one outside, joined up)
                         if (!bridges(s, strokes, members, touch, c.radius())) continue;
                     } else if (!touches(s.get(0), strokes, members, touch) && !touches(s.get(s.size() - 1), strokes, members, touch)) {
                         continue;
                     } else if (!addsCoverage(strokes, members, i, c, inkWidth)) {
-                        // lying along ring line that is already drawn (a sign's bar beside the ring), it closes nothing
                         continue;
                     }
                     members.add(i);
@@ -123,12 +107,9 @@ public final class RingFinder {
             if (cov[0] < MIN_RING_COVERAGE) continue;
             for (int m : members) used[m] = true;
             double roundness = Math.max(0, 1 - refit.rms() / refit.radius());
-            // closed: the line goes all the way round AND has no loose ends (every end of every stroke touches
-            // the ring's other ink). A wobbly, even squarish ring closes; a line end curling inwards does not.
+
             boolean joined = looseEnds(strokes, members, inkWidth, refit.radius()) == 0;
             if (!joined && members.size() > arcMembers) {
-                // a piece taken in from beside the ring line (often part of a sign) that hangs off it: the ring may be
-                // whole without it
                 List<Integer> arcsOnly = new ArrayList<>(members.subList(0, arcMembers));
                 double[] c2 = coverage(strokes, arcsOnly, refit, inkWidth);
                 if (c2[1] <= inkWidth * 1.6 && looseEnds(strokes, arcsOnly, inkWidth, refit.radius()) == 0) {
@@ -145,7 +126,6 @@ public final class RingFinder {
         return rings;
     }
 
-    /** True if stroke {@code i} covers some of the circle the members leave bare (at least an ink's width of it). */
     static boolean addsCoverage(List<List<Pt>> strokes, List<Integer> members, int i, Circle c, double inkWidth) {
         double before = coverage(strokes, members, c, inkWidth)[0];
         List<Integer> with = new ArrayList<>(members);
@@ -154,7 +134,6 @@ public final class RingFinder {
         return (after - before) * Math.PI * 2 * c.radius() >= inkWidth;
     }
 
-    /** @return {coveredFraction, widest uncovered arc length} */
     static double[] coverage(List<List<Pt>> strokes, List<Integer> members, Circle c, double inkWidth) {
         double circumference = Math.PI * 2 * c.radius();
         int bins = (int) Math.max(36, Math.min(1440, Math.round(circumference / inkWidth)));
@@ -178,7 +157,7 @@ public final class RingFinder {
         int count = 0;
         for (boolean b : covered) if (b) count++;
         if (count == bins) return new double[]{1, 0};
-        // widest circular run of uncovered bins
+
         int start = 0;
         while (!covered[start]) start++;
         int run = 0, maxRun = 0;
@@ -186,16 +165,11 @@ public final class RingFinder {
             int idx = (start + k) % bins;
             if (!covered[idx]) { run++; maxRun = Math.max(maxRun, run); } else run = 0;
         }
-        // an uncovered run of r bins between two inked bins is a gap of roughly (r - 1) bins once the ink's
-        // own width is taken into account
+
         double gap = Math.max(0, maxRun - 1) * circumference / bins;
         return new double[]{count / (double) bins, gap};
     }
 
-    /**
-     * Number of sharp turns along a stroke: places where the heading changes by more than {@link #CORNER_TURN}
-     * within about a third of the radius. The first and last bits of the stroke are ignored (closing hooks).
-     */
     public static int corners(List<Pt> s, double radius) {
         double step = radius * 0.06;
         List<Pt> pts = new ArrayList<>();
@@ -225,7 +199,6 @@ public final class RingFinder {
         return count;
     }
 
-    /** One line per long stroke explaining whether it could be a ring (for the debug log). */
     public static String diagnose(List<List<Pt>> strokes) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < strokes.size(); i++) {
@@ -239,10 +212,6 @@ public final class RingFinder {
         return sb.toString();
     }
 
-    /**
-     * The widest stretch of the ring with no ink on it, as {start, end} angles in radians (counter-clockwise,
-     * end > start), or null if the ring is fully inked.
-     */
     public static double[] widestGap(List<List<Pt>> strokes, Ring ring, double inkWidth) {
         Circle c = new Circle(ring.center(), ring.radius(), 0);
         double circumference = Math.PI * 2 * c.radius();
@@ -281,18 +250,10 @@ public final class RingFinder {
         return new double[]{a0, a0 + best * (Math.PI * 2) / bins};
     }
 
-    /**
-     * Ends of the ring's strokes that touch nothing: an end is joined when some other part of the ring's ink
-     * (another stroke, or a distant part of the same stroke, as when a circle overshoots its start) is within reach.
-     */
     static int looseEnds(List<List<Pt>> strokes, List<Integer> members, double inkWidth) {
         return looseEnds(strokes, members, inkWidth, 0);
     }
 
-    /**
-     * Drawn on the ground at a slant, a line that looks joined can miss by a little across the ring: ends within a
-     * tenth of the radius of other ring ink count as joined (the gap along the ring is judged separately).
-     */
     static int looseEnds(List<List<Pt>> strokes, List<Integer> members, double inkWidth, double radius) {
         double reach = Math.max(inkWidth * 2.2, 0.1 * radius);
         int loose = 0;
@@ -308,7 +269,6 @@ public final class RingFinder {
                     double along = 0;
                     for (int k = 0; k < t.size() && !joined; k++) {
                         if (o == m) {
-                            // skip the stretch of the same stroke right next to this end
                             int idx = end == 0 ? k : t.size() - 1 - k;
                             if (k > 0) along += t.get(idx).dist(t.get(end == 0 ? idx - 1 : idx + 1));
                             if (along < reach * 3) continue;
@@ -325,11 +285,6 @@ public final class RingFinder {
         return loose;
     }
 
-    /**
-     * A short stroke from one loose end of the ring's line to another (not the same spot): it joins them, the way a
-     * witch closes a ring whose ends did not meet. Only line ends count, so small signs lying on the ring line
-     * (an arrowhead touching it) are never taken for part of it.
-     */
     private static boolean bridges(List<Pt> s, List<List<Pt>> strokes, List<Integer> members, double touch, double radius) {
         if (PointCloud.pathLength(s) > 0.4 * radius) return false;
         Pt a = s.get(0), b = s.get(s.size() - 1);
@@ -343,7 +298,6 @@ public final class RingFinder {
         return false;
     }
 
-    /** The nearest end of one of the ring's strokes. */
     private static Pt nearest(Pt e, List<List<Pt>> strokes, List<Integer> members) {
         Pt best = null;
         for (int m : members) {
@@ -354,7 +308,6 @@ public final class RingFinder {
         return best;
     }
 
-    /** The nearest ring-stroke end to {@code e} that is not within {@code keep} of {@code away}. */
     private static Pt nearestAwayFrom(Pt e, List<List<Pt>> strokes, List<Integer> members, Pt away, double keep) {
         Pt best = null;
         for (int m : members) {
@@ -373,7 +326,6 @@ public final class RingFinder {
         return false;
     }
 
-    /** True if the stroke mostly runs around {@code center} rather than towards it. */
     static boolean tangential(List<Pt> s, Pt center) {
         if (s.size() < 2) return true;
         Pt a = s.get(0), b = s.get(s.size() - 1);
@@ -381,12 +333,10 @@ public final class RingFinder {
         return radial <= Math.max(0.6 * a.dist(b), 1e-3) || a.dist(b) < 1e-3;
     }
 
-    /** How far from the fitted circle ink may wander and still count as part of the ring line. */
     static double band(double radius, double inkWidth) {
         return Math.max(inkWidth * 2.5, 0.14 * radius);
     }
 
-    /** Algebraic (Kåsa) least-squares circle fit. */
     public static Circle fit(List<Pt> pts) {
         int n = pts.size();
         if (n < 3) return null;
@@ -415,7 +365,6 @@ public final class RingFinder {
         return new Circle(center, r, Math.sqrt(rss / n));
     }
 
-    /** Total angle swept around {@code center} while following the stroke. */
     static double sweep(List<Pt> s, Pt center) {
         double total = 0;
         double prev = Math.atan2(s.get(0).y() - center.y(), s.get(0).x() - center.x());

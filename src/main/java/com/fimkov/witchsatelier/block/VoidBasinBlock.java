@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -18,14 +19,10 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * Void Basin (after the Toilet of the Void): a basin whose depths open onto a starry sky. Whatever falls in is
- * gone, without a sound but a faint chime. Its inventor vanished the night they finished it.
- */
 public class VoidBasinBlock extends Block {
     public static final MapCodec<VoidBasinBlock> CODEC = simpleCodec(VoidBasinBlock::new);
     private static final VoxelShape SHAPE = Shapes.join(Shapes.block(), box(2, 4, 2, 14, 16, 14), BooleanOp.ONLY_FIRST);
-    /** What stops you: only a thin rim. The middle is open, all the way down: you can jump in. */
+
     private static final VoxelShape RIM = Shapes.join(Shapes.block(), box(1, 0, 1, 15, 16, 15), BooleanOp.ONLY_FIRST);
 
     public VoidBasinBlock(Properties props) {
@@ -50,8 +47,7 @@ public class VoidBasinBlock extends Block {
     @Override
     protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
         if (level.isClientSide) return;
-        if (entity instanceof net.minecraft.server.level.ServerPlayer p) {
-            // a whole witch fits, if they jump in: down among the stars
+        if (entity instanceof ServerPlayer p) {
             if (p.getY() < pos.getY() + 0.6 && Math.abs(p.getX() - pos.getX() - 0.5) < 0.42 && Math.abs(p.getZ() - pos.getZ() - 0.5) < 0.42) {
                 ((ServerLevel) level).sendParticles(ParticleTypes.REVERSE_PORTAL, p.getX(), p.getY() + 0.5, p.getZ(), 30, 0.3, 0.5, 0.3, 0.05);
                 Starfall.fallIn(p, pos);

@@ -1,9 +1,10 @@
 package com.fimkov.witchsatelier.client;
 
+import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.item.artifact.CapturePennantItem;
+import com.fimkov.witchsatelier.network.Payloads;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.fimkov.witchsatelier.WitchsAtelier;
-import com.fimkov.witchsatelier.network.Payloads;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
@@ -15,6 +16,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -22,11 +24,6 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The Capture Pennant's banner in flight: a ribbon of silver-white silk that streams out from the pole, rippling and
- * turning over as it goes, reaches whoever it was levelled at and winds round them, then lets go of the pole and
- * holds them bound until it loosens and fades. Aimed at nothing, it streams out and falls back.
- */
 public final class PennantRibbons {
     private PennantRibbons() {}
 
@@ -66,7 +63,6 @@ public final class PennantRibbons {
         buffers.endBatch(type);
     }
 
-    /** Draws one ribbon; false once it is gone. */
     private static boolean draw(VertexConsumer vc, PoseStack.Pose pose, Minecraft mc, Ribbon r, double now, float pt) {
         double age = now - r.start;
         boolean hit = r.target >= 0;
@@ -81,7 +77,6 @@ public final class PennantRibbons {
         Vec3 at = target != null ? target.getPosition(pt) : r.last[1] != null ? r.last[1] : r.end;
         r.last[1] = at;
 
-        // the path: out from the pole in a rising arc, then round and round the one it binds
         List<Vec3> path = new ArrayList<>();
         List<Vec3> across = new ArrayList<>();
         int wrapFrom;
@@ -108,19 +103,17 @@ public final class PennantRibbons {
             wrapFrom = path.size();
         }
 
-        // how much of it is out: it unfurls fast, and a miss draws back in
         double total = 0;
         double[] at_ = new double[path.size()];
         for (int i = 1; i < path.size(); i++) at_[i] = total += path.get(i).distanceTo(path.get(i - 1));
         double head = total * Mth.clamp(age / UNFURL, 0, 1);
         double tail = 0;
         if (!hit && age > MISS - 8) head = total * Mth.clamp((MISS - age) / 8, 0, 1);
-        // once wound round, it lets go of the pole and the loose length draws in to the binding
+
         if (hit && age > LET_GO) tail = at_[Math.max(0, wrapFrom - 1)] * Mth.clamp((age - LET_GO) / LET_GO_TIME, 0, 1);
         float alpha = 1;
         if (hit && age > life - 12) alpha = (float) Mth.clamp((life - age) / 12, 0, 1);
 
-        // sparkles where the silk runs out ahead, and where it loosens at the end
         if (mc.level.random.nextFloat() < 0.6f && head < total && head > 0) {
             Vec3 h = pointAt(path, at_, head);
             mc.level.addParticle(ParticleTypes.END_ROD, h.x, h.y, h.z, 0, 0.01, 0);
@@ -141,7 +134,7 @@ public final class PennantRibbons {
             Vec3 p = path.get(i);
             Vec3 t = path.get(Math.min(path.size() - 1, i + 1)).subtract(path.get(Math.max(0, i - 1))).normalize();
             Vec3 w = across.get(i);
-            // keep the width at a right angle to the line
+
             w = w.subtract(t.scale(w.dot(t)));
             if (w.lengthSqr() < 1e-6) w = t.cross(new Vec3(0, 1, 0));
             w = w.normalize().scale(WIDTH / 2);
@@ -150,7 +143,7 @@ public final class PennantRibbons {
             double v = at_[i] / (WIDTH * 4);
             BlockPos bp = BlockPos.containing(p);
             int packed = LevelRenderer.getLightColor(mc.level, bp);
-            // the silk gives off a little light of its own
+
             int light = LightTexture.pack(Math.max(LightTexture.block(packed), 9), LightTexture.sky(packed));
             if (prevL != null) {
                 vertex(vc, pose, prevL, 0, prevV, a, prevLight, prevN);
@@ -163,7 +156,6 @@ public final class PennantRibbons {
         return true;
     }
 
-    /** The streaming length: a rising arc with a ripple travelling down it and the silk turning over as it goes. */
     private static void stream(List<Vec3> path, List<Vec3> across, Vec3 from, Vec3 to, double now, int steps) {
         Vec3 d = to.subtract(from);
         double len = d.length();
@@ -190,7 +182,6 @@ public final class PennantRibbons {
         return path.get(path.size() - 1);
     }
 
-    /** Where the pole's tip is: over the right hand, or before the eyes in first person. */
     private static Vec3 tip(Minecraft mc, Entity e, float pt) {
         if (e == mc.player && mc.options.getCameraType().isFirstPerson()) {
             Vec3 eye = e.getEyePosition(pt), look = e.getViewVector(pt);
@@ -200,10 +191,10 @@ public final class PennantRibbons {
         }
         float yaw = (float) Math.toRadians(e instanceof LivingEntity le ? Mth.lerp(pt, le.yBodyRotO, le.yBodyRot) : e.getYRot());
         Vec3 fwd = new Vec3(-Mth.sin(yaw), 0, Mth.cos(yaw)), right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
-        // the hand that holds the pennant (a knight carries it in the off hand)
+
         if (e instanceof LivingEntity le) {
-            boolean inMain = le.getMainHandItem().getItem() instanceof com.fimkov.witchsatelier.item.artifact.CapturePennantItem;
-            boolean rightHand = (le.getMainArm() == net.minecraft.world.entity.HumanoidArm.RIGHT) == inMain;
+            boolean inMain = le.getMainHandItem().getItem() instanceof CapturePennantItem;
+            boolean rightHand = (le.getMainArm() == HumanoidArm.RIGHT) == inMain;
             if (!rightHand) right = right.scale(-1);
         }
         return e.getPosition(pt).add(0, e.getBbHeight() * 0.62 + 0.9, 0).add(right.scale(0.4)).add(fwd.scale(0.9));

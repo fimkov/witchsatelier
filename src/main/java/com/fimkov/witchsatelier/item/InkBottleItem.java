@@ -16,12 +16,7 @@ import net.minecraft.world.level.Level;
 
 import java.util.List;
 
-/**
- * A bottle of brewed ink. Pour it into an inkwell (use on a placed inkwell, or click it onto an inkwell in your
- * inventory). Sneak + use a bottle of plain conjuring ink to bleed into it: forbidden blood ink.
- */
 public class InkBottleItem extends Item {
-    /** Ink in one bottle: 256 blocks of line. */
     public static final int UNITS = 1024;
     public final InkType ink;
 

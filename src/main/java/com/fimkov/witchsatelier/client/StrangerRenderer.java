@@ -1,11 +1,13 @@
 package com.fimkov.witchsatelier.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.fimkov.witchsatelier.WitchsAtelier;
+import com.fimkov.witchsatelier.client.model.ClothMotion;
 import com.fimkov.witchsatelier.client.model.WitchModels;
 import com.fimkov.witchsatelier.entity.StrangerEntity;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.builders.CubeDeformation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -16,10 +18,9 @@ import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.EyesLayer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 
-/** The stranger: a dark figure, face lost under a broad hat, only the eyes catching the light. */
 public class StrangerRenderer extends HumanoidMobRenderer<StrangerEntity, HumanoidModel<StrangerEntity>> {
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "stranger"), "main");
     private static final ResourceLocation SKIN = tex("stranger");
@@ -52,10 +53,9 @@ public class StrangerRenderer extends HumanoidMobRenderer<StrangerEntity, Humano
 
     @Override
     protected void scale(StrangerEntity e, PoseStack pose, float partialTick) {
-        pose.scale(1.04f, 1.06f, 1.04f); // a touch taller than most
+        pose.scale(1.04f, 1.06f, 1.04f);
     }
 
-    /** One of the witch's garments, in the stranger's own dark cloth. */
     private static final class Attire extends RenderLayer<StrangerEntity, HumanoidModel<StrangerEntity>> {
         private final ModelLayerLocation loc;
         private final ResourceLocation texture;
@@ -74,29 +74,28 @@ public class StrangerRenderer extends HumanoidMobRenderer<StrangerEntity, Humano
             if (model == null) model = (HumanoidModel<StrangerEntity>) WitchModels.bake(loc);
             getParentModel().copyPropertiesTo(model);
             model.setAllVisible(true);
-            com.fimkov.witchsatelier.client.model.ClothMotion.apply(model, e, limbSwing, limbSwingAmount, ageInTicks, 0);
+            ClothMotion.apply(model, e, limbSwing, limbSwingAmount, ageInTicks, 0);
             model.renderToBuffer(pose, buffers.getBuffer(RenderType.entityCutoutNoCull(texture)), light,
                     LivingEntityRenderer.getOverlayCoords(e, 0));
         }
     }
 
-    /** The stranger stands with hands clasped behind the back, and walks unhurried. */
     public static class Model extends HumanoidModel<StrangerEntity> {
-        public Model(net.minecraft.client.model.geom.ModelPart root) {
+        public Model(ModelPart root) {
             super(root);
         }
 
         @Override
         public void setupAnim(StrangerEntity e, float limbSwing, float amount, float age, float yaw, float pitch) {
             super.setupAnim(e, limbSwing, amount, age, yaw, pitch);
-            float still = net.minecraft.util.Mth.clamp(1 - amount * 4, 0, 1);
+            float still = Mth.clamp(1 - amount * 4, 0, 1);
             if (attackTime <= 0) {
-                rightArm.xRot = net.minecraft.util.Mth.lerp(still, rightArm.xRot * 0.5f, 0.42f);
-                leftArm.xRot = net.minecraft.util.Mth.lerp(still, leftArm.xRot * 0.5f, 0.42f);
-                rightArm.zRot = net.minecraft.util.Mth.lerp(still, rightArm.zRot, 0.32f);
-                leftArm.zRot = net.minecraft.util.Mth.lerp(still, leftArm.zRot, -0.32f);
+                rightArm.xRot = Mth.lerp(still, rightArm.xRot * 0.5f, 0.42f);
+                leftArm.xRot = Mth.lerp(still, leftArm.xRot * 0.5f, 0.42f);
+                rightArm.zRot = Mth.lerp(still, rightArm.zRot, 0.32f);
+                leftArm.zRot = Mth.lerp(still, leftArm.zRot, -0.32f);
             }
-            head.xRot += still * net.minecraft.util.Mth.sin(age * 0.03f) * 0.05f;
+            head.xRot += still * Mth.sin(age * 0.03f) * 0.05f;
         }
     }
 }

@@ -11,14 +11,13 @@ import org.joml.Vector3d;
 
 import java.util.function.UnaryOperator;
 
-/** The Sable side of {@link Ships}: only loaded when Sable is there. */
 final class SableShips {
     private SableShips() {}
 
     private static Pose3dc pose(Level level, BlockPos pos, float partialTick) {
         SubLevelAccess sub = SableCompanion.INSTANCE.getContaining(level, pos);
         if (sub == null) return null;
-        // drawn where the ship is drawn this frame; worked with where it really is
+
         return level.isClientSide && sub instanceof ClientSubLevelAccess c ? c.renderPose(partialTick) : sub.logicalPose();
     }
 

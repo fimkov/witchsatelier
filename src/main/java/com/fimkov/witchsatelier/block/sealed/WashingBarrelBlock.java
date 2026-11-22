@@ -1,17 +1,17 @@
 package com.fimkov.witchsatelier.block.sealed;
 
-import net.minecraft.network.chat.Component;
-
-import com.mojang.serialization.MapCodec;
 import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
@@ -25,11 +25,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
-/**
- * Washing Barrel: a barrel with a Repetition seal under its lid. Whatever lies in it keeps being turned back to
- * how it was: worn tools, weapons and clothes come out whole again, a little at a time. Put a damaged item in
- * (use it on the barrel), take it out with an empty hand. The seal needs re-inking now and then.
- */
 public class WashingBarrelBlock extends SealedBlock {
     public static final MapCodec<WashingBarrelBlock> CODEC = simpleCodec(WashingBarrelBlock::new);
 
@@ -53,7 +48,6 @@ public class WashingBarrelBlock extends SealedBlock {
         if (inked != ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION) return inked;
         if (!(level.getBlockEntity(pos) instanceof Entity be) || !be.held.isEmpty()) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         if (!stack.isDamageableItem() || !stack.isDamaged()) {
-            // say what it is for, rather than nothing happening
             if (!level.isClientSide) player.displayClientMessage(Component.translatable("message.witchsatelier.barrel.not_worn"), true);
             return ItemInteractionResult.CONSUME;
         }
@@ -87,7 +81,7 @@ public class WashingBarrelBlock extends SealedBlock {
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof Entity be && !be.held.isEmpty()) {
-            net.minecraft.world.Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, be.held);
+            Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, be.held);
         }
         super.onRemove(state, level, pos, newState, moved);
     }
@@ -99,7 +93,6 @@ public class WashingBarrelBlock extends SealedBlock {
 
     private static void serverTick(Level level, BlockPos pos, BlockState state, Entity be) {
         if (be.held.isEmpty() || !be.held.isDamaged()) {
-            // the seal only wears while it has something to wash
             if (be.charge() > 0 != state.getValue(LIT)) level.setBlock(pos, state.setValue(LIT, be.charge() > 0), 3);
             return;
         }
@@ -131,7 +124,6 @@ public class WashingBarrelBlock extends SealedBlock {
             return held;
         }
 
-        /** Saved, and shown to those nearby (the thing lies in the barrel for all to see). */
         void changed() {
             setChanged();
             if (level != null) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);

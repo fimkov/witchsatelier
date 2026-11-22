@@ -1,6 +1,11 @@
 package com.fimkov.witchsatelier.event;
 
 import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.Techniques;
+import com.fimkov.witchsatelier.glyph.Tracing;
+import com.fimkov.witchsatelier.util.TimedBlocks;
+import com.fimkov.witchsatelier.windowway.WindowwayService;
+import com.fimkov.witchsatelier.worldgen.WorldGlyphs;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -8,11 +13,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.event.level.PistonEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.util.List;
 
-/** Game-bus hooks: spell ticking, ink sync, and ink loss when the surface under it goes away. */
 public final class ServerEvents {
     private ServerEvents() {}
 
@@ -30,30 +35,29 @@ public final class ServerEvents {
     private static void onLevelTick(LevelTickEvent.Post e) {
         if (e.getLevel() instanceof ServerLevel level) {
             GlyphService.tick(level);
-            com.fimkov.witchsatelier.windowway.WindowwayService.tick(level);
-            com.fimkov.witchsatelier.util.TimedBlocks.tick(level);
-            com.fimkov.witchsatelier.worldgen.WorldGlyphs.tick(level);
+            WindowwayService.tick(level);
+            TimedBlocks.tick(level);
+            WorldGlyphs.tick(level);
         }
     }
 
     private static void onLogin(PlayerEvent.PlayerLoggedInEvent e) {
-        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); com.fimkov.witchsatelier.windowway.WindowwayService.syncTo(p); com.fimkov.witchsatelier.glyph.Techniques.sync(p); }
+        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); WindowwayService.syncTo(p); Techniques.sync(p); }
     }
 
     private static void onChangeDimension(PlayerEvent.PlayerChangedDimensionEvent e) {
-        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); com.fimkov.witchsatelier.windowway.WindowwayService.syncTo(p); com.fimkov.witchsatelier.glyph.Techniques.sync(p); com.fimkov.witchsatelier.glyph.Tracing.forget(p.getUUID()); }
+        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); WindowwayService.syncTo(p); Techniques.sync(p); Tracing.forget(p.getUUID()); }
     }
 
     private static void onRespawn(PlayerEvent.PlayerRespawnEvent e) {
-        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); com.fimkov.witchsatelier.windowway.WindowwayService.syncTo(p); com.fimkov.witchsatelier.glyph.Techniques.sync(p); }
+        if (e.getEntity() instanceof ServerPlayer p) { GlyphService.syncAll(p); WindowwayService.syncTo(p); Techniques.sync(p); }
     }
 
     private static void onBreak(BlockEvent.BreakEvent e) {
         if (e.getLevel() instanceof ServerLevel level) GlyphService.onBlocksRemoved(level, List.of(e.getPos().immutable()));
     }
 
-    /** Ink rides along with the blocks a piston moves. */
-    private static void onPiston(net.neoforged.neoforge.event.level.PistonEvent.Post e) {
+    private static void onPiston(PistonEvent.Post e) {
         if (e.getLevel() instanceof ServerLevel level) GlyphService.onPistonMoved(level, e.getPos());
     }
 
@@ -63,8 +67,8 @@ public final class ServerEvents {
 
     private static void onLevelUnload(LevelEvent.Unload e) {
         if (e.getLevel() instanceof ServerLevel level) {
-            com.fimkov.witchsatelier.windowway.WindowwayService.closeAll(level);
-            com.fimkov.witchsatelier.util.TimedBlocks.restoreAll(level);
+            WindowwayService.closeAll(level);
+            TimedBlocks.restoreAll(level);
             GlyphService.clearLevel(level.dimension());
         }
     }

@@ -3,6 +3,7 @@ package com.fimkov.witchsatelier.block;
 import com.fimkov.witchsatelier.registry.ModBlocks;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -12,6 +13,7 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -20,13 +22,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * Whatever petrification swept over, turned to glowing crystal, which still remembers what it was. Integration
- * drawn nearby gives it back; broken, it is only dust.
- */
 public class PetrifiedBlock extends BaseEntityBlock {
     public static final MapCodec<PetrifiedBlock> CODEC = simpleCodec(PetrifiedBlock::new);
-    /** setBlock flags: tell the clients, but leave the neighbours be (a door half or a torch is not knocked off). */
+
     private static final int QUIET = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
 
     public PetrifiedBlock(Properties props) {
@@ -43,19 +41,18 @@ public class PetrifiedBlock extends BaseEntityBlock {
         return RenderShape.MODEL;
     }
 
-    /** Crystal against crystal shows no face between them: the mass reads as one. */
     @Override
-    protected boolean skipRendering(BlockState state, BlockState adjacent, net.minecraft.core.Direction side) {
+    protected boolean skipRendering(BlockState state, BlockState adjacent, Direction side) {
         return adjacent.is(this) || super.skipRendering(state, adjacent, side);
     }
 
     @Override
-    protected float getShadeBrightness(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+    protected float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
         return 1.0f;
     }
 
     @Override
-    protected boolean propagatesSkylightDown(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+    protected boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
         return true;
     }
 
@@ -64,14 +61,12 @@ public class PetrifiedBlock extends BaseEntityBlock {
         return new Entity(pos, state);
     }
 
-    /** Could petrification take {@code pos}? The air too: the crystal fills all of it. Not liquid, nothing that holds things, nothing unbreakable. */
     public static boolean takes(ServerLevel level, BlockPos pos) {
         BlockState s = level.getBlockState(pos);
         if (!s.getFluidState().isEmpty() || s.hasBlockEntity() || s.getDestroySpeed(level, pos) < 0) return false;
         return !s.is(ModBlocks.STAR_BLOCK.get()) && !s.is(ModBlocks.PETRIFIED.get()) && !s.is(ModBlocks.PETRIFIED_CLUSTER.get());
     }
 
-    /** Turns the block at {@code pos} to petrified stone. @return true if it was taken */
     public static boolean petrify(ServerLevel level, BlockPos pos) {
         if (!takes(level, pos)) return false;
         BlockState was = level.getBlockState(pos);
@@ -83,13 +78,11 @@ public class PetrifiedBlock extends BaseEntityBlock {
         return true;
     }
 
-    /** A long crystal shard on the outside of the mass, pointing {@code out}. */
-    public static void spike(ServerLevel level, BlockPos pos, net.minecraft.core.Direction out) {
+    public static void spike(ServerLevel level, BlockPos pos, Direction out) {
         if (!level.getBlockState(pos).isAir()) return;
         level.setBlock(pos, ModBlocks.PETRIFIED_CLUSTER.get().defaultBlockState().setValue(PetrifiedClusterBlock.FACING, out), QUIET);
     }
 
-    /** Integration: petrified blocks within range become what they were. @return how many */
     public static int restore(ServerLevel level, Vec3 center, double range) {
         int n = 0, r = (int) Math.ceil(range);
         BlockPos c = BlockPos.containing(center);

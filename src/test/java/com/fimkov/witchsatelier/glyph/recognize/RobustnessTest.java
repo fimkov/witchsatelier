@@ -4,17 +4,15 @@ import com.fimkov.witchsatelier.glyph.model.SignType;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- * Every grimoire recipe copied by hand many times over ({@link HandDrawn}), read the way a floor glyph is read, and
- * checked against what the page means. {@code ROBUST_REPORT=<samples>} prints a full report (per recipe, per
- * sloppiness, and which readings go wrong how); the test itself holds the recogniser to a floor of accuracy.
- */
 class RobustnessTest {
     static final double INK = 1.0 / 16;
     static final List<GlyphLibrary.Recipe> RECIPES = all();
@@ -25,7 +23,6 @@ class RobustnessTest {
         return out;
     }
 
-    /** What went wrong with one reading, or null if it read as the page means. */
     static String mistake(GlyphLibrary.Recipe r, GlyphReading g) {
         if (g.ring() == null) return "no ring";
         if (!g.closed()) return "ring open";
@@ -50,7 +47,6 @@ class RobustnessTest {
         Map<SignType, Integer> got = new EnumMap<>(SignType.class);
         for (GlyphReading.ReadSign s : g.signs()) got.merge(s.type(), 1, Integer::sum);
         if (!expected.equals(got)) {
-            // name the commonest swap: what was missing and what came instead
             List<String> lost = new ArrayList<>(), extra = new ArrayList<>();
             for (var e : expected.entrySet()) if (got.getOrDefault(e.getKey(), 0) < e.getValue()) lost.add(e.getKey().name());
             for (var e : got.entrySet()) if (expected.getOrDefault(e.getKey(), 0) < e.getValue()) extra.add(e.getKey().name());
@@ -67,16 +63,15 @@ class RobustnessTest {
 
     static GlyphReading read(GlyphLibrary.Recipe r, long seed, double sloppiness) {
         HandDrawn h = new HandDrawn(seed, sloppiness);
-        // a glyph within a glyph is drawn bigger: its band's signs would be blots of ink otherwise
+
         double ringRadius = r.band() != null ? 2.0 + h.rnd.nextDouble() * 1.5 : 1.2 + h.rnd.nextDouble() * 1.8;
         double turn = h.rnd.nextDouble() * Math.PI * 2;
         h.recipe(r, ringRadius, turn);
-        // the drawer has turned a little since drawing the sigil; a floor glyph is read from whichever side suits it
+
         double up = turn + Math.PI / 2 + h.g(0.35);
         return GlyphAnalyzer.analyzeFromAnySide(h.strokes, INK, up);
     }
 
-    /** Share of readings that come out as the page means, over every recipe at one sloppiness. */
     static double accuracy(double sloppiness, int samples, Map<String, Integer> mistakes, Map<String, double[]> perRecipe) {
         int ok = 0, all = 0;
         for (int k = 0; k < RECIPES.size(); k++) {
@@ -94,7 +89,6 @@ class RobustnessTest {
         return (double) ok / all;
     }
 
-    /** ROBUST_ONLY=<recipe> ROBUST_LEVEL=<sloppiness>: each sample's reading, failing ones written to ROBUST_DUMP_DIR. */
     @Test
     void inspect() throws Exception {
         String only = System.getenv("ROBUST_ONLY");
@@ -118,19 +112,15 @@ class RobustnessTest {
             if (m != null && dir != null && dumped++ < 4) {
                 StringBuilder sb = new StringBuilder("#ink " + INK + "\n#up " + Math.toDegrees(up) + "\n");
                 for (var st : h.strokes) {
-                    for (int j = 0; j < st.size(); j++) sb.append(j > 0 ? " " : "").append(String.format(java.util.Locale.ROOT, "%.4f %.4f", st.get(j).x(), st.get(j).y()));
+                    for (int j = 0; j < st.size(); j++) sb.append(j > 0 ? " " : "").append(String.format(Locale.ROOT, "%.4f %.4f", st.get(j).x(), st.get(j).y()));
                     sb.append("\n");
                 }
-                java.nio.file.Files.createDirectories(java.nio.file.Path.of(dir));
-                java.nio.file.Files.writeString(java.nio.file.Path.of(dir, only + "_" + i + ".txt"), sb.toString());
+                Files.createDirectories(Path.of(dir));
+                Files.writeString(Path.of(dir, only + "_" + i + ".txt"), sb.toString());
             }
         }
     }
 
-    /**
-     * The floor the recogniser must not fall below on hand-drawn copies of every recipe (measured 2026-11-19 at 12
-     * samples: careful 96.5%, ordinary 83.1%, hasty 56.1%; it started from 91%, 69% and 41%).
-     */
     @Test
     void handDrawnCopiesReadAsTheirPage() {
         Map<String, Integer> mistakes = new TreeMap<>();

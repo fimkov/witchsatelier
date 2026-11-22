@@ -27,7 +27,6 @@ and nothing happens until you close the ring.
     ordering="NONE"
     side="BOTH"
 
-# Optional: with Sable installed, levitation glyphs and wind lift and push physics ships (Create Aeronautics)
 [[dependencies.${mod_id}]]
     modId="sable"
     type="optional"
@@ -35,6 +34,5 @@ and nothing happens until you close the ring.
     ordering="AFTER"
     side="BOTH"
 
-# the starfall dimension (beyond the Void Basin) must not mark worlds "experimental"
 [[mixins]]
 config="${mod_id}.mixins.json"

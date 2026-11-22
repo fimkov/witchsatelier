@@ -1,7 +1,9 @@
 package com.fimkov.witchsatelier.network;
 
 import com.fimkov.witchsatelier.glyph.GlyphService;
+import com.fimkov.witchsatelier.glyph.Tracing;
 import com.fimkov.witchsatelier.glyph.page.PageService;
+import com.fimkov.witchsatelier.windowway.WindowwayService;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
@@ -9,7 +11,6 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 public final class ModNetwork {
     private ModNetwork() {}
 
-    /** Client-side handlers, set by the client entrypoint; null on a dedicated server. */
     public static ClientHandlers client;
 
     public interface ClientHandlers {
@@ -36,7 +37,7 @@ public final class ModNetwork {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
             boolean sane = p.pinned() && Double.isFinite(p.u()) && Double.isFinite(p.v()) && Double.isFinite(p.turn())
                     && p.scale() > 0.3 && p.scale() < 8 && p.plane().toWorld(p.u(), p.v(), 0).distanceTo(sp.position()) < 48;
-            com.fimkov.witchsatelier.glyph.Tracing.pin(sp, sane ? new com.fimkov.witchsatelier.glyph.Tracing.Pin(p.plane(), p.u(), p.v(), p.turn(), p.scale()) : null);
+            Tracing.pin(sp, sane ? new Tracing.Pin(p.plane(), p.u(), p.v(), p.turn(), p.scale()) : null);
         });
         r.playToServer(Payloads.EraseAt.TYPE, Payloads.EraseAt.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) GlyphService.handleErase(sp, p.plane(), p.u(), p.v(), p.radius());
@@ -46,6 +47,9 @@ public final class ModNetwork {
         });
         r.playToServer(Payloads.PageErase.TYPE, Payloads.PageErase.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) PageService.handleErase(sp, p.hand(), p.page(), p.u(), p.v());
+        });
+        r.playToServer(Payloads.PageNote.TYPE, Payloads.PageNote.CODEC, (p, ctx) -> {
+            if (ctx.player() instanceof ServerPlayer sp) PageService.handleNote(sp, p.hand(), p.page(), p.title(), p.notes());
         });
         r.playToServer(Payloads.PageTurn.TYPE, Payloads.PageTurn.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) PageService.handleTurn(sp, p.hand(), p.page());
@@ -67,7 +71,7 @@ public final class ModNetwork {
         r.playToClient(Payloads.Techniques.TYPE, Payloads.Techniques.CODEC, (p, ctx) -> { if (client != null) client.techniques(p); });
         r.playToClient(Payloads.WindowwaySync.TYPE, Payloads.WindowwaySync.CODEC, (p, ctx) -> { if (client != null) client.windowways(p); });
         r.playToServer(Payloads.PortalCross.TYPE, Payloads.PortalCross.CODEC, (p, ctx) -> {
-            if (ctx.player() instanceof ServerPlayer sp) com.fimkov.witchsatelier.windowway.WindowwayService.handleCross(sp, p.id());
+            if (ctx.player() instanceof ServerPlayer sp) WindowwayService.handleCross(sp, p.id());
         });
         r.playToServer(Payloads.BootsJoin.TYPE, Payloads.BootsJoin.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) PageService.handleBootsJoin(sp);

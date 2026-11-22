@@ -8,10 +8,6 @@ import net.minecraft.world.item.TooltipFlag;
 
 import java.util.List;
 
-/**
- * A woodcruor wand: a rod of hardened woodcruor, drawn with like chalk on wood and stone. It needs no inkwell,
- * it wears down instead; its marks are weak and short-lived and the first rain takes them.
- */
 public class WoodcruorWandItem extends InkPenItem {
     public WoodcruorWandItem(Properties props) {
         super(props);

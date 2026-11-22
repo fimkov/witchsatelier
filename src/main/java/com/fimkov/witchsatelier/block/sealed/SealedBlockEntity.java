@@ -10,12 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * A contraption with a glyph that wears out: its seal holds for as long as it has been re-inked for, then fades
- * and must be restored by a witch (canon: maintaining seals is every witch's duty).
- */
 public abstract class SealedBlockEntity extends BlockEntity {
-    /** Ticks of seal left. */
     protected int charge;
 
     protected SealedBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
@@ -32,7 +27,6 @@ public abstract class SealedBlockEntity extends BlockEntity {
         if (level != null) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
     }
 
-    /** One tick of the running seal; returns false once it has faded. */
     protected boolean drain() {
         if (charge <= 0) return false;
         charge--;

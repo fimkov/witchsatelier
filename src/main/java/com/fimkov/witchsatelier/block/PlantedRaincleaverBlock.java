@@ -13,6 +13,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -30,14 +31,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * A Raincleaver planted point-down (sneak and use it on the ground): its glyphs keep cutting, so no water or lava
- * comes within a few blocks of it, in a dry bubble round about, for as long as it stands. The blade wears slowly
- * while it does. Use it with an empty hand to pull it out; the water closes in again behind it.
- */
 public class PlantedRaincleaverBlock extends BaseEntityBlock {
     public static final MapCodec<PlantedRaincleaverBlock> CODEC = simpleCodec(PlantedRaincleaverBlock::new);
-    /** How far the dry bubble reaches (blocks from the hilt). */
+
     public static final double REACH = 4.5;
     private static final VoxelShape SHAPE = box(6, 0, 6, 10, 16, 10);
 
@@ -54,7 +50,6 @@ public class PlantedRaincleaverBlock extends BaseEntityBlock {
         return new Entity(pos, state);
     }
 
-    /** Plants {@code sword} at {@code pos} (air or a liquid). */
     public static boolean plant(Level level, BlockPos pos, ItemStack sword) {
         BlockState there = level.getBlockState(pos);
         if (!there.isAir() && !(there.getBlock() instanceof LiquidBlock) && !there.canBeReplaced()) return false;
@@ -85,7 +80,7 @@ public class PlantedRaincleaverBlock extends BaseEntityBlock {
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof Entity be && !be.sword.isEmpty()) {
-            net.minecraft.world.Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, be.sword);
+            Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, be.sword);
             be.sword = ItemStack.EMPTY;
         }
         super.onRemove(state, level, pos, newState, moved);
@@ -101,7 +96,6 @@ public class PlantedRaincleaverBlock extends BaseEntityBlock {
         long t = level.getGameTime();
         if (t % 5 == 0) cut(sl, pos);
         if (t % 300 == 0 && !be.sword.isEmpty()) {
-            // the glyphs wear as they work
             be.sword.setDamageValue(be.sword.getDamageValue() + 1);
             if (be.sword.getDamageValue() >= be.sword.getMaxDamage()) {
                 be.sword = ItemStack.EMPTY;
@@ -113,7 +107,6 @@ public class PlantedRaincleaverBlock extends BaseEntityBlock {
         }
     }
 
-    /** Pushes the liquid back from round the blade, and keeps back what it already pushed. */
     private static void cut(ServerLevel level, BlockPos pos) {
         int r = (int) Math.ceil(REACH);
         for (BlockPos p : BlockPos.betweenClosed(pos.offset(-r, -r, -r), pos.offset(r, r, r))) {

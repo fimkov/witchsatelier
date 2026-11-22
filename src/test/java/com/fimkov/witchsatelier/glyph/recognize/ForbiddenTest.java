@@ -11,7 +11,7 @@ import java.util.List;
 
 class ForbiddenTest {
     @Test
-    void petrificationReads() /* signs at 45 degrees used to be scaled by their slanted box */ {
+    void petrificationReads()  {
         GlyphSketch g = new GlyphSketch(new Pt(0, 0), 1.4).ring(0, 362).sigil(Sigil.EARTH, 0.8).signs(SignType.EYE, 4, Orientation.OUTWARD, 0.4, 45);
         List<List<Pt>> strokes = new ArrayList<>();
         for (double[] d : g.strokes) { List<Pt> s = new ArrayList<>(); for (int i = 0; i + 1 < d.length; i += 2) s.add(new Pt(d[i], d[i + 1])); strokes.add(s); }

@@ -11,10 +11,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.TheEndPortalBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * The ground under the Void Basin: night sky you can stand on. Each face shows the stars as an end portal does,
- * wherever it is open to the air. Witches have drawn their way home from it.
- */
 public class StarBlock extends BaseEntityBlock {
     public static final MapCodec<StarBlock> CODEC = simpleCodec(StarBlock::new);
 

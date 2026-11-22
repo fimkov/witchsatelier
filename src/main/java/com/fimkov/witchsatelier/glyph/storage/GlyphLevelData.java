@@ -16,10 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * All ink drawn in one dimension. Strokes are bucketed into 16x16-block cells of their plane
- * (by the stroke's first point) so lookups stay local even on huge planes like the ground.
- */
 public final class GlyphLevelData extends SavedData {
     public static final int CELL = 16;
     private static final String NAME = "witchsatelier_glyphs";
@@ -29,7 +25,7 @@ public final class GlyphLevelData extends SavedData {
     private final Map<Cell, Map<Long, InkStroke>> cells = new HashMap<>();
     private final Map<Long, Cell> index = new HashMap<>();
     private long nextId = 1;
-    /** How worn each point of a stroke is (see {@link com.fimkov.witchsatelier.glyph.InkWear}); only strokes with any wear. */
+
     private final Map<Long, byte[]> wear = new HashMap<>();
 
     public static GlyphLevelData get(ServerLevel level) {
@@ -81,7 +77,6 @@ public final class GlyphLevelData extends SavedData {
         setDirty();
     }
 
-    /** Strokes on {@code plane} whose first point lies within {@code radius} cells around (u, v). */
     public List<InkStroke> near(SurfacePlane plane, double u, double v, int radius) {
         Cell c = cellOf(plane, u, v);
         List<InkStroke> out = new ArrayList<>();
@@ -102,7 +97,6 @@ public final class GlyphLevelData extends SavedData {
         return out;
     }
 
-    /** The wear of a stroke's points, or null if it is unworn. Changes go through {@link #setWear}. */
     public byte[] wear(long id) {
         return wear.get(id);
     }

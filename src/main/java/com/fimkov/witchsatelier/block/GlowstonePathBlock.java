@@ -21,10 +21,6 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Vector3f;
 
-/**
- * Glowstone Path (Olruggio's): a paving stone in two pieces, the top one hovering on float keystones. Step on it
- * and your weight presses the halves together, the ring closes and the stone glows; step off and it fades.
- */
 public class GlowstonePathBlock extends Block {
     public static final MapCodec<GlowstonePathBlock> CODEC = simpleCodec(GlowstonePathBlock::new);
     public static final BooleanProperty LIT = BlockStateProperties.LIT;
@@ -64,7 +60,7 @@ public class GlowstonePathBlock extends Block {
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource rnd) {
         if (!state.getValue(LIT)) return;
         boolean someone = !level.getEntitiesOfClass(LivingEntity.class, new AABB(pos.above()).inflate(0, 0.3, 0).move(0, -0.3, 0)).isEmpty();
-        // it glows on for a couple of seconds after the foot has left, so a path lights up behind whoever walks it
+
         if (someone) level.scheduleTick(pos, this, 40);
         else level.setBlock(pos, state.setValue(LIT, false), 3);
     }

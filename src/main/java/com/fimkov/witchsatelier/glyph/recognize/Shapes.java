@@ -3,7 +3,6 @@ package com.fimkov.witchsatelier.glyph.recognize;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Small builder for template symbols out of geometric primitives. Coordinates roughly in [-1, 1]. */
 public final class Shapes {
     private final List<List<Pt>> strokes = new ArrayList<>();
 
@@ -11,7 +10,6 @@ public final class Shapes {
 
     public List<List<Pt>> build() { return strokes; }
 
-    /** Polyline through the given x,y pairs. */
     public Shapes poly(double... xy) {
         List<Pt> s = new ArrayList<>();
         for (int i = 0; i + 1 < xy.length; i += 2) s.add(new Pt(xy[i], xy[i + 1]));
@@ -23,7 +21,6 @@ public final class Shapes {
         return poly(x0, y0, x1, y1);
     }
 
-    /** Closed polygon through the given x,y pairs. */
     public Shapes polygon(double... xy) {
         double[] closed = new double[xy.length + 2];
         System.arraycopy(xy, 0, closed, 0, xy.length);
@@ -32,7 +29,6 @@ public final class Shapes {
         return poly(closed);
     }
 
-    /** Arc in degrees, counter-clockwise from a0 to a1. */
     public Shapes arc(double cx, double cy, double r, double a0, double a1) {
         List<Pt> s = new ArrayList<>();
         int steps = Math.max(8, (int) Math.ceil(Math.abs(a1 - a0) / 10));
@@ -55,7 +51,6 @@ public final class Shapes {
         return this;
     }
 
-    /** Vertical S-wave centred at x0. */
     public Shapes wave(double x0, double amp, double y0, double y1) {
         List<Pt> s = new ArrayList<>();
         for (int i = 0; i <= 24; i++) {
@@ -66,7 +61,6 @@ public final class Shapes {
         return this;
     }
 
-    /** Spiral from radius r0 to r1 over the given number of turns. */
     public Shapes spiral(double cx, double cy, double r0, double r1, double turns, double startDeg) {
         List<Pt> s = new ArrayList<>();
         int steps = (int) Math.ceil(turns * 36);
@@ -80,7 +74,6 @@ public final class Shapes {
         return this;
     }
 
-    /** Teardrop: round end at (x, y), tip pointing in direction dirDeg. */
     public Shapes drop(double x, double y, double r, double dirDeg) {
         double dir = Math.toRadians(dirDeg);
         Pt tip = new Pt(x + Math.cos(dir) * r * 2.6, y + Math.sin(dir) * r * 2.6);

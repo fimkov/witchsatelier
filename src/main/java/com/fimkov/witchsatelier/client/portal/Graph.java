@@ -8,11 +8,6 @@ import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 
 import java.lang.reflect.Field;
 
-/**
- * The level renderer keeps one set of "which sections can be seen from here" bookkeeping, built up over many
- * frames. The view through a window needs its own (its eye is somewhere else entirely), so ours is swapped in for
- * the second pass and out again, and neither eye spoils the other's.
- */
 final class Graph {
     private static final Field GRAPH = field("sectionOcclusionGraph"), VISIBLE = field("visibleSections"), VIEW_AREA = field("viewArea");
     private static final Field[] DOUBLES = {field("prevCamX"), field("prevCamY"), field("prevCamZ"), field("prevCamRotX"), field("prevCamRotY"),
@@ -42,12 +37,11 @@ final class Graph {
     void swapIn(LevelRenderer lr) throws IllegalAccessException {
         ViewArea now = (ViewArea) VIEW_AREA.get(lr);
         if (now != area) {
-            // render distance changed or the world was reloaded: start over
             area = now;
             graph.waitAndReset(now);
             for (int i = 0; i < 5; i++) doubles[i] = Double.MIN_VALUE;
         }
-        // newly built sections are only told to the main graph; refresh ours now and then
+
         if (++frames % 30 == 0) graph.invalidate();
         savedGraph = (SectionOcclusionGraph) GRAPH.get(lr);
         savedVisible = (ObjectArrayList<SectionRenderDispatcher.RenderSection>) VISIBLE.get(lr);

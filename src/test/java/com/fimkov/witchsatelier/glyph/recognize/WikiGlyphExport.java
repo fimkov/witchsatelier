@@ -13,12 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * Writes every spell's and artifact's glyph, and each sigil and sign alone, as SVG for the wiki.
- * Runs only when asked: {@code WIKI_OUT=<dir> ./gradlew test --tests '*WikiGlyphExport*'}.
- */
 class WikiGlyphExport {
-    /** The artifacts, in the order Awakening (and so AwakeningGlyphsTest) lists them. */
     private static final String[] ARTIFACTS = {"washing_barrel", "glowstone_path", "void_basin", "dragon_teacup", "sealchair",
             "beast_warding_tower", "arcane_lens", "snugstone", "raincleaver", "mirror_mantle", "wingcloak", "tent_staff",
             "capture_pennant", "light_tracer_bangle", "vapor_bubble"};
@@ -47,12 +42,10 @@ class WikiGlyphExport {
     }
 
     private static void glyph(Path file, GlyphLibrary.Recipe r) throws IOException {
-        // a steady hand: the grimoire's own way of drawing it, only a little off
         HandDrawn h = new HandDrawn(r.name().hashCode(), 0.25).recipe(r, 0.85, 0);
         Files.writeString(file, svg(h.strokes, 0.98, 0.028));
     }
 
-    /** Strokes in a square view {@code -half..half}, y up, as dark ink with round ends. */
     private static String svg(List<List<Pt>> strokes, double half, double width) {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format(Locale.ROOT, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"%.3f %.3f %.3f %.3f\">",

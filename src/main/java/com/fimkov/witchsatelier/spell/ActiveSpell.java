@@ -1,10 +1,22 @@
 package com.fimkov.witchsatelier.spell;
 
+import com.fimkov.witchsatelier.advancement.MagicTrigger;
+import com.fimkov.witchsatelier.block.PetrifiedBlock;
+import com.fimkov.witchsatelier.block.StatueBlock;
+import com.fimkov.witchsatelier.entity.BrimhatEntity;
+import com.fimkov.witchsatelier.glyph.GlyphService;
 import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.fimkov.witchsatelier.item.InkPenItem;
+import com.fimkov.witchsatelier.registry.ModBlocks;
+import com.fimkov.witchsatelier.registry.ModSounds;
 import com.fimkov.witchsatelier.spell.SpellProgram.Form;
+import com.fimkov.witchsatelier.util.TimedBlocks;
+import com.fimkov.witchsatelier.windowway.WindowwayService;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -12,12 +24,22 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.SmallFireball;
 import net.minecraft.world.entity.projectile.windcharge.WindCharge;
 import net.minecraft.world.item.ItemStack;
@@ -25,8 +47,13 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BonemealableBlock;
 import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.GrassBlock;
+import net.minecraft.world.level.block.LayeredCauldronBlock;
 import net.minecraft.world.level.block.LightBlock;
+import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.TorchBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
@@ -36,29 +63,32 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
-/** A running spell bound to the strokes of its glyph. Stops when the ring breaks or its time runs out. */
 public final class ActiveSpell {
     public final long id;
-    /** The surface the glyph is drawn on, or null for a glyph on a page held in the hand. */
+
     public final SurfacePlane plane;
-    /** Orientation of the glyph; for hand-held pages it turns with the caster's view. */
+
     public GlyphFrame frame;
-    /** A page in the hand: the spell is held up in front of the caster and follows where they look. */
+
     public final boolean handheld;
-    /** Worn on the feet (glyph on boots): the spell rides under the wearer and steers where they look. */
+
     public boolean worn;
-    /** How well the glyph stands up to rain and feet: its ink's lasting and the neatness of the hand (1 is ordinary). */
+
     public double toughness = 1;
-    /** Repetition in its band keeps setting it back to how it was: rain and feet cannot wear it away. */
+
     public boolean mending;
     private Vec3 wornLocal;
 
-    /** Frame of a glyph on the soles: normal up, u to the wearer's right, v ahead. */
     public static GlyphFrame wornFrame(Vec3 right, Vec3 fwd) {
         return new GlyphFrame() {
             @Override public Vec3 normal() { return new Vec3(0, 1, 0); }
@@ -68,7 +98,6 @@ public final class ActiveSpell {
     private final List<Bird> birds = new ArrayList<>();
     private int birdSerial;
 
-    /** A bird made of the spell's element: flies out along the spell's direction, then circles overhead. */
     public static final class Bird {
         public final int index;
         public Vec3 pos, vel, home;
@@ -79,10 +108,8 @@ public final class ActiveSpell {
 
     public List<Bird> birds() { return birds; }
 
-    /** Beam length and width of each outer layer last tick (pairs), for the visuals. */
     public float[] layerFx = new float[0];
 
-    /** A Billowing layer: nobody around the glyph falls hard. */
     private void cushion(ServerLevel level) {
         Vec3 o = program.origin();
         double r = Math.max(3, program.radius() * 3);
@@ -103,9 +130,9 @@ public final class ActiveSpell {
     private int age;
     private final List<TempBlock> temps = new ArrayList<>();
     private final Set<BlockPos> tempAt = new HashSet<>();
-    /** A glyph that holds for hours must not keep filling the world: past this many placed blocks it adds no more. */
+
     private static final int MAX_TEMPS = 256;
-    /** Beam geometry of the last tick, for the client-side visuals. */
+
     public float fxLength, fxWidth;
 
     public int age() { return age; }
@@ -131,27 +158,52 @@ public final class ActiveSpell {
         this.ticksLeft = program.duration();
     }
 
-    /** @return false when the spell has finished */
+    public long chain;
+    public int hop;
+    public boolean held;
+    public long releaseAt;
+
+    public boolean fxOff;
+    private int unpressed, pressTick;
+    private boolean lastPressed;
+
+    public boolean waiting() {
+        return held || (program.has(SpellProgram.TREAD) && !handheld && !sprung);
+    }
+
     public boolean tick(ServerLevel level) {
         if (handheld && !followCaster(level)) return false;
-        if (program.has(SpellProgram.TREAD) && !handheld && !sprung) {
-            // a snare: awake, but holding its spell until a creature steps onto it (for a game day at most)
-            if (!steppedOn(level)) return ++armed < 24000;
-            sprung = true;
-            com.fimkov.witchsatelier.glyph.GlyphService.sprung(level, this);
+        if (held) {
+            if (releaseAt <= 0 || level.getGameTime() < releaseAt) return true;
+            held = false;
+            releaseAt = 0;
+            GlyphService.released(level, this);
+        }
+        if (program.has(SpellProgram.TREAD) && !handheld) {
+            boolean pressed = pressed(level);
+            if (!sprung) {
+                if (!pressed) { armed++; return true; }
+                sprung = true;
+                unpressed = 0;
+                GlyphService.sprung(level, this);
+            } else if (pressed) {
+                unpressed = 0;
+            } else if (++unpressed > 40) {
+                rearm(level);
+                return true;
+            }
         }
         if (age == 0) start(level);
         age++;
         if (program.has(SpellProgram.AIM) && !handheld) aim(level);
         run(level);
         if (program.mods() != 0) mods(level);
-        // outer layers of a nested glyph run alongside, each with its own beam geometry
+
         SpellProgram main = program;
         float mainLength = fxLength, mainWidth = fxWidth;
         List<SpellProgram> layers = main.layers();
         if (layerFx.length != layers.size() * 2) layerFx = new float[layers.size() * 2];
         for (int k = 0; k < layers.size(); k++) {
-            // a layer runs for its own span (a volley of bolts ends; a pillar beside it burns on)
             if (age > layers.get(k).duration() && layers.get(k).form() == Form.BOLTS) continue;
             program = layers.get(k);
             try {
@@ -169,15 +221,49 @@ public final class ActiveSpell {
         for (SpellProgram l : layers) { fire |= l.element() == Sigil.FIRE; water |= l.element() == Sigil.WATER; }
         if (fire && water) steam(level);
         if (program.birds() > 0) birds(level);
-        return --ticksLeft > 0;
+        if (--ticksLeft > 0) return true;
+
+        if (program.has(SpellProgram.TREAD) && !handheld) {
+            rearm(level);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean pressed(ServerLevel level) {
+        if ((pressTick++ & 3) != 0) return lastPressed;
+        lastPressed = steppedOn(level) || powered(level);
+        return lastPressed;
+    }
+
+    private boolean powered(ServerLevel level) {
+        if (plane == null) return false;
+        BlockPos on = BlockPos.containing(program.origin().subtract(program.normal().scale(0.5)));
+        return level.hasNeighborSignal(on) || level.hasNeighborSignal(on.relative(plane.face()));
+    }
+
+    public void rearm(ServerLevel level) {
+        sprung = false;
+        unpressed = 0;
+        lastPressed = false;
+        pause(level);
+        GlyphService.rearmed(level, this);
+    }
+
+    public void pause(ServerLevel level) {
+        for (TempBlock t : temps) {
+            if (level.getBlockState(t.pos()) == t.placed()) level.setBlock(t.pos(), Blocks.AIR.defaultBlockState(), 3);
+        }
+        temps.clear();
+        tempAt.clear();
+        age = 0;
+        ticksLeft = program.duration();
     }
 
     private boolean sprung;
     private int armed;
 
-    /** Something other than its maker is standing on (or in front of) the glyph. */
     private boolean steppedOn(ServerLevel level) {
-        if (armed % 4 != 0) return false;
         Vec3 o = program.origin(), n = program.normal();
         double r = Math.max(0.8, program.radius());
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o.add(n.scale(1.5))).inflate(r), LivingEntity::isAlive)) {
@@ -192,21 +278,21 @@ public final class ActiveSpell {
 
     private void start(ServerLevel level) {
         Vec3 o = program.origin();
-        level.playSound(null, o.x, o.y, o.z, com.fimkov.witchsatelier.registry.ModSounds.RING_IGNITE.get(), SoundSource.PLAYERS, 1.0f, 0.9f + level.random.nextFloat() * 0.2f);
-        if (!handheld) level.playSound(null, o.x, o.y, o.z, com.fimkov.witchsatelier.registry.ModSounds.GLYPH_HUM.get(), SoundSource.PLAYERS, 0.6f, 0.9f + level.random.nextFloat() * 0.2f);
-        var voice = com.fimkov.witchsatelier.registry.ModSounds.element(program.element());
+        level.playSound(null, o.x, o.y, o.z, ModSounds.RING_IGNITE.get(), SoundSource.PLAYERS, 1.0f, 0.9f + level.random.nextFloat() * 0.2f);
+        if (!handheld) level.playSound(null, o.x, o.y, o.z, ModSounds.GLYPH_HUM.get(), SoundSource.PLAYERS, 0.6f, 0.9f + level.random.nextFloat() * 0.2f);
+        var voice = ModSounds.element(program.element());
         if (voice != null) level.playSound(null, o.x, o.y, o.z, voice, SoundSource.PLAYERS, 0.8f, 0.9f + level.random.nextFloat() * 0.2f);
         burstParticles(level, o, ElementLook.particle(program.element()), 30, program.radius() * 0.6);
-        // rune fragments lift off the ring as it ignites
+
         for (int k = 0; k < 18; k++) {
             double a = k * Math.PI * 2 / 18;
             Vec3 at = o.add(frame.planeVector(Math.cos(a), Math.sin(a)).scale(program.radius()));
             Vec3 v = program.normal().scale(0.04);
             level.sendParticles(ElementLook.rune(program.element(), program.centerSign()), at.x, at.y, at.z, 0, v.x, v.y, v.z, 1);
         }
-        // fire drawn under water only boils the water around it
+
         BlockPos front = BlockPos.containing(o.add(program.normal().scale(0.3)));
-        if (program.element() == Sigil.FIRE && level.getFluidState(front).is(net.minecraft.tags.FluidTags.WATER)) {
+        if (program.element() == Sigil.FIRE && level.getFluidState(front).is(FluidTags.WATER)) {
             level.playSound(null, o.x, o.y, o.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 1f, 1.2f);
             level.sendParticles(ParticleTypes.CLOUD, o.x, o.y, o.z, 25, 0.4, 0.4, 0.4, 0.05);
             ticksLeft = 1;
@@ -226,11 +312,11 @@ public final class ActiveSpell {
             ticksLeft = 1;
         } else if (program.form() == Form.RESTORE) {
             Earthworks.restore(level, program.origin(), program.radius() * 2 + 4 + program.power() * 0.1);
-            // and whatever petrification took: a glyph of Integration in the middle of it gives it all back
-            com.fimkov.witchsatelier.block.PetrifiedBlock.restore(level, program.origin(), program.radius() * 3 + 10);
-            if (com.fimkov.witchsatelier.block.StatueBlock.revive(level, program.origin(), program.radius() * 3 + 10) > 0 && caster != null) {
+
+            PetrifiedBlock.restore(level, program.origin(), program.radius() * 3 + 10);
+            if (StatueBlock.revive(level, program.origin(), program.radius() * 3 + 10) > 0 && caster != null) {
                 Player who = level.getPlayerByUUID(caster);
-                if (who != null) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(who, "revive");
+                if (who != null) MagicTrigger.fire(who, "revive");
             }
             ticksLeft = 1;
         } else if (program.form() == Form.FIZZLE) {
@@ -250,8 +336,6 @@ public final class ActiveSpell {
         }
     }
 
-    /** A held page casts from in front of the caster's eyes, in the direction they look. */
-    /** The caster in the world: a player, or a creature casting glyphs of its own (a Brimhat). */
     private LivingEntity casterEntity(ServerLevel level) {
         if (caster == null) return null;
         Player pl = level.getPlayerByUUID(caster);
@@ -263,11 +347,10 @@ public final class ActiveSpell {
         LivingEntity p = casterEntity(level);
         if (p == null || !p.isAlive()) return false;
         Vec3 look = p.getLookAngle();
-        if (p instanceof net.minecraft.world.entity.Mob m && m.getTarget() != null) {
+        if (p instanceof Mob m && m.getTarget() != null) {
             look = m.getTarget().getBoundingBox().getCenter().subtract(p.getEyePosition()).normalize();
         }
         if (worn) {
-            // under the feet: the ring lies flat, its "up" on the drawing pointing where the wearer faces
             Vec3 flat = new Vec3(look.x, 0, look.z);
             Vec3 fwd = flat.lengthSqr() > 1e-4 ? flat.normalize() : new Vec3(0, 0, 1);
             Vec3 right = fwd.cross(new Vec3(0, 1, 0)).normalize();
@@ -286,7 +369,6 @@ public final class ActiveSpell {
         return true;
     }
 
-    /** Aim help: a creature nearly under the crosshair draws the spell straight at it. */
     private static Vec3 aim(ServerLevel level, LivingEntity p, Vec3 origin, Vec3 look) {
         double range = 40, cone = Math.cos(Math.toRadians(8));
         LivingEntity best = null;
@@ -302,10 +384,9 @@ public final class ActiveSpell {
         return best == null ? look : best.getBoundingBox().getCenter().subtract(origin).normalize();
     }
 
-    /** Called when the spell ends for any reason. */
     public void stop(ServerLevel level) {
-        com.fimkov.witchsatelier.windowway.WindowwayService.close(level, id);
-        // whoever stands on raised earth or a wall when it sinks back drifts down instead of falling
+        WindowwayService.close(level, id);
+
         for (TempBlock t : temps) {
             for (LivingEntity le : level.getEntitiesOfClass(LivingEntity.class, new AABB(t.pos().above()).inflate(0.2, 1, 0.2))) {
                 le.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 80, 0));
@@ -335,18 +416,16 @@ public final class ActiveSpell {
         }
     }
 
-    // ------------------------------------------------------------------ forms
-
     private void beam(ServerLevel level) {
         SpellProgram p = program;
         if (p.element() == Sigil.WATER) { waterJet(level); return; }
-        // a bigger glyph makes a broader and longer beam, not only a stronger one
+
         double len = Math.min(3 + p.power() * 0.35 + p.radius() * 3, 48) * (p.focused() ? 1.5 : 1);
         double width = Math.min(0.2 + p.radius() * 0.45, 5) * (p.focused() ? 0.6 : 1) * (p.spread() ? 1.8 : 1);
         Vec3 from = p.origin();
         Vec3 dir = p.direction();
         Vec3 to = from.add(dir.scale(len));
-        // fire and water beams stop at liquid surfaces: fire boils water away, water cools lava
+
         ClipContext.Fluid fluids = p.element() == Sigil.FIRE || p.element() == Sigil.WATER ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE;
         BlockHitResult hit = level.clip(new ClipContext(from.add(dir.scale(0.1)), to, ClipContext.Block.COLLIDER, fluids, CollisionContext.empty()));
         if (hit.getType() == HitResult.Type.BLOCK) {
@@ -386,7 +465,6 @@ public final class ActiveSpell {
                     if (e instanceof LivingEntity le) {
                         le.addEffect(new MobEffectInstance(MobEffects.GLOWING, 60, 0));
                         if (le.isInvertedHealAndHarm()) {
-                            // the dead cannot stand true light: it burns them like the sun
                             le.igniteForSeconds(3);
                             if (age % 10 == 0) le.hurt(level.damageSources().magic(), (float) (1 + p.power() * 0.05));
                         }
@@ -396,7 +474,6 @@ public final class ActiveSpell {
                     if (e instanceof LivingEntity le) le.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, 100, 0));
                 }
                 case EARTH -> {
-                    // the raised stone shoulders aside what stands in its way
                     if (age <= 6) push(e, dir.scale(0.35));
                 }
             }
@@ -405,7 +482,7 @@ public final class ActiveSpell {
         if (hit.getType() == HitResult.Type.BLOCK && age % 20 == 1) {
             BlockPos hp = hit.getBlockPos();
             BlockPos front = hp.relative(hit.getDirection());
-            if (p.element() == Sigil.FIRE && level.getFluidState(hp).is(net.minecraft.tags.FluidTags.WATER) && !p.gentle()) {
+            if (p.element() == Sigil.FIRE && level.getFluidState(hp).is(FluidTags.WATER) && !p.gentle()) {
                 if (level.getBlockState(hp).is(Blocks.WATER)) level.setBlock(hp, Blocks.AIR.defaultBlockState(), 3);
                 level.sendParticles(ParticleTypes.CLOUD, hp.getX() + 0.5, hp.getY() + 1, hp.getZ() + 0.5, 12, 0.3, 0.2, 0.3, 0.03);
                 level.playSound(null, hp, SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.8f, 1.4f);
@@ -438,7 +515,6 @@ public final class ActiveSpell {
         fxLength = (float) r;
         Vec3 o = p.origin();
         if (p.element() == Sigil.FIRE || p.element() == Sigil.WIND || p.element() == Sigil.EARTH) {
-            // the element rolls outward in rings: flame, gust or a ripple of grit
             double front = ((age - 1) % 30) * r / 26;
             if (front <= r) {
                 int steps = (int) Math.max(8, front * Math.PI * 2 / 0.7);
@@ -449,7 +525,7 @@ public final class ActiveSpell {
                     ParticleOptions part = switch (p.element()) {
                         case FIRE -> p.gentle() ? ParticleTypes.SMALL_FLAME : ParticleTypes.FLAME;
                         case WIND -> ParticleTypes.CLOUD;
-                        default -> new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK,
+                        default -> new BlockParticleOption(ParticleTypes.BLOCK,
                                 level.getBlockState(BlockPos.containing(o.subtract(p.normal().scale(0.5)))).isAir() ? Blocks.DIRT.defaultBlockState()
                                         : level.getBlockState(BlockPos.containing(o.subtract(p.normal().scale(0.5)))));
                     };
@@ -511,13 +587,13 @@ public final class ActiveSpell {
             for (BlockPos bp : BlockPos.betweenClosed(center.offset(-(int) r, -1, -(int) r), center.offset((int) r, 1, (int) r))) {
                 if (bp.distToCenterSqr(o) > r * r) continue;
                 if (p.gentle()) melt(level, bp);
-                else if (level.random.nextInt(12) == 0 && level.isEmptyBlock(bp) && BaseFireBlock.canBePlacedAt(level, bp, net.minecraft.core.Direction.UP)) {
+                else if (level.random.nextInt(12) == 0 && level.isEmptyBlock(bp) && BaseFireBlock.canBePlacedAt(level, bp, Direction.UP)) {
                     level.setBlock(bp.immutable(), BaseFireBlock.getState(level, bp), 11);
                 }
             }
         }
         if (p.element() == Sigil.WATER && age % 20 == 0) {
-            com.fimkov.witchsatelier.glyph.GlyphService.washArea(level, o, r, strokes);
+            GlyphService.washArea(level, o, r, strokes);
             BlockPos center = BlockPos.containing(o);
             for (BlockPos bp : BlockPos.betweenClosed(center.offset(-(int) r, -1, -(int) r), center.offset((int) r, 1, (int) r))) {
                 if (bp.distToCenterSqr(o) <= r * r) douse(level, bp.immutable(), bp.immutable());
@@ -542,7 +618,6 @@ public final class ActiveSpell {
                 level.addFreshEntity(wc);
             }
             case EARTH -> {
-                // a stone torn from the ground beneath and hurled: heavy, slow to fly, slower to shake off
                 hitscan(level, from, dir, 18, (float) (5 + p.power() * 0.2));
                 level.playSound(null, from.x, from.y, from.z, SoundEvents.STONE_BREAK, SoundSource.PLAYERS, 0.8f, 0.7f);
                 return;
@@ -586,7 +661,7 @@ public final class ActiveSpell {
         SpellProgram p = program;
         if (p.element() == Sigil.EARTH && !p.inverted() && p.normal().y > 0.5) { earthRise(level); return; }
         double r = Math.max(0.6, p.radius());
-        // Float alone holds a tall column, so what falls into it from high up is caught and set down softly
+
         boolean soft = p.has(SpellProgram.SOFT) && !p.inverted();
         double h = soft ? 6 + p.power() * 0.3 + r * 2 : 2 + p.power() * 0.15 + r * 1.2;
         fxLength = (float) h;
@@ -611,7 +686,7 @@ public final class ActiveSpell {
                 e.hurtMarked = true;
             }
             if (!p.inverted()) e.resetFallDistance();
-            if (e instanceof net.minecraft.server.level.ServerPlayer sp) Airborne.hold(sp);
+            if (e instanceof ServerPlayer sp) Airborne.hold(sp);
             if (p.vortex() != 0) swirl(e, o, n, p.vortex() * 0.15);
         }
     }
@@ -638,7 +713,6 @@ public final class ActiveSpell {
             if (p.element() == Sigil.FIRE && !p.gentle() && d < 1.5 && age % 10 == 0) e.igniteForSeconds(2);
             if (p.element() == Sigil.WATER) e.clearFire();
             if (p.element() == Sigil.EARTH && e instanceof LivingEntity le && e.onGround()) {
-                // the ground goes soft and drags at the feet
                 le.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 30, p.inverted() ? 0 : 2));
                 if (!p.inverted()) e.setDeltaMovement(e.getDeltaMovement().multiply(0.6, 1, 0.6));
             }
@@ -659,7 +733,6 @@ public final class ActiveSpell {
             default -> ParticleTypes.FALLING_WATER;
         };
         if (p.element() == Sigil.WATER) {
-            // the streaks are drawn by the client; real drops for the splashes where they land
             for (int i = 0; i < 5; i++) {
                 double a = level.random.nextDouble() * Math.PI * 2, d = Math.sqrt(level.random.nextDouble()) * r;
                 Vec3 at = top.add(ring(p, a).scale(d));
@@ -667,7 +740,6 @@ public final class ActiveSpell {
             }
             if (age % 40 == 1) level.playSound(null, o.x, o.y + 2, o.z, SoundEvents.WEATHER_RAIN, SoundSource.WEATHER, 0.5f, 1f);
         } else {
-            // falling, as rain does: motes of light have no weight of their own, so they are sent down
             Vec3 down = p.normal().scale(-1);
             double speed = p.element() == Sigil.LIGHT || p.element() == Sigil.CRYSTAL ? 0.45 : 0.2;
             for (int i = 0; i < 12; i++) {
@@ -677,7 +749,7 @@ public final class ActiveSpell {
             }
         }
         if (age % 20 != 0) return;
-        if (p.element() == Sigil.WATER) com.fimkov.witchsatelier.glyph.GlyphService.washArea(level, top.add(p.normal().scale(-4 - p.radius())), r, strokes);
+        if (p.element() == Sigil.WATER) GlyphService.washArea(level, top.add(p.normal().scale(-4 - p.radius())), r, strokes);
         BlockPos c = BlockPos.containing(o);
         int ri = (int) Math.ceil(r);
         for (BlockPos bp : BlockPos.betweenClosed(c.offset(-ri, -2, -ri), c.offset(ri, 2, ri))) {
@@ -688,9 +760,9 @@ public final class ActiveSpell {
                 douse(level, at, at);
                 if (st.is(BlockTags.CROPS) && level.random.nextInt(6) == 0) st.randomTick(level, at, level.random);
                 if (st.is(Blocks.CAULDRON) && level.random.nextInt(4) == 0) level.setBlock(at, Blocks.WATER_CAULDRON.defaultBlockState(), 3);
-                else if (st.is(Blocks.WATER_CAULDRON) && st.getValue(net.minecraft.world.level.block.LayeredCauldronBlock.LEVEL) < 3 && level.random.nextInt(4) == 0)
-                    level.setBlock(at, st.cycle(net.minecraft.world.level.block.LayeredCauldronBlock.LEVEL), 3);
-                if (level.random.nextInt(30) == 0 && st.isAir() && level.getBlockState(at.below()).isFaceSturdy(level, at.below(), net.minecraft.core.Direction.UP))
+                else if (st.is(Blocks.WATER_CAULDRON) && st.getValue(LayeredCauldronBlock.LEVEL) < 3 && level.random.nextInt(4) == 0)
+                    level.setBlock(at, st.cycle(LayeredCauldronBlock.LEVEL), 3);
+                if (level.random.nextInt(30) == 0 && st.isAir() && level.getBlockState(at.below()).isFaceSturdy(level, at.below(), Direction.UP))
                     level.sendParticles(ParticleTypes.SPLASH, at.getX() + 0.5, at.getY() + 0.05, at.getZ() + 0.5, 3, 0.3, 0, 0.3, 0.05);
             }
         }
@@ -711,7 +783,6 @@ public final class ActiveSpell {
             }
         }
         if ((p.element() == Sigil.LIGHT || p.element() == Sigil.CRYSTAL) && age % 40 == 0) {
-            // motes settle and keep glowing where they fall, so the night there stays light
             for (int i = 0; i < 3; i++) {
                 double a = level.random.nextDouble() * Math.PI * 2, d = Math.sqrt(level.random.nextDouble()) * r;
                 BlockPos at = BlockPos.containing(o.add(ring(p, a).scale(d)).add(0, 0.5, 0));
@@ -730,46 +801,44 @@ public final class ActiveSpell {
             switch (p.element()) {
                 case LIGHT, CRYSTAL -> placeTemp(level, front, light(Math.min(15, 8 + (int) p.power())));
                 case WATER -> { if (p.normal().y > 0.5) placeTemp(level, front, Blocks.WATER.defaultBlockState()); }
-                case FIRE -> { if (!p.gentle() && p.normal().y > 0.5 && BaseFireBlock.canBePlacedAt(level, front, net.minecraft.core.Direction.UP)) placeTemp(level, front, BaseFireBlock.getState(level, front)); }
+                case FIRE -> { if (!p.gentle() && p.normal().y > 0.5 && BaseFireBlock.canBePlacedAt(level, front, Direction.UP)) placeTemp(level, front, BaseFireBlock.getState(level, front)); }
                 default -> {}
             }
         }
         if (p.element() == Sigil.EARTH && age % 20 == 0) {
-            // earth on its own wakes the soil: what grows around the glyph grows faster
             double r = 2 + p.radius() * 2;
             BlockPos c = BlockPos.containing(p.origin());
             int ri = (int) Math.ceil(r);
-            // only what actually grows: picking blind spots among the stone and air almost never found any
+
             List<BlockPos> growing = new ArrayList<>();
             for (BlockPos bp : BlockPos.betweenClosed(c.offset(-ri, -1, -ri), c.offset(ri, 2, ri))) {
                 if (bp.distToCenterSqr(p.origin()) > r * r) continue;
                 BlockState st = level.getBlockState(bp);
-                if (st.getBlock() instanceof net.minecraft.world.level.block.BonemealableBlock b && b.isValidBonemealTarget(level, bp, st)
-                        && !(st.getBlock() instanceof net.minecraft.world.level.block.GrassBlock)) growing.add(bp.immutable());
+                if (st.getBlock() instanceof BonemealableBlock b && b.isValidBonemealTarget(level, bp, st)
+                        && !(st.getBlock() instanceof GrassBlock)) growing.add(bp.immutable());
             }
-            java.util.Collections.shuffle(growing, new java.util.Random(level.random.nextLong()));
+            Collections.shuffle(growing, new Random(level.random.nextLong()));
             for (BlockPos at : growing.subList(0, Math.min(3, growing.size()))) {
                 BlockState st = level.getBlockState(at);
-                ((net.minecraft.world.level.block.BonemealableBlock) st.getBlock()).performBonemeal(level, level.random, at, st);
+                ((BonemealableBlock) st.getBlock()).performBonemeal(level, level.random, at, st);
                 level.sendParticles(ParticleTypes.HAPPY_VILLAGER, at.getX() + 0.5, at.getY() + 0.6, at.getZ() + 0.5, 4, 0.3, 0.3, 0.3, 0);
             }
         }
         if (p.element() == Sigil.FIRE && p.gentle() && age % 10 == 0) {
-            // a tamed fire: no flame catches, but the snow and ice round about thaw, nearest first, as warmth spreads
             double r = 1.5 + p.radius() * 1.5;
             BlockPos c = BlockPos.containing(p.origin());
             int ri = (int) Math.ceil(r);
             List<BlockPos> cold = new ArrayList<>();
             for (BlockPos bp : BlockPos.betweenClosed(c.offset(-ri, -1, -ri), c.offset(ri, 2, ri))) {
                 if (bp.distToCenterSqr(p.origin()) > r * r) continue;
-                // not what the glyph itself is drawn on: thawing that would drop its own ring into the water
+
                 Vec3 rel = Vec3.atCenterOf(bp).subtract(p.origin());
                 double along = rel.dot(p.normal());
                 if (along < 0 && rel.subtract(p.normal().scale(along)).length() < p.radius() + 1) continue;
                 BlockState st = level.getBlockState(bp);
                 if (st.is(Blocks.SNOW) || st.is(Blocks.SNOW_BLOCK) || st.is(Blocks.POWDER_SNOW) || st.is(Blocks.ICE)) cold.add(bp.immutable());
             }
-            cold.sort(java.util.Comparator.comparingDouble(bp -> bp.distToCenterSqr(p.origin())));
+            cold.sort(Comparator.comparingDouble(bp -> bp.distToCenterSqr(p.origin())));
             for (BlockPos bp : cold.subList(0, Math.min(3, cold.size()))) {
                 melt(level, bp);
                 level.sendParticles(ParticleTypes.CLOUD, bp.getX() + 0.5, bp.getY() + 0.8, bp.getZ() + 0.5, 2, 0.2, 0.1, 0.2, 0.01);
@@ -786,8 +855,7 @@ public final class ActiveSpell {
     private void centerSign(ServerLevel level) {
         SpellProgram p = program;
         if (p.centerSign() == SignType.WINDOW) {
-            // a windowway: opens (and waits for its partner) once, then just holds
-            if (age == 1) com.fimkov.witchsatelier.windowway.WindowwayService.open(level, this);
+            if (age == 1) WindowwayService.open(level, this);
             return;
         }
         Vec3 o = p.origin().add(p.normal().scale(0.5));
@@ -796,10 +864,9 @@ public final class ActiveSpell {
         if (age % 20 != 0) return;
         AABB box = new AABB(o, o).inflate(r);
         if (p.centerSign() == SignType.REPETITION) {
-            // Repetition keeps resetting things to how they were: worn tools mend, dropped items stop ageing
             for (Player pl : level.getEntitiesOfClass(Player.class, box)) {
                 for (ItemStack st : new ItemStack[]{pl.getMainHandItem(), pl.getOffhandItem()}) {
-                    if (st.isDamaged() && !(st.getItem() instanceof com.fimkov.witchsatelier.item.InkPenItem)) {
+                    if (st.isDamaged() && !(st.getItem() instanceof InkPenItem)) {
                         st.setDamageValue(Math.max(0, st.getDamageValue() - (1 + (int) (p.power() / 10))));
                     }
                 }
@@ -807,7 +874,6 @@ public final class ActiveSpell {
             for (ItemEntity it : level.getEntitiesOfClass(ItemEntity.class, box)) it.setExtendedLifetime();
         } else if (p.centerSign() == SignType.VISION) {
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, box)) {
-                // night vision blinks in its last ten seconds: kept above that while one stands by, it holds steady
                 e.addEffect(p.hidden() ? new MobEffectInstance(MobEffects.INVISIBILITY, 60, 0) : new MobEffectInstance(MobEffects.NIGHT_VISION, 260, 0));
             }
         } else if (p.centerSign() == SignType.BILLOWING) {
@@ -819,25 +885,16 @@ public final class ActiveSpell {
         }
     }
 
-    // ------------------------------------------------------------------ forbidden
+    private final Map<Integer, Integer> stoneGaze = new HashMap<>();
 
-    private final java.util.Map<Integer, Integer> stoneGaze = new java.util.HashMap<>();
-
-    /** How far petrification has spread from its glyph so far, in blocks. */
     private double stoneFront;
 
-    /**
-     * Petrification. Stone grown through with crystal spreads out from the glyph as a widening sphere and takes
-     * everything it reaches, living or not: walls, floors, furniture, and every creature, which stiffens and is a
-     * statue. A bigger ring takes more. Players are only held fast. The glyph's own ground is spared, so it keeps
-     * working until it has spread as far as it can.
-     */
     private void petrify(ServerLevel level) {
         SpellProgram p = program;
         double reach = Math.min(10, 2.5 + p.radius() * 2.5 + p.power() * 0.05);
         Vec3 o = p.origin();
         fxLength = (float) Math.max(1, stoneFront);
-        var dust = new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get().defaultBlockState());
+        var dust = new BlockParticleOption(ParticleTypes.BLOCK, ModBlocks.PETRIFIED.get().defaultBlockState());
         for (int i = 0; i < 4; i++) {
             double a = age * 0.25 + i * Math.PI / 2, d = Math.max(0.5, stoneFront) * ((age % 20) / 20.0);
             Vec3 at = o.add(ring(p, a).scale(d)).add(p.normal().scale(0.2 + (age % 20) * 0.05));
@@ -845,7 +902,7 @@ public final class ActiveSpell {
         }
         if (age % 20 == 1) level.playSound(null, o.x, o.y, o.z, SoundEvents.GRINDSTONE_USE, SoundSource.HOSTILE, 0.5f, 0.4f);
         if (age < 10) return;
-        // the front moves out a block every five ticks
+
         if (age % 5 == 0 && stoneFront < reach) {
             double from = stoneFront;
             stoneFront = Math.min(reach, stoneFront + 1);
@@ -854,31 +911,26 @@ public final class ActiveSpell {
             level.playSound(null, o.x, o.y, o.z, SoundEvents.AMETHYST_CLUSTER_PLACE, SoundSource.HOSTILE, 0.9f, 0.5f + (float) (stoneFront / reach) * 0.3f);
         }
         double r = stoneFront + 0.5;
-        boolean brimhatCast = caster != null && level.getEntity(caster) instanceof com.fimkov.witchsatelier.entity.BrimhatEntity;
+        boolean brimhatCast = caster != null && level.getEntity(caster) instanceof BrimhatEntity;
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(r), e -> e.isAlive() && !e.isSpectator())) {
             if (caster != null && e.getUUID().equals(caster)) continue;
-            if (brimhatCast && e instanceof com.fimkov.witchsatelier.entity.BrimhatEntity) continue; // they do not stone their own
+            if (brimhatCast && e instanceof BrimhatEntity) continue;
             if (e.getBoundingBox().getCenter().distanceTo(o) > r) continue;
             int t = stoneGaze.merge(e.getId(), 1, Integer::sum);
             e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, Math.min(6, t / 3), false, false));
             e.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, 20, 2, false, false));
             if (t % 4 == 0) level.sendParticles(dust, e.getX(), e.getY() + e.getBbHeight() * level.random.nextDouble(), e.getZ(), 3, 0.25, 0.1, 0.25, 0.02);
-            if (t >= 20 && e instanceof net.minecraft.world.entity.Mob mob && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss)
-                    && !(e instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon)) {
-                if (com.fimkov.witchsatelier.block.StatueBlock.petrify(level, mob) && caster != null) {
+            if (t >= 20 && e instanceof Mob mob && !(e instanceof WitherBoss)
+                    && !(e instanceof EnderDragon)) {
+                if (StatueBlock.petrify(level, mob) && caster != null) {
                     Player who = level.getPlayerByUUID(caster);
-                    if (who != null) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(who, "petrify");
+                    if (who != null) MagicTrigger.fire(who, "petrify");
                 }
                 stoneGaze.remove(e.getId());
             }
         }
     }
 
-    /**
-     * Fills with crystal everything whose centre lies between {@code from} and {@code to} blocks from {@code o}, the
-     * air included. Left as it is: the glyph's own ground and the space just over it (or the spell would bury its
-     * own glyph), and the room each creature stands in until it is a statue, so nothing is buried alive.
-     */
     private void spreadStone(ServerLevel level, Vec3 o, double from, double to) {
         BlockPos c = BlockPos.containing(o);
         int r = (int) Math.ceil(to) + 1;
@@ -898,28 +950,24 @@ public final class ActiveSpell {
             }
             AABB cell = new AABB(pos);
             if (level.getBlockState(pos).isAir() && living.stream().anyMatch(cell::intersects)) continue;
-            if (com.fimkov.witchsatelier.block.PetrifiedBlock.petrify(level, pos) && taken++ % 7 == 0)
+            if (PetrifiedBlock.petrify(level, pos) && taken++ % 7 == 0)
                 level.sendParticles(ParticleTypes.END_ROD, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 1, 0.4, 0.4, 0.4, 0.02);
         }
     }
 
-    /** Once it has grown as far as it will, long shards stand out of it all round, pointing away from the middle. */
     private void spikes(ServerLevel level, Vec3 o, double reach) {
         BlockPos c = BlockPos.containing(o);
         int r = (int) Math.ceil(reach) + 1;
-        var crystal = com.fimkov.witchsatelier.registry.ModBlocks.PETRIFIED.get();
+        var crystal = ModBlocks.PETRIFIED.get();
         for (BlockPos pos : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
             double d = Math.sqrt(pos.distToCenterSqr(o));
             if (d < reach - 1.2 || d > reach || !level.getBlockState(pos).is(crystal) || level.random.nextFloat() > 0.45f) continue;
             Vec3 out = Vec3.atCenterOf(pos).subtract(o);
-            net.minecraft.core.Direction dir = net.minecraft.core.Direction.getNearest(out.x, out.y, out.z);
-            com.fimkov.witchsatelier.block.PetrifiedBlock.spike(level, pos.relative(dir), dir);
+            Direction dir = Direction.getNearest(out.x, out.y, out.z);
+            PetrifiedBlock.spike(level, pos.relative(dir), dir);
         }
     }
 
-    // ------------------------------------------------------------------ behaviours added by signs
-
-    /** Crosshair: turn towards the nearest creature in front of the glyph, hostile ones first. */
     private void aim(ServerLevel level) {
         if (age % 5 != 1) return;
         SpellProgram p = program;
@@ -930,7 +978,7 @@ public final class ActiveSpell {
             if (caster != null && e.getUUID().equals(caster)) continue;
             Vec3 to = e.getBoundingBox().getCenter().subtract(o);
             if (to.normalize().dot(p.normal()) < 0.25) continue;
-            double score = to.length() * (e instanceof net.minecraft.world.entity.monster.Enemy ? 0.5 : 1);
+            double score = to.length() * (e instanceof Enemy ? 0.5 : 1);
             if (score < bestScore) { bestScore = score; best = e; }
         }
         if (best != null) program = p.withPose(p.origin(), p.normal(), best.getBoundingBox().getCenter().subtract(o).normalize());
@@ -942,8 +990,7 @@ public final class ActiveSpell {
         double r = Math.max(2.5, p.radius() * 2.2);
         AABB area = new AABB(o, o).inflate(r);
         if (p.has(SpellProgram.WARD)) {
-            // a shell of light: missiles turn back, hostile creatures are pushed out
-            for (net.minecraft.world.entity.projectile.Projectile pr : level.getEntitiesOfClass(net.minecraft.world.entity.projectile.Projectile.class, area.inflate(1))) {
+            for (Projectile pr : level.getEntitiesOfClass(Projectile.class, area.inflate(1))) {
                 Vec3 rel = pr.position().subtract(o);
                 if (rel.length() > r + 0.5 || pr.getDeltaMovement().dot(rel) >= 0) continue;
                 if (caster != null && pr.getOwner() != null && pr.getOwner().getUUID().equals(caster)) continue;
@@ -951,7 +998,7 @@ public final class ActiveSpell {
                 pr.hurtMarked = true;
                 level.sendParticles(ParticleTypes.END_ROD, pr.getX(), pr.getY(), pr.getZ(), 4, 0.1, 0.1, 0.1, 0.05);
             }
-            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area, e -> e instanceof net.minecraft.world.entity.monster.Enemy)) {
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area, e -> e instanceof Enemy)) {
                 Vec3 rel = e.position().subtract(o);
                 if (rel.length() < r) push(e, new Vec3(rel.x, 0, rel.z).normalize().scale(0.3).add(0, 0.1, 0));
             }
@@ -961,8 +1008,53 @@ public final class ActiveSpell {
                 level.sendParticles(ElementLook.rune(p.element(), SignType.DIAMOND), at.x, at.y, at.z, 1, 0, 0, 0, 0);
             }
         }
+        if (p.has(SpellProgram.MIST) && age % 5 == 0) {
+            for (int i = 0; i < 6; i++) {
+                double a = level.random.nextDouble() * Math.PI * 2, d = r * (0.6 + 0.4 * level.random.nextDouble());
+                Vec3 at = o.add(ring(p, a).scale(d)).add(p.normal().scale(0.4 + level.random.nextDouble() * 1.4));
+                level.sendParticles(ParticleTypes.FALLING_WATER, at.x, at.y, at.z, 1, 0.02, 0.02, 0.02, 0);
+                level.sendParticles(ParticleTypes.BUBBLE_POP, at.x, at.y, at.z, 1, 0.02, 0.02, 0.02, 0);
+            }
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area)) {
+                if (e.isOnFire()) e.clearFire();
+                e.setTicksFrozen(Math.max(0, e.getTicksFrozen() - 4));
+            }
+            if (age % 20 == 0) {
+                BlockPos c = BlockPos.containing(o);
+                int ri = (int) Math.ceil(r);
+                for (BlockPos q : BlockPos.betweenClosed(c.offset(-ri, -2, -ri), c.offset(ri, 3, ri))) {
+                    var st = level.getBlockState(q);
+                    if (st.is(BlockTags.FIRE)) level.removeBlock(q, false);
+                    else if (st.getBlock() instanceof FarmBlock && st.getValue(FarmBlock.MOISTURE) < 7)
+                        level.setBlock(q, st.setValue(FarmBlock.MOISTURE, 7), 2);
+                }
+            }
+        }
+        if (p.has(SpellProgram.DRY) && age % 5 == 0) {
+            BlockPos c = BlockPos.containing(o);
+            int ri = (int) Math.ceil(r);
+            for (BlockPos q : BlockPos.betweenClosed(c.offset(-ri, -ri, -ri), c.offset(ri, ri, ri))) {
+                if (q.distToCenterSqr(o) > r * r) continue;
+                if (TimedBlocks.extend(level, q, 20)) continue;
+                if (!(level.getBlockState(q).getBlock() instanceof LiquidBlock) || !level.getFluidState(q).is(FluidTags.WATER)) continue;
+                TimedBlocks.set(level, q, Blocks.AIR.defaultBlockState(), 20);
+            }
+            if (level.isRaining() && age % 10 == 0) {
+                for (int i = 0; i < 8; i++) {
+                    double a = level.random.nextDouble() * Math.PI * 2;
+                    Vec3 at = o.add(Math.cos(a) * r, r * 0.8, Math.sin(a) * r);
+                    level.sendParticles(ParticleTypes.SPLASH, at.x, at.y, at.z, 2, 0.1, 0.05, 0.1, 0.02);
+                }
+            }
+        }
+        if (p.has(SpellProgram.REPEL)) {
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area, e -> (e instanceof Animal
+                    || e instanceof Enemy) && !(e instanceof TamableAnimal t && t.isTame()))) {
+                Vec3 rel = e.position().subtract(o);
+                if (rel.length() < r) push(e, new Vec3(rel.x, 0, rel.z).normalize().scale(0.25).add(0, 0.05, 0));
+            }
+        }
         if (p.has(SpellProgram.BIND) && age % 10 == 0) {
-            // threads of the spell wrap whatever stands in it
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area)) {
                 if (caster != null && e.getUUID().equals(caster)) continue;
                 e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 30, 4, false, false));
@@ -974,8 +1066,7 @@ public final class ActiveSpell {
             }
         }
         if (p.has(SpellProgram.PUPPET)) {
-            // strings of the spell: creatures forget their purpose and dance
-            for (net.minecraft.world.entity.Mob m : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, area)) {
+            for (Mob m : level.getEntitiesOfClass(Mob.class, area)) {
                 m.setTarget(null);
                 m.getNavigation().stop();
                 m.setYRot(m.getYRot() + 18);
@@ -986,33 +1077,27 @@ public final class ActiveSpell {
             }
         }
         if (p.has(SpellProgram.GATHER)) {
-            // loose things around drift in to the glyph and settle there
             double reach = r * 2;
             Vec3 into = o.add(p.normal().scale(0.6));
             for (Entity e : level.getEntities((Entity) null, new AABB(o, o).inflate(reach),
-                    e -> e instanceof net.minecraft.world.entity.item.ItemEntity || e instanceof net.minecraft.world.entity.ExperienceOrb)) {
+                    e -> e instanceof ItemEntity || e instanceof ExperienceOrb)) {
                 Vec3 to = into.subtract(e.position());
                 if (to.length() < 0.4) { e.setDeltaMovement(e.getDeltaMovement().scale(0.5)); continue; }
                 e.setDeltaMovement(e.getDeltaMovement().scale(0.8).add(to.normalize().scale(0.12)));
                 e.hurtMarked = true;
             }
             if (p.element() == Sigil.WATER && age % 40 == 0) {
-                // water gathers out of the air
                 BlockPos at = BlockPos.containing(into);
                 if (level.getBlockState(at).isAir() && p.normal().y > 0.5) TimedBlocksBridge.water(level, at);
             }
         }
     }
 
-    // ------------------------------------------------------------------ the look of each element
-
-    /** What makes a beam feel like its element: tongues of flame and smoke, gusts, grit, glints. */
     private void flourish(ServerLevel level, Vec3 from, Vec3 dir, double len, double width, BlockHitResult hit) {
         SpellProgram p = program;
         var rnd = level.random;
         switch (p.element()) {
             case FIRE -> {
-                // a roaring tongue of real flame thrown along the beam, smoke where it ends
                 int flames = (int) Math.min(24, 4 + len * 0.8 + width * 4);
                 for (int i = 0; i < flames; i++) {
                     double sp = 0.25 + rnd.nextDouble() * 0.5;
@@ -1029,7 +1114,6 @@ public final class ActiveSpell {
                 if (age % 12 == 0) level.playSound(null, from.x, from.y, from.z, SoundEvents.FIRE_AMBIENT, SoundSource.PLAYERS, 0.9f, 0.8f + rnd.nextFloat() * 0.3f);
             }
             case WIND, WIND_UNDERFOOT, AERIFORMS -> {
-                // gusts racing along it, swirling dust
                 if (age % 2 == 0) {
                     Vec3 at = from.add(dir.scale(rnd.nextDouble() * len));
                     level.sendParticles(ParticleTypes.SMALL_GUST, at.x, at.y, at.z, 1, width * 0.3, width * 0.3, width * 0.3, 0);
@@ -1042,10 +1126,9 @@ public final class ActiveSpell {
                 if (age % 20 == 1) level.playSound(null, from.x, from.y, from.z, SoundEvents.BREEZE_IDLE_AIR, SoundSource.PLAYERS, 0.8f, 1.2f);
             }
             case EARTH -> {
-                // grit of the stone it was drawn on
                 BlockState mat = plane == null ? Blocks.STONE.defaultBlockState() : level.getBlockState(BlockPos.containing(p.origin().subtract(p.normal().scale(0.5))));
                 if (mat.isAir()) mat = Blocks.STONE.defaultBlockState();
-                var grit = new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, mat);
+                var grit = new BlockParticleOption(ParticleTypes.BLOCK, mat);
                 Vec3 at = from.add(dir.scale(rnd.nextDouble() * len));
                 level.sendParticles(grit, at.x, at.y, at.z, 3, width * 0.3, width * 0.3, width * 0.3, 0.1);
                 if (hit != null && age % 4 == 0) {
@@ -1065,7 +1148,6 @@ public final class ActiveSpell {
         }
     }
 
-    /** Fire and water in the same nested glyph: they meet as scalding steam. */
     private void steam(ServerLevel level) {
         SpellProgram p = program;
         double len = Math.max(2, fxLength);
@@ -1083,13 +1165,6 @@ public final class ActiveSpell {
         }
     }
 
-    // ------------------------------------------------------------------ water
-
-    /**
-     * Column with water: a hard jet. Real drops arc out of the glyph under their own weight, burst into spray
-     * where they land; whatever it hits is knocked back and put out, things that hate water are hurt by it,
-     * cauldrons fill, farmland soaks, lava sets to stone, torches are washed off, loose ink rinsed away.
-     */
     private void waterJet(ServerLevel level) {
         SpellProgram p = program;
         double len = Math.min(4 + p.power() * 0.4 + p.radius() * 3, 44) * (p.focused() ? 1.4 : 1);
@@ -1102,7 +1177,6 @@ public final class ActiveSpell {
         fxLength = (float) len;
         fxWidth = (float) width;
 
-        // the drops themselves: thrown out fast enough to reach the far end, falling a little on the way
         double speed = Math.min(0.75 + len * 0.045, 1.8);
         int drops = (int) Math.min(30, 6 + width * 8);
         for (int i = 0; i < drops; i++) {
@@ -1115,7 +1189,7 @@ public final class ActiveSpell {
             Vec3 at = from.add(dir.scale(len * level.random.nextDouble()));
             level.sendParticles(ElementLook.spray(), at.x, at.y, at.z, 1, width * 0.2, width * 0.2, width * 0.2, 0.01);
         }
-        if (age == 1 || age % 30 == 0) level.playSound(null, from.x, from.y, from.z, com.fimkov.witchsatelier.registry.ModSounds.WATER_RUSH.get(), SoundSource.PLAYERS, 0.8f, 0.9f + level.random.nextFloat() * 0.2f);
+        if (age == 1 || age % 30 == 0) level.playSound(null, from.x, from.y, from.z, ModSounds.WATER_RUSH.get(), SoundSource.PLAYERS, 0.8f, 0.9f + level.random.nextFloat() * 0.2f);
 
         if (hitBlock) {
             Vec3 h = hit.getLocation();
@@ -1139,29 +1213,24 @@ public final class ActiveSpell {
         }
     }
 
-    /** What water does to the block it lands on. */
     private void soak(ServerLevel level, BlockPos hit, BlockPos front, Vec3 at) {
         douse(level, hit, front);
         BlockState st = level.getBlockState(hit);
         if (st.is(Blocks.CAULDRON)) {
             level.setBlock(hit, Blocks.WATER_CAULDRON.defaultBlockState(), 3);
-        } else if (st.is(Blocks.WATER_CAULDRON) && st.getValue(net.minecraft.world.level.block.LayeredCauldronBlock.LEVEL) < 3 && age % 20 == 1) {
-            level.setBlock(hit, st.cycle(net.minecraft.world.level.block.LayeredCauldronBlock.LEVEL), 3);
-        } else if (st.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) {
+        } else if (st.is(Blocks.WATER_CAULDRON) && st.getValue(LayeredCauldronBlock.LEVEL) < 3 && age % 20 == 1) {
+            level.setBlock(hit, st.cycle(LayeredCauldronBlock.LEVEL), 3);
+        } else if (st.getFluidState().is(FluidTags.LAVA)) {
             level.setBlock(hit, st.getFluidState().isSource() ? Blocks.OBSIDIAN.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState(), 3);
             level.playSound(null, hit, SoundEvents.LAVA_EXTINGUISH, SoundSource.BLOCKS, 1f, 1f);
         }
         BlockState f = level.getBlockState(front);
-        if (f.getBlock() instanceof net.minecraft.world.level.block.TorchBlock || f.is(Blocks.REDSTONE_WIRE) || f.is(BlockTags.SMALL_FLOWERS)) {
+        if (f.getBlock() instanceof TorchBlock || f.is(Blocks.REDSTONE_WIRE) || f.is(BlockTags.SMALL_FLOWERS)) {
             level.destroyBlock(front, true);
         }
-        com.fimkov.witchsatelier.glyph.GlyphService.washArea(level, at, 0.8, strokes);
+        GlyphService.washArea(level, at, 0.8, strokes);
     }
 
-    /**
-     * Dispersion with water: it wells up and rolls outward in waves, real water a hand deep that knocks things
-     * over, puts fires out and drains away behind the wave. Drawn on a wall, it pours down as a waterfall.
-     */
     private void waterWave(ServerLevel level) {
         SpellProgram p = program;
         double r = 1.5 + p.radius() * 1.4 + p.power() * 0.06;
@@ -1171,17 +1240,15 @@ public final class ActiveSpell {
         boolean floor = n.y > 0.7;
         int period = (int) Math.max(30, r / 0.3 + 12);
         int phase = (age - 1) % period;
-        // welling up in the middle
+
         for (int i = 0; i < 4; i++) {
             Vec3 v = n.scale(0.2 + level.random.nextDouble() * 0.2).add(level.random.nextGaussian() * 0.08, 0, level.random.nextGaussian() * 0.08);
             level.sendParticles(ElementLook.droplet(), o.x, o.y + 0.1, o.z, 0, v.x, v.y, v.z, 1);
         }
         if (!floor) {
-            // a waterfall out of the wall
-            // a block out from the wall, so the falling water never touches the glyph's own ink
             BlockPos front = BlockPos.containing(o.add(n.scale(1.5)));
             if (age % 10 == 1 && level.getBlockState(front).isAir()) {
-                level.setBlock(front, Blocks.WATER.defaultBlockState().setValue(net.minecraft.world.level.block.LiquidBlock.LEVEL, 1), 3);
+                level.setBlock(front, Blocks.WATER.defaultBlockState().setValue(LiquidBlock.LEVEL, 1), 3);
             }
             for (int i = 0; i < 6; i++) {
                 Vec3 v = n.scale(0.25).add(level.random.nextGaussian() * 0.05, -0.05, level.random.nextGaussian() * 0.05);
@@ -1203,12 +1270,12 @@ public final class ActiveSpell {
                     level.sendParticles(ElementLook.spray(), at.x, at.y + 0.2, at.z, 1, 0.15, 0.1, 0.15, 0.01);
                     Vec3 v = ring(p, a).scale(0.12).add(0, 0.18 + level.random.nextDouble() * 0.1, 0);
                     level.sendParticles(ElementLook.droplet(), at.x, at.y + 0.1, at.z, 0, v.x, v.y, v.z, 1);
-                    // a hand of real water on the ground, which runs away on its own behind the wave
-                    if (phase % 2 == 0 && front > p.radius() + 0.6) { // never over the glyph itself
+
+                    if (phase % 2 == 0 && front > p.radius() + 0.6) {
                         BlockPos bp = BlockPos.containing(at.x, o.y + 0.2, at.z);
-                        if (level.getBlockState(bp).isAir() && level.getBlockState(bp.below()).isFaceSturdy(level, bp.below(), net.minecraft.core.Direction.UP)) {
+                        if (level.getBlockState(bp).isAir() && level.getBlockState(bp.below()).isFaceSturdy(level, bp.below(), Direction.UP)) {
                             int lvl = Math.min(6, 2 + (int) (front / r * 4));
-                            level.setBlock(bp, Blocks.WATER.defaultBlockState().setValue(net.minecraft.world.level.block.LiquidBlock.LEVEL, lvl), 3);
+                            level.setBlock(bp, Blocks.WATER.defaultBlockState().setValue(LiquidBlock.LEVEL, lvl), 3);
                         }
                     }
                 }
@@ -1224,7 +1291,7 @@ public final class ActiveSpell {
             }
         }
         if (age % 20 == 0) {
-            com.fimkov.witchsatelier.glyph.GlyphService.washArea(level, o, r, strokes);
+            GlyphService.washArea(level, o, r, strokes);
             BlockPos center = BlockPos.containing(o);
             for (BlockPos bp : BlockPos.betweenClosed(center.offset(-(int) r, -1, -(int) r), center.offset((int) r, 1, (int) r))) {
                 if (bp.distToCenterSqr(o) <= r * r) douse(level, bp.immutable(), bp.immutable());
@@ -1232,13 +1299,6 @@ public final class ActiveSpell {
         }
     }
 
-    // ------------------------------------------------------------------ worn on the boots
-
-    /**
-     * Spells on the soles act on the wearer. Levitation flies them where they look (sneak to hover), reversed it
-     * lets them sink like a feather; a beam becomes a jet from the heels, bolts a dash. Anything else simply runs
-     * at their feet. @return true if handled here
-     */
     private boolean wornRun(ServerLevel level) {
         Player w = caster == null ? null : level.getPlayerByUUID(caster);
         if (w == null) return false;
@@ -1249,29 +1309,23 @@ public final class ActiveSpell {
         ParticleOptions part = ElementLook.particle(p.element());
         switch (p.form()) {
             case LIFT -> {
-                // in water the soles' glyph does nothing (and unless its ink is waterproof the water takes it: see
-                // PageService.washBoots, which also ends this spell)
                 if (w.isInWater()) return true;
-                if (w instanceof net.minecraft.server.level.ServerPlayer sp) Airborne.hold(sp);
+                if (w instanceof ServerPlayer sp) Airborne.hold(sp);
                 if (p.inverted()) {
-                    // feather: fall slowly, land softly, jump a little higher
                     if (v.y < -0.12) w.setDeltaMovement(v.x, v.y * 0.6 - 0.02, v.z);
                     w.addEffect(new MobEffectInstance(MobEffects.JUMP, 10, 0, false, false));
                     w.hurtMarked = true;
                 } else {
-                    // flight is steered by the flyer's own hands (see client SoaringClient): here it is only kept
-                    // going, the fall it saves forgotten, and the shoes worn a little as the hours go by
-                    if (age % 1200 == 0) w.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET).hurtAndBreak(1, w, net.minecraft.world.entity.EquipmentSlot.FEET);
+                    if (age % 1200 == 0) w.getItemBySlot(EquipmentSlot.FEET).hurtAndBreak(1, w, EquipmentSlot.FEET);
                 }
                 w.resetFallDistance();
                 if (age % 2 == 0) level.sendParticles(part, feet.x, feet.y, feet.z, 2, 0.15, 0.02, 0.15, 0.01);
-                // the speed it gives, for the flyer's client
+
                 fxLength = (float) (0.3 + Math.min(p.power() * 0.012, 0.6));
                 fxWidth = (float) Math.max(0.3, p.radius());
                 return true;
             }
             case BEAM -> {
-                // a jet out of the heels pushes the wearer the way they look
                 double thrust = 0.05 + Math.min(p.power() * 0.004, 0.12);
                 w.setDeltaMovement(v.add(look.scale(thrust)).add(0, 0.04, 0));
                 w.resetFallDistance();
@@ -1291,7 +1345,6 @@ public final class ActiveSpell {
                 return true;
             }
             case BOLTS -> {
-                // a dash for every bolt, a few ticks apart
                 if ((age - 1) % 4 == 0) {
                     double force = 0.8 + Math.min(p.power() * 0.03, 1.2);
                     w.setDeltaMovement(look.scale(force).add(0, 0.15, 0));
@@ -1308,28 +1361,24 @@ public final class ActiveSpell {
         }
     }
 
-    // ------------------------------------------------------------------ birds
-
     private void birds(ServerLevel level) {
         SpellProgram p = program;
         int alive = birds.size();
-        // a bird for every Bird sign at the start, then a new one now and then while the spell lasts
+
         boolean launch = age == 1 || (age % 50 == 0 && alive < 3 * p.birds());
         if (launch) {
             for (int i = 0; i < (age == 1 ? p.birds() : 1); i++) {
                 Vec3 dir = p.direction().add(level.random.nextGaussian() * 0.12, level.random.nextGaussian() * 0.12, level.random.nextGaussian() * 0.12).normalize();
                 birds.add(new Bird(birdSerial++, p.origin().add(p.normal().scale(0.3)), dir.scale(0.55), 120 + (int) (p.power() * 2)));
             }
-            level.playSound(null, p.origin().x, p.origin().y, p.origin().z, com.fimkov.witchsatelier.registry.ModSounds.BIRD_CALL.get(), SoundSource.PLAYERS, 1f, 0.9f + level.random.nextFloat() * 0.2f);
+            level.playSound(null, p.origin().x, p.origin().y, p.origin().z, ModSounds.BIRD_CALL.get(), SoundSource.PLAYERS, 1f, 0.9f + level.random.nextFloat() * 0.2f);
         }
         for (var it = birds.iterator(); it.hasNext(); ) {
             Bird b = it.next();
             b.age++;
             if (b.age < 34) {
-                // climb out along the spell, wings beating hard
                 b.vel = b.vel.scale(0.985);
             } else {
-                // then glide in wide circles around where it got to
                 if (b.home == null) b.home = b.pos;
                 double t = (b.age - 34) * 0.07 + b.index;
                 Vec3 target = b.home.add(Math.cos(t) * 3.2, Math.sin(t * 0.5) * 0.6, Math.sin(t) * 3.2);
@@ -1350,8 +1399,6 @@ public final class ActiveSpell {
         }
         if (p.form() == Form.BIRD && birds.isEmpty() && age > 1) ticksLeft = Math.min(ticksLeft, 2);
     }
-
-    // ------------------------------------------------------------------ helpers
 
     private List<Entity> entitiesAlong(ServerLevel level, Vec3 from, Vec3 dir, double len, double width) {
         Vec3 to = from.add(dir.scale(len));
@@ -1378,18 +1425,16 @@ public final class ActiveSpell {
         push(e, tangent.normalize().scale(amount));
     }
 
-    /** Unit vector in the glyph's plane at angle a. */
     private Vec3 ring(SpellProgram p, double a) {
         return frame.planeVector(Math.cos(a), Math.sin(a));
     }
 
     private void placeTemp(ServerLevel level, BlockPos pos, BlockState state) {
         BlockState current = level.getBlockState(pos);
-        // only into empty space: never overwrite real blocks or existing liquids
+
         if (!current.isAir() && !(current.canBeReplaced() && current.getFluidState().isEmpty())) return;
         if (current == state || temps.size() >= MAX_TEMPS) return;
         if (!tempAt.add(pos.immutable())) {
-            // already ours (raised, then trampled or swapped): put it back without a second record
             level.setBlock(pos, state, 3);
             temps.removeIf(t -> t.pos().equals(pos));
             temps.add(new TempBlock(pos.immutable(), state));
@@ -1399,7 +1444,6 @@ public final class ActiveSpell {
         temps.add(new TempBlock(pos.immutable(), state));
     }
 
-    /** Earth Dispersion: the ground heaves up into a low wall all round the glyph, a little higher each time. */
     private void earthWall(ServerLevel level, Vec3 o, double r, int step) {
         if (plane == null || program.normal().y < 0.5) return;
         BlockPos below = BlockPos.containing(o.subtract(0, 0.5, 0));
@@ -1408,7 +1452,7 @@ public final class ActiveSpell {
         int height = Math.min(step, 1 + (int) (program.power() / 12));
         double wr = Math.max(2, r * 0.8);
         int steps = (int) Math.ceil(wr * Math.PI * 2 / 0.7);
-        java.util.Set<BlockPos> done = new java.util.HashSet<>();
+        Set<BlockPos> done = new HashSet<>();
         for (int k = 0; k < steps; k++) {
             double a = k * Math.PI * 2 / steps;
             BlockPos col = BlockPos.containing(o.x + Math.cos(a) * wr, o.y + 0.5, o.z + Math.sin(a) * wr);
@@ -1416,12 +1460,11 @@ public final class ActiveSpell {
             BlockPos at = col.above(height - 1);
             if (level.getBlockState(at.below()).isAir() && height > 1 && !temps.isEmpty() && temps.stream().noneMatch(t -> t.pos().equals(at.below()))) continue;
             placeTemp(level, at, mat);
-            if (height == 1) level.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, mat), at.getX() + 0.5, at.getY() + 0.2, at.getZ() + 0.5, 4, 0.3, 0.1, 0.3, 0.05);
+            if (height == 1) level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, mat), at.getX() + 0.5, at.getY() + 0.2, at.getZ() + 0.5, 4, 0.3, 0.1, 0.3, 0.05);
         }
         level.playSound(null, o.x, o.y, o.z, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.BLOCKS, 0.9f, 0.6f);
     }
 
-    /** Earth Levitation on the ground: the earth under the glyph rises as a platform and carries whoever is on it. */
     private void earthRise(ServerLevel level) {
         SpellProgram p = program;
         int h = (int) Math.min(16, 2 + p.power() * 0.15 + p.radius());
@@ -1437,7 +1480,7 @@ public final class ActiveSpell {
         for (int dx = -rr; dx <= rr; dx++) for (int dz = -rr; dz <= rr; dz++) {
             if (dx * dx + dz * dz > rr * rr + rr) continue;
             BlockPos at = c.offset(dx, 0, dz);
-            // lift whoever stands there first, so the rising earth never swallows them
+
             for (Entity e : level.getEntities((Entity) null, new AABB(at), Entity::isAlive)) {
                 e.teleportTo(e.getX(), at.getY() + 1.01, e.getZ());
                 e.resetFallDistance();

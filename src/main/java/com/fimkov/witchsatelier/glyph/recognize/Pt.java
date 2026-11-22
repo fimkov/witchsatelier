@@ -1,6 +1,5 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
-/** A 2D point on a drawing surface, in blocks. Pure value type with no Minecraft dependency. */
 public record Pt(double x, double y) {
     public Pt plus(Pt o) { return new Pt(x + o.x, y + o.y); }
     public Pt minus(Pt o) { return new Pt(x - o.x, y - o.y); }

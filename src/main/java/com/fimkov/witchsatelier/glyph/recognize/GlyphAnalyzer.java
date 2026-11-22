@@ -1,19 +1,23 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
+import com.fimkov.witchsatelier.glyph.model.Sigil;
+import com.fimkov.witchsatelier.glyph.model.SignType;
 import com.fimkov.witchsatelier.glyph.recognize.GlyphReading.ReadSign;
 import com.fimkov.witchsatelier.glyph.recognize.SymbolRecognizer.Match;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * Reads a drawing: finds the outer ring, groups the strokes inside it into symbols,
- * takes the one nearest the middle as the sigil and reads the rest as signs.
- */
 public final class GlyphAnalyzer {
-    /** Below this score a symbol is treated as noise rather than read as anything. */
+    static final double SIDE_SIGIL_SCORE = 0.5, SIDE_SIGIL_MARGIN = 0.12;
+
     public static final double MIN_SCORE = 0.35;
-    /** Inner rings smaller than this fraction of the outer radius are read as parts of symbols. */
+
     static final double INNER_RING_MIN = 0.5;
 
     private GlyphAnalyzer() {}
@@ -22,22 +26,15 @@ public final class GlyphAnalyzer {
         return analyze(strokes, inkWidth, Math.PI / 2);
     }
 
-    /**
-     * A glyph on a floor or ceiling has no up of its own, and its witch walks round it while drawing: the way they
-     * face now may not be the way they faced while drawing the sigil. Read it from each side (their facing first)
-     * and keep the side the sigil reads clearest from.
-     */
     public static GlyphReading analyzeFromAnySide(List<List<Pt>> strokes, double inkWidth, double upAngle) {
-        // the marks round the ring read the same from every side: only the sigil is read again each time
         return SymbolRecognizer.cached(() -> fromAnySide(strokes, inkWidth, upAngle));
     }
 
     private static GlyphReading fromAnySide(List<List<Pt>> strokes, double inkWidth, double upAngle) {
         GlyphReading best = analyze(strokes, inkWidth, upAngle);
         if (best.ring() == null) return best;
-        double bestScore = sideScore(best) + 0.05; // the way they face now wins a close call
-        // eight sides: a witch may close the ring standing anywhere round it, and each side covers the turns within
-        // the recogniser's own give (about 24 degrees either way)
+        double bestScore = sideScore(best) + 0.05;
+
         for (int k = 1; k < 8; k++) {
             GlyphReading r = analyze(strokes, inkWidth, upAngle + k * Math.PI / 4);
             if (sideScore(r) > bestScore) {
@@ -48,22 +45,16 @@ public final class GlyphAnalyzer {
         return best;
     }
 
-    /** How clearly the sigils read from a side: the middle one, and the inner glyph's (an outer band often has none). */
     private static double sideScore(GlyphReading r) {
         return r.centerScore() + (r.core() != null ? sideScore(r.core()) : 0);
     }
 
-    /**
-     * An Eye is an almond with a pupil; without the pupil the same almond turned on its side is a Diamond. The pupil
-     * is a small mark and weighs little among all the points of the outline, so a mark sitting in the middle of the
-     * shape settles it: then it is an Eye, if it looks like one at all.
-     */
     static List<Match> pupilMakesAnEye(List<List<Pt>> strokes, List<Integer> g, List<Match> rank) {
-        if (rank.isEmpty() || rank.get(0).template() == null || rank.get(0).template().sign() != com.fimkov.witchsatelier.glyph.model.SignType.DIAMOND) return rank;
+        if (rank.isEmpty() || rank.get(0).template() == null || rank.get(0).template().sign() != SignType.DIAMOND) return rank;
         if (!hasPupil(strokes, g)) return rank;
         for (int i = 1; i < rank.size(); i++) {
             Match m = rank.get(i);
-            if (m.template().sign() == com.fimkov.witchsatelier.glyph.model.SignType.EYE && m.score() >= 0.25) {
+            if (m.template().sign() == SignType.EYE && m.score() >= 0.25) {
                 List<Match> out = new ArrayList<>(rank);
                 out.remove(i);
                 out.add(0, m);
@@ -73,39 +64,30 @@ public final class GlyphAnalyzer {
         return rank;
     }
 
-    /**
-     * A Column is a staff with a bar across one end; a Bend is a staff with a hook to one side. A shaky or short bar
-     * makes the two look alike to the point clouds, so when they read nearly the same the end settles it: a bar
-     * reaches out on both sides of the staff, a hook on one.
-     */
     static List<Match> barOrHook(List<List<Pt>> strokes, List<Integer> g, List<Match> rank) {
         if (rank.size() < 2) return rank;
         Match top = rank.get(0);
         if (top.template() == null) return rank;
-        com.fimkov.witchsatelier.glyph.model.SignType t = top.template().sign();
-        if (t != com.fimkov.witchsatelier.glyph.model.SignType.BEND && t != com.fimkov.witchsatelier.glyph.model.SignType.COLUMN) return rank;
-        com.fimkov.witchsatelier.glyph.model.SignType other = t == com.fimkov.witchsatelier.glyph.model.SignType.BEND ? com.fimkov.witchsatelier.glyph.model.SignType.COLUMN : com.fimkov.witchsatelier.glyph.model.SignType.BEND;
+        SignType t = top.template().sign();
+        if (t != SignType.BEND && t != SignType.COLUMN) return rank;
+        SignType other = t == SignType.BEND ? SignType.COLUMN : SignType.BEND;
         int at = -1;
         for (int i = 1; i < rank.size(); i++) if (rank.get(i).template().sign() == other) { at = i; break; }
         if (at < 0 || top.score() - rank.get(at).score() > 0.12 || rank.get(at).score() < 0.3) return rank;
         int sides = endSides(strokes, g);
-        if (sides == 0 || (sides == 2) == (t == com.fimkov.witchsatelier.glyph.model.SignType.COLUMN)) return rank;
+        if (sides == 0 || (sides == 2) == (t == SignType.COLUMN)) return rank;
         List<Match> out = new ArrayList<>(rank);
         Match m = out.remove(at);
         out.add(0, m);
         return out;
     }
 
-    /**
-     * Of a staff-like mark: 2 if one end reaches out to both sides of the staff (a bar), 1 if to one side only (a
-     * hook), 0 if it cannot tell.
-     */
     static int endSides(List<List<Pt>> strokes, List<Integer> g) {
         List<Pt> pts = new ArrayList<>();
         for (int i : g) pts.addAll(strokes.get(i));
         if (pts.size() < 8) return 0;
         Pt c = PointCloud.centroid(pts);
-        // the staff's direction: the principal axis of the points
+
         double sxx = 0, syy = 0, sxy = 0;
         for (Pt p : pts) { double dx = p.x() - c.x(), dy = p.y() - c.y(); sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
         double ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
@@ -114,14 +96,14 @@ public final class GlyphAnalyzer {
         for (Pt p : pts) { double a = (p.x() - c.x()) * ax + (p.y() - c.y()) * ay; lo = Math.min(lo, a); hi = Math.max(hi, a); }
         double len = hi - lo;
         if (len <= 0) return 0;
-        // the staff's line across its middle, then how far each end strays to either side of it
+
         List<Double> mid = new ArrayList<>();
         for (Pt p : pts) {
             double a = (p.x() - c.x()) * ax + (p.y() - c.y()) * ay;
             if (a > lo + 0.3 * len && a < hi - 0.3 * len) mid.add(-(p.x() - c.x()) * ay + (p.y() - c.y()) * ax);
         }
         if (mid.isEmpty()) return 0;
-        java.util.Collections.sort(mid);
+        Collections.sort(mid);
         double line = mid.get(mid.size() / 2);
         int best = 0;
         double bestReach = 0;
@@ -143,7 +125,6 @@ public final class GlyphAnalyzer {
         return best;
     }
 
-    /** True if one small mark lies in the middle of the group's longest stroke (a pupil in an eye). */
     static boolean hasPupil(List<List<Pt>> strokes, List<Integer> g) {
         if (g.size() < 2) return false;
         int body = g.get(0);
@@ -168,7 +149,6 @@ public final class GlyphAnalyzer {
         return b;
     }
 
-    /** The sigil compared upright the way its drawer saw it: {@code upAngle} is their "up" in drawing coordinates. */
     private static Match center(List<List<Pt>> sym, double turn) {
         if (Math.abs(turn) < 1e-6) return SymbolRecognizer.classifyCenter(sym);
         List<List<Pt>> rot = new ArrayList<>();
@@ -180,10 +160,6 @@ public final class GlyphAnalyzer {
         return SymbolRecognizer.classifyCenter(rot);
     }
 
-    /**
-     * @param upAngle direction (radians, in drawing coordinates) that was "up" for whoever drew it: straight up on a
-     *                wall or page, the way they faced on a floor or ceiling
-     */
     public static GlyphReading analyze(List<List<Pt>> strokes, double inkWidth, double upAngle) {
         return SymbolRecognizer.cached(() -> analyzeNow(strokes, inkWidth, upAngle));
     }
@@ -205,16 +181,12 @@ public final class GlyphAnalyzer {
             if (ring == outer) {
                 for (int i : ring.strokes()) isRing[i] = true;
             } else if (ring.center().dist(c) + ring.radius() <= r * 1.05 && ring.radius() >= INNER_RING_MIN * r) {
-                // a big ring inside the outer one: nested glyph
                 for (int i : ring.strokes()) isRing[i] = true;
                 inner.add(ring);
                 used.addAll(ring.strokes());
             }
-            // small circles are parts of symbols (Wind Underfoot, Eye, Billowing...), not rings
         }
 
-        // nested glyph: a big ring sitting around the middle holds a glyph of its own; what lies between the
-        // two rings is the outer layer
         RingFinder.Ring nest = null;
         for (RingFinder.Ring ring : inner) {
             if (ring.center().dist(c) < 0.25 * r && (nest == null || ring.radius() > nest.radius())) nest = ring;
@@ -234,13 +206,12 @@ public final class GlyphAnalyzer {
                 List<Integer> mapped = new ArrayList<>();
                 for (int i : inside.usedStrokes()) mapped.add(coreIdx.get(i));
                 core = new GlyphReading(inside.ring(), inside.innerRings(), inside.sigil(), inside.centerSign(), inside.centerScore(),
-                        inside.signs(), inside.unknown(), inside.imbalance(), inside.neatness(), List.copyOf(mapped), inside.core());
+                        inside.signs(), inside.unknown(), inside.imbalance(), inside.neatness(), List.copyOf(mapped), inside.core(), inside.sides());
                 for (int i : coreIdx) inCore[i] = true;
                 used.addAll(coreIdx);
             }
         }
 
-        // strokes inside the outer ring that are not rings themselves
         List<Integer> inside = new ArrayList<>();
         for (int i = 0; i < strokes.size(); i++) {
             if (isRing[i] || inCore[i] || strokes.get(i).isEmpty()) continue;
@@ -248,8 +219,6 @@ public final class GlyphAnalyzer {
         }
         used.addAll(inside);
 
-        // touch-ups drawn over the ring's own ink (going over the closing, say) belong to the ring, not to its signs;
-        // a sign's bar near the ring always leaves a gap
         List<List<Pt>> ringInk = new ArrayList<>();
         for (int i : outer.strokes()) ringInk.add(strokes.get(i));
         double over = inkWidth * 1.5;
@@ -263,15 +232,11 @@ public final class GlyphAnalyzer {
         mergeEnclosed(strokes, groups, c, r);
         mergeParts(strokes, groups, c, r);
 
-        // centre symbol: everything drawn in the middle zone belongs to it, even parts that do not touch
-        // (the water sigil's drops, the earth sigil's dots)
         List<Integer> centerGroup = null;
         List<List<Integer>> centerParts = new ArrayList<>();
         List<List<Integer>> outerGroups = new ArrayList<>();
         for (List<Integer> g : groups) {
             if (centroid(strokes, g).dist(c) < 0.35 * r) {
-                // a sign drawn so close that it touches the sigil: peel it off again if it reads as a sign on
-                // its own and the sigil reads no worse without it
                 List<Integer> far = new ArrayList<>();
                 for (int i : g) if (PointCloud.centroid(strokes.get(i)).dist(c) > 0.38 * r) far.add(i);
                 if (!far.isEmpty() && far.size() < g.size()) {
@@ -293,8 +258,7 @@ public final class GlyphAnalyzer {
                 outerGroups.add(g);
             }
         }
-        // specks by the sigil (the earth sigil's dots) are no signs of their own, whatever they resemble: they are
-        // part of the sigil if it reads no worse with them, else a blot of ink
+
         if (centerGroup != null) {
             List<List<Integer>> specks = new ArrayList<>();
             double sigilSize = size(strokes, centerGroup);
@@ -312,8 +276,7 @@ public final class GlyphAnalyzer {
                 }
             }
         }
-        // a big sigil: its outer bits (the wind sigil's strokes, say) land outside the middle zone and read as
-        // nothing on their own; take them in if the sigil reads better with them
+
         if (centerGroup != null) {
             List<List<Integer>> stray = new ArrayList<>();
             for (List<Integer> g : outerGroups) {
@@ -335,11 +298,10 @@ public final class GlyphAnalyzer {
                 }
             }
         }
-        // a sign drawn around the sigil (Bird, Rain, Weave...): try reading the innermost part as the sigil and the
-        // rest as a sign enclosing it
+
         ReadSign enclosing = null;
         if (centerParts.size() > 1) {
-            centerParts.sort(java.util.Comparator.comparingDouble(g -> centroid(strokes, g).dist(c)));
+            centerParts.sort(Comparator.comparingDouble(g -> centroid(strokes, g).dist(c)));
             Match whole = center(pick(strokes, centerGroup), turn);
             Match innerPart = center(pick(strokes, centerParts.get(0)), turn);
             List<Integer> rest = new ArrayList<>();
@@ -357,8 +319,8 @@ public final class GlyphAnalyzer {
 
         double scoreSum = 0;
         int scored = 0, unknown = 0;
-        com.fimkov.witchsatelier.glyph.model.Sigil sigil = null;
-        com.fimkov.witchsatelier.glyph.model.SignType centerSign = null;
+        Sigil sigil = null;
+        SignType centerSign = null;
         double centerScore = 0;
         if (centerGroup != null) {
             Match m = center(pick(strokes, centerGroup), turn);
@@ -375,10 +337,10 @@ public final class GlyphAnalyzer {
 
         List<ReadSign> signs = new ArrayList<>();
         double wx = 0, wy = 0, wsum = 0;
-        // first pass: what each mark around the sigil most looks like
+
         List<List<Match>> ranked = new ArrayList<>();
         Match[] chosen = new Match[outerGroups.size()];
-        java.util.Map<com.fimkov.witchsatelier.glyph.model.SignType, Integer> votes = new java.util.EnumMap<>(com.fimkov.witchsatelier.glyph.model.SignType.class);
+        Map<SignType, Integer> votes = new EnumMap<>(SignType.class);
         for (int k = 0; k < outerGroups.size(); k++) {
             List<Integer> g = outerGroups.get(k);
             Pt cen = centroid(strokes, g);
@@ -388,15 +350,14 @@ public final class GlyphAnalyzer {
             ranked.add(rank);
             Match best = rank.isEmpty() ? Match.NONE : rank.get(0);
             double margin = rank.size() > 1 ? best.score() - rank.get(1).score() : best.score();
-            // clear enough on its own, or a shaky mark that still looks like one thing far more than anything else
+
             if (best.template() != null && (best.score() >= MIN_SCORE || (best.score() >= 0.27 && margin >= 0.1))) {
                 chosen[k] = best;
                 votes.merge(best.template().sign(), 1, Integer::sum);
             }
         }
-        // second pass: signs are usually drawn as a set; a mark that nearly reads as the sign its neighbours are
-        // is taken as that sign (a witch's hand shakes, her intent does not)
-        com.fimkov.witchsatelier.glyph.model.SignType common = null;
+
+        SignType common = null;
         int most = 1;
         for (var e : votes.entrySet()) if (e.getValue() > most) { most = e.getValue(); common = e.getKey(); }
         if (common != null) {
@@ -404,14 +365,14 @@ public final class GlyphAnalyzer {
                 if (chosen[k] != null && chosen[k].template().sign() == common) continue;
                 List<Match> rank = ranked.get(k);
                 if (rank.isEmpty()) continue;
-                // a clear reading of something else holds against the set; a near tie goes the set's way
+
                 double give = chosen[k] != null && chosen[k].score() >= 0.5 ? 0.08 : 0.06;
                 for (Match m : rank) {
                     if (m.template().sign() == common && m.score() >= 0.24 && rank.get(0).score() - m.score() <= give) { chosen[k] = m; break; }
                 }
             }
         }
-        // in the band of a nested glyph a sigil may stand among the signs: the outer layer's own element
+
         if (core != null && sigil == null) {
             Match bestSigil = null;
             int at = -1;
@@ -429,6 +390,22 @@ public final class GlyphAnalyzer {
                 scored++;
                 chosen[at] = null;
                 outerGroups.set(at, List.of());
+            }
+        }
+
+        List<Sigil> sides = new ArrayList<>();
+        if (core == null && (sigil != null || centerSign != null)) {
+            for (int k = 0; k < outerGroups.size(); k++) {
+                if (outerGroups.get(k).isEmpty()) continue;
+                Match cm = center(pick(strokes, outerGroups.get(k)), turn);
+                if (cm.template() == null || cm.template().sigil() == null || cm.score() < SIDE_SIGIL_SCORE) continue;
+                double asSign = chosen[k] == null ? 0 : chosen[k].score();
+                if (cm.score() < asSign + SIDE_SIGIL_MARGIN) continue;
+                sides.add(cm.template().sigil());
+                scoreSum += cm.score();
+                scored++;
+                chosen[k] = null;
+                outerGroups.set(k, List.of());
             }
         }
         for (int k = 0; k < outerGroups.size(); k++) {
@@ -460,15 +437,9 @@ public final class GlyphAnalyzer {
         }
         Pt imbalance = wsum > 0 ? new Pt(wx / wsum, wy / wsum) : new Pt(0, 0);
         double neatness = scored > 0 ? scoreSum / (scored + unknown) : 0;
-        return new GlyphReading(outer, inner, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, used, core);
+        return new GlyphReading(outer, inner, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, used, core, List.copyOf(sides));
     }
 
-    /** Union strokes that come within {@code mergeDist} of each other into symbols. */
-    /**
-     * A small mark in the middle of a bigger sign belongs to it even without touching it (a pupil in an eye, drawn
-     * in two arcs round it). Not in the middle of the glyph, where everything already makes up the sigil and a sigil
-     * may stand inside a sign drawn round it.
-     */
     static void mergeEnclosed(List<List<Pt>> strokes, List<List<Integer>> groups, Pt c, double r) {
         for (int i = 0; i < groups.size(); i++) {
             List<Integer> big = groups.get(i);
@@ -495,12 +466,7 @@ public final class GlyphAnalyzer {
         }
     }
 
-    /**
-     * Signs made of parts that do not touch (Float's two waves, say) come apart in the grouping. Two marks near each
-     * other round the ring are taken as one sign when together they read clearly better than either alone.
-     */
     static void mergeParts(List<List<Pt>> strokes, List<List<Integer>> groups, Pt c, double r) {
-        // first whole clusters of pieces lying close together (Enlarge's four corners), then pairs
         boolean[] seen = new boolean[groups.size()];
         List<List<Integer>> clusters = new ArrayList<>();
         for (int i = 0; i < groups.size(); i++) {
@@ -517,8 +483,6 @@ public final class GlyphAnalyzer {
         }
         List<List<Integer>> absorbed = new ArrayList<>();
         for (List<Integer> comp : clusters) {
-            // three or more pieces this close are one sign drawn in parts, if together they read clearly and no
-            // worse than the pieces do on average (each corner of Enlarge, say, half looks like something else)
             List<Integer> all = new ArrayList<>();
             double mean = 0;
             for (int i : comp) { all.addAll(groups.get(i)); mean += signScore(strokes, groups.get(i), c) / comp.size(); }
@@ -581,7 +545,6 @@ public final class GlyphAnalyzer {
         return false;
     }
 
-    /** Largest side of the group's bounding box. */
     static double size(List<List<Pt>> strokes, List<Integer> g) {
         List<Pt> pts = new ArrayList<>();
         for (int k : g) pts.addAll(strokes.get(k));
@@ -589,7 +552,6 @@ public final class GlyphAnalyzer {
         return Math.max(b[2] - b[0], b[3] - b[1]);
     }
 
-    /** Convex hull, counter-clockwise (monotone chain). */
     private static List<Pt> hull(List<Pt> pts) {
         List<Pt> p = new ArrayList<>(pts);
         p.sort((a, b) -> a.x() != b.x() ? Double.compare(a.x(), b.x()) : Double.compare(a.y(), b.y()));
@@ -602,7 +564,7 @@ public final class GlyphAnalyzer {
                 h.add(q);
             }
             h.remove(h.size() - 1);
-            java.util.Collections.reverse(p);
+            Collections.reverse(p);
         }
         return h;
     }
@@ -611,7 +573,6 @@ public final class GlyphAnalyzer {
         return (a.x() - o.x()) * (b.y() - o.y()) - (a.y() - o.y()) * (b.x() - o.x());
     }
 
-    /** Point in polygon. */
     private static boolean inside(List<Pt> poly, Pt p) {
         boolean in = false;
         for (int i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
@@ -634,7 +595,7 @@ public final class GlyphAnalyzer {
         }
         List<List<Integer>> out = new ArrayList<>();
         int[] slot = new int[n];
-        java.util.Arrays.fill(slot, -1);
+        Arrays.fill(slot, -1);
         for (int i = 0; i < n; i++) {
             int root = find(parent, i);
             if (slot[root] < 0) { slot[root] = out.size(); out.add(new ArrayList<>()); }
