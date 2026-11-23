@@ -131,8 +131,6 @@ public record InkStroke(long id, int au, int av, float[] rel, InkType ink, UUID 
         float[] rel = new float[bits.length];
         for (int i = 0; i < bits.length; i++) rel[i] = Float.intBitsToFloat(bits[i]);
         StrokeState state = StrokeState.byId(t.getByte("state"));
-
-        if (state == StrokeState.ACTIVE) state = StrokeState.IDLE;
         UUID author = t.hasUUID("author") ? t.getUUID("author") : NOBODY;
         return new InkStroke(t.getLong("id"), t.getInt("au"), t.getInt("av"), rel, InkType.byId(t.getByte("ink")), author,
                 state, t.getInt("color"));

@@ -39,6 +39,17 @@ public final class ModEntities {
             () -> EntityType.Builder.<GlyphArrow>of(GlyphArrow::new, MobCategory.MISC).sized(0.5f, 0.5f)
                     .eyeHeight(0.13f).clientTrackingRange(4).updateInterval(20).build("witchsatelier:glyph_arrow"));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<com.fimkov.witchsatelier.entity.WaterHorseEntity>> WATER_HORSE = ENTITIES.register("water_horse",
+            () -> EntityType.Builder.<com.fimkov.witchsatelier.entity.WaterHorseEntity>of(com.fimkov.witchsatelier.entity.WaterHorseEntity::new, MobCategory.MISC)
+                    .sized(1.3965f, 1.6f).clientTrackingRange(10).noSave().build("witchsatelier:water_horse"));
+
+    public static final DeferredHolder<EntityType<?>, EntityType<com.fimkov.witchsatelier.entity.DoorknobEntity>> DOORKNOB = ENTITIES.register("doorknob",
+            () -> EntityType.Builder.<com.fimkov.witchsatelier.entity.DoorknobEntity>of(com.fimkov.witchsatelier.entity.DoorknobEntity::new, MobCategory.MISC)
+                    .sized(0.25f, 0.25f).clientTrackingRange(8).updateInterval(20).noSummon().build("witchsatelier:doorknob"));
+    public static final DeferredHolder<EntityType<?>, EntityType<com.fimkov.witchsatelier.entity.FluttergramEntity>> FLUTTERGRAM = ENTITIES.register("fluttergram",
+            () -> EntityType.Builder.<com.fimkov.witchsatelier.entity.FluttergramEntity>of(com.fimkov.witchsatelier.entity.FluttergramEntity::new, MobCategory.MISC)
+                    .sized(0.4f, 0.3f).clientTrackingRange(8).updateInterval(2).noSave().noSummon().build("witchsatelier:fluttergram"));
+
     public static void spawnPlacements(RegisterSpawnPlacementsEvent e) {
         e.register(BRIMHAT.get(), SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 Monster::checkMonsterSpawnRules, RegisterSpawnPlacementsEvent.Operation.REPLACE);
@@ -51,5 +62,6 @@ public final class ModEntities {
         e.put(BRIMHAT.get(), BrimhatEntity.attributes().build());
         e.put(KNIGHT_MORALIS.get(), KnightMoralisEntity.attributes().build());
         e.put(SEALCHAIR.get(), SealchairEntity.attributes().build());
+        e.put(WATER_HORSE.get(), com.fimkov.witchsatelier.entity.WaterHorseEntity.attributes().build());
     }
 }

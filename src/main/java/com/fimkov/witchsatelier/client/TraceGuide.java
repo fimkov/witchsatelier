@@ -28,6 +28,13 @@ public final class TraceGuide {
     static double scale = 2.0;
     private static final double MIN_SCALE = 0.6, MAX_SCALE = 6;
 
+    public static void reset() {
+        lockPlane = null;
+        lockAt = null;
+        sentPlane = null;
+        shown = 0;
+    }
+
     private static SurfacePlane lockPlane;
     private static Pt lockAt;
     private static double lockTurn;

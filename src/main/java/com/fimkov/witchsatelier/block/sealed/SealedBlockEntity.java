@@ -47,6 +47,25 @@ public abstract class SealedBlockEntity extends BlockEntity {
     }
 
     @Override
+    protected void collectImplicitComponents(net.minecraft.core.component.DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        components.set(com.fimkov.witchsatelier.registry.ModComponents.SEAL_CHARGE.get(), charge);
+    }
+
+    @Override
+    protected void applyImplicitComponents(BlockEntity.DataComponentInput input) {
+        super.applyImplicitComponents(input);
+        Integer kept = input.get(com.fimkov.witchsatelier.registry.ModComponents.SEAL_CHARGE.get());
+        if (kept != null) charge = Math.max(0, kept);
+    }
+
+    @Override
+    public void removeComponentsFromTag(CompoundTag tag) {
+        super.removeComponentsFromTag(tag);
+        tag.remove("charge");
+    }
+
+    @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         return saveWithoutMetadata(registries);
     }

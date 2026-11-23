@@ -89,12 +89,18 @@ public final class SpellCompiler {
         Form form;
         if (element == null && center == null && r.signs().isEmpty() && r.unknown() == 0) {
             form = Form.BURST;
+        } else if (element == null && center == SignType.VISION && r.has(SignType.PULL)) {
+            form = Form.OBLIVION;
         } else if (element == null && center != null) {
             form = Form.CENTER_SIGN;
         } else if (element == null || element == Sigil.APPLE) {
             form = Form.FIZZLE;
         } else if (element == Sigil.EARTH && r.count(SignType.EYE) >= 2) {
             form = Form.PETRIFY;
+        } else if (element == Sigil.WATER && r.has(SignType.CRUSH)) {
+            form = Form.MANIFEST;
+        } else if (r.has(SignType.HORSE)) {
+            form = Form.MANIFEST;
         } else if (r.has(SignType.CRUSH)) {
             form = element == Sigil.EARTH ? (invertedOf(r, SignType.CRUSH) ? Form.RESTORE : Form.CRUSH) : Form.FIZZLE;
         } else if (r.has(SignType.BOLT)) {
@@ -149,10 +155,45 @@ public final class SpellCompiler {
             layers.add(new SpellProgram(side, null, form, inverted, origin, normal, dir, radius, power * 0.6, duration,
                     focused, gentle, spread, vortex, bolts, misfire, hidden, 0));
         }
-        int sideMods = sideMods(element, r);
+        int sideMods = sideMods(element, r) | shapeMods(element, r, dirSigns) | regionMods(r);
+        if (r.has(SignType.TREAD) && invertedOf(r, SignType.TREAD)) sideMods |= SpellProgram.TREAD_INVERTED;
         if (layers.isEmpty()) return main.withMods(mods(r) | sideMods);
         return main.layered(element, radius, power * 0.85, duration, focused, birds, bolts, List.copyOf(layers), false)
                 .withMods(mods(r) | sideMods);
+    }
+
+    static int regionMods(GlyphReading r) {
+        int n = 0, in = 0;
+        double sx = 0, sy = 0;
+        for (ReadSign s : r.signs()) {
+            if (s.type() != SignType.REGION) continue;
+            n++;
+            if (s.inverted()) in++;
+            double ox = Math.cos(s.angle()), oy = Math.sin(s.angle());
+            switch (s.orientation()) {
+                case OUTWARD -> { sx += ox; sy += oy; }
+                case INWARD -> { sx -= ox; sy -= oy; }
+                case CCW -> { sx -= oy; sy += ox; }
+                default -> { sx += oy; sy -= ox; }
+            }
+        }
+        if (n == 0) return 0;
+        if (n >= 2 && Math.hypot(sx, sy) / n > 0.7) {
+            int octant = (int) Math.round(Math.atan2(sy, sx) / (Math.PI / 4)) & 7;
+            return SpellProgram.REGION_SIDE | (octant << SpellProgram.REGION_OCTANT);
+        }
+        if (in == n) return SpellProgram.REGION_IN;
+        if (in == 0) return SpellProgram.REGION_OUT;
+        return SpellProgram.REGION_IN | SpellProgram.REGION_OUT;
+    }
+
+    static int shapeMods(Sigil element, GlyphReading r, int dirSigns) {
+        int m = 0;
+        if (element == Sigil.WATER && r.has(SignType.CRUSH)) m |= SpellProgram.CAGE;
+        if (element == Sigil.WATER && r.has(SignType.HORSE)) m |= SpellProgram.STEED;
+        if (element == Sigil.WIND && r.count(SignType.COLUMN) >= 2 && r.count(SignType.CONVERGENCE) >= 2) m |= SpellProgram.WALL;
+        if (element == Sigil.EARTH && r.has(SignType.PULL) && dirSigns > 0) m |= SpellProgram.BEND;
+        return m;
     }
 
     static int sideMods(Sigil middle, GlyphReading r) {
@@ -179,6 +220,7 @@ public final class SpellCompiler {
     private static int duration(Form form, SignType center, GlyphReading r, double quality, double radius, double inkDuration, int bolts) {
         return switch (form) {
             case BEAM, SPILL, PULL, LIFT, RAIN, BIRD, MANIFEST, CENTER_SIGN -> WHILE_WHOLE;
+            case OBLIVION -> WHILE_WHOLE;
             case PETRIFY -> Math.max(1, (int) Math.round(90 * quality * (1 + radius * 0.3) * inkDuration));
             case BOLTS -> bolts * 4;
             default -> 1;

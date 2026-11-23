@@ -41,6 +41,9 @@ public class CapturePennantItem extends Item {
         if (player.getCooldowns().isOnCooldown(this)) return InteractionResultHolder.pass(stack);
         if (level instanceof ServerLevel sl) {
             Vec3 eye = player.getEyePosition(), look = player.getLookAngle(), end = eye.add(look.scale(16));
+            var wall = level.clip(new net.minecraft.world.level.ClipContext(eye, end, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+            if (wall.getType() != net.minecraft.world.phys.HitResult.Type.MISS) end = wall.getLocation();
             EntityHitResult hit = ProjectileUtil.getEntityHitResult(level, player, eye, end,
                     new AABB(eye, end).inflate(1.5), e -> e instanceof LivingEntity && e != player && e.isAlive(), 0.6f);
             Vec3 to = hit != null ? hit.getLocation() : end;

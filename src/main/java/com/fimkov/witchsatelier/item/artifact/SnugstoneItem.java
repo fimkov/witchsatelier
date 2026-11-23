@@ -35,7 +35,8 @@ public class SnugstoneItem extends Item {
             if (s.is(Blocks.SNOW) || s.is(Blocks.POWDER_SNOW)) {
                 level.removeBlock(p, false);
             } else if (s.is(Blocks.ICE) || s.is(Blocks.FROSTED_ICE)) {
-                level.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+                if (level.dimensionType().ultraWarm()) level.removeBlock(p, false);
+                else level.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
             } else continue;
             if (level instanceof ServerLevel sl) sl.sendParticles(ParticleTypes.CLOUD, p.getX() + 0.5, p.getY() + 0.8, p.getZ() + 0.5, 3, 0.2, 0.1, 0.2, 0.01);
         }

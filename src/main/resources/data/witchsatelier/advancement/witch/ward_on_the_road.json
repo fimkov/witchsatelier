@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:beast_warding_tower"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.ward_on_the_road.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.ward_on_the_road.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "ward_on_the_road": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "ward_on_the_road"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/contraption"
+}

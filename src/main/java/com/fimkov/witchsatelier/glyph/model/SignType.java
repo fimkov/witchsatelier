@@ -26,7 +26,11 @@ public enum SignType {
     BIRD(true),
     DANCING_PUPPET(true),
 
-    TREAD(false);
+    TREAD(false),
+
+    HORSE(false),
+
+    REGION(false);
 
     public final boolean centerCapable;
 

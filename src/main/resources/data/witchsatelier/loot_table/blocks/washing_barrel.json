@@ -6,7 +6,16 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "witchsatelier:washing_barrel"
+          "name": "witchsatelier:washing_barrel",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": [
+                "witchsatelier:seal_charge"
+              ]
+            }
+          ]
         }
       ],
       "conditions": [

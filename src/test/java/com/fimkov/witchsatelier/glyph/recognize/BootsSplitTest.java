@@ -39,5 +39,6 @@ class BootsSplitTest {
         System.out.println("shoe glyphs read right " + ok + "/" + n + " (drawn whole: " + base + ")");
 
         assertTrue(ok >= base - 1, ok + "/" + n + " against " + base + " whole");
+        assertTrue(ok >= n * 0.6, "shoe glyphs read right only " + ok + "/" + n);
     }
 }

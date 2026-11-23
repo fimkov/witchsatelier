@@ -38,6 +38,10 @@ public class BeastWardingTowerBlock extends SealedBlock {
         super(props);
     }
 
+    public static void clearLevel(ResourceKey<Level> dim) {
+        ACTIVE.remove(dim);
+    }
+
     @Override protected MapCodec<? extends BaseEntityBlock> codec() { return CODEC; }
     @Override protected int inkCost() { return 128; }
     @Override protected int chargePerInking() { return 24000 * 2; }
@@ -93,7 +97,7 @@ public class BeastWardingTowerBlock extends SealedBlock {
         Set<BlockPos> set = ACTIVE.get(level.dimension());
         if (set == null || set.isEmpty()) return;
         for (BlockPos p : set) {
-            if (p.distToCenterSqr(e.getX(), e.getY(), e.getZ()) < RADIUS * RADIUS) {
+            if (p.distToCenterSqr(e.getX(), e.getY(), e.getZ()) < RADIUS * RADIUS && level.isLoaded(p) && level.getBlockState(p).getBlock() instanceof BeastWardingTowerBlock) {
                 e.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
                 return;
             }

@@ -16,7 +16,7 @@ import java.util.Set;
 class WikiGlyphExport {
     private static final String[] ARTIFACTS = {"washing_barrel", "glowstone_path", "void_basin", "dragon_teacup", "sealchair",
             "beast_warding_tower", "arcane_lens", "snugstone", "raincleaver", "mirror_mantle", "wingcloak", "tent_staff",
-            "capture_pennant", "light_tracer_bangle", "vapor_bubble"};
+            "capture_pennant", "light_tracer_bangle", "vapor_bubble", "doorknob", "guidance_orb", "fluttergram"};
 
     @Test
     void export() throws IOException {

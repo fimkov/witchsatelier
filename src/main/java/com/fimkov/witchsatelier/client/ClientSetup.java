@@ -111,6 +111,7 @@ public final class ClientSetup {
         game.addListener(GlyphRenderer::onRenderLevel);
         game.addListener(PennantRibbons::onRenderLevel);
         game.addListener(SpellFxClient::render);
+        com.fimkov.witchsatelier.client.fx.PassageStarsSky.init(game);
         game.addListener((ClientPlayerNetworkEvent.LoggingOut e) -> ClientGlyphs.INSTANCE.reset());
         game.addListener(ClientKeys::onClientTick);
         game.addListener(WindowwayClient::onClientTick);
@@ -174,6 +175,7 @@ public final class ClientSetup {
                 {
                     e.registerEntityRenderer(ModEntities.STRANGER.get(), StrangerRenderer::new);
                     e.registerEntityRenderer(ModEntities.BRIMHAT.get(), BrimhatRenderer::new);
+                    e.registerEntityRenderer(ModEntities.WATER_HORSE.get(), WaterHorseRenderer::new);
                     e.registerBlockEntityRenderer(ModBlocks.STATUE_BE.get(), StatueRenderer::new);
                     e.registerBlockEntityRenderer(ModBlocks.WASHING_BARREL_BE.get(), WashingBarrelRenderer::new);
                     e.registerBlockEntityRenderer(ModBlocks.PLANTED_RAINCLEAVER_BE.get(), PlantedRaincleaverRenderer::new);

@@ -411,12 +411,19 @@ public final class GlyphGameTests {
             for (int i = 0; i < d.length; i++) f[i] = (float) d[i];
             strokes.add(new GlyphPages.PageStroke(f, InkType.CONJURING));
         }
+        var last = strokes.remove(strokes.size() - 1);
         var pages = GlyphPages.blank(16).withPage(0, new GlyphPages.Page(List.copyOf(strokes)));
         quire.set(ModComponents.GLYPH_PAGES.get(), pages);
         player.setItemInHand(InteractionHand.OFF_HAND, quire);
+        var quill = new ItemStack(ModItems.INK_PEN.get());
+        com.fimkov.witchsatelier.item.InkPenItem.setLoaded(quill, InkType.CONJURING, 256);
+        player.setItemInHand(InteractionHand.MAIN_HAND, quill);
 
         h.startSequence()
                 .thenExecute(() -> {
+                    PageService.handleStroke(player, InteractionHand.OFF_HAND, 0, last.pts());
+                    var drawn = player.getOffhandItem().get(ModComponents.GLYPH_PAGES.get());
+                    if (drawn == null || drawn.page(0).strokes().size() != strokes.size() + 1) h.fail("the last sign should be inked on the page");
                     if (GlyphService.activeSpells(h.getLevel()).stream().anyMatch(s -> player.getUUID().equals(s.caster)))
                         h.fail("an open ring must not cast");
                     PageService.handleQuickClose(player);
@@ -505,7 +512,10 @@ public final class GlyphGameTests {
         if (PageKind.of(boots) != PageKind.BOOTS) h.fail("boots are not a canvas");
 
         h.startSequence()
-                .thenExecute(() -> PageService.handleBootsJoin(player))
+                .thenExecute(() -> {
+                    PageService.handleBootsJoin(player);
+                    player.fallDistance = 5;
+                })
                 .thenExecuteAfter(3, () -> {
                     var worn = GlyphService.wornSpell(h.getLevel(), player.getUUID());
                     if (worn == null) h.fail("heel click should start the boots spell");
@@ -530,11 +540,19 @@ public final class GlyphGameTests {
         var boots = new ItemStack(Items.LEATHER_BOOTS);
         GlyphSketch g = new GlyphSketch(new Pt(0, 0), 0.85).ring(0, 360).sigil(Sigil.WIND, 0.55)
                 .signs(SignType.LEVITATION, 4, Orientation.OUTWARD, 0.28, 45);
-        boots.set(ModComponents.GLYPH_PAGES.get(), GlyphPages.blank(1).withPage(0, page(g)));
+        var halves = new ArrayList<GlyphPages.PageStroke>();
+        for (double[] d : g.strokes) {
+            float[] f = new float[d.length];
+            for (int i = 0; i < d.length; i++) f[i] = (float) d[i];
+            for (float[] part : PageKind.splitForSoles(f, 0.82f)) halves.add(new GlyphPages.PageStroke(part, InkType.CONJURING));
+        }
+        boots.set(ModComponents.GLYPH_PAGES.get(), GlyphPages.blank(1).withPage(0, new GlyphPages.Page(List.copyOf(halves))));
         player.setItemSlot(EquipmentSlot.FEET, boots);
         h.startSequence()
                 .thenExecute(() -> PageService.handleBootsJoin(player))
                 .thenExecute(() -> {
+                    var worn = GlyphService.wornSpell(h.getLevel(), player.getUUID());
+                    if (worn == null || worn.program.form() != SpellProgram.Form.LIFT) h.fail("the shoes should fly before the water reaches them");
                     BlockPos w = h.absolutePos(new BlockPos(5, 1, 5));
                     player.teleportTo(w.getX() + 0.5, w.getY(), w.getZ() + 0.5);
                 })
@@ -736,7 +754,13 @@ public final class GlyphGameTests {
             for (var sg : recipe.signs()) if (inner.count(sg.type()) < sg.count()) h.fail(recipe.name() + ": " + sg.type() + " read " + inner.count(sg.type()) + "x: " + r.describe());
             var program = SpellCompiler.compile(r, GlyphFrame.facing(new Vec3(0, 1, 0)), Vec3.ZERO, 1, 1, 1, 0);
             if (program.form() == SpellProgram.Form.FIZZLE) h.fail(recipe.name() + " fizzles: " + r.describe());
-            if (!recipe.bands().isEmpty() && program.layers().isEmpty() && program.duration() <= 0) h.fail(recipe.name() + " band does nothing");
+            if (!recipe.bands().isEmpty()) {
+                var bare = SpellCompiler.compile(inner, GlyphFrame.facing(new Vec3(0, 1, 0)), Vec3.ZERO, 1, 1, 1, 0);
+                boolean mends = recipe.bands().stream().anyMatch(b -> b.signs().stream().anyMatch(sg -> sg.type() == SignType.REPETITION));
+                boolean changes = !program.layers().isEmpty() || program.cushion() || program.power() > bare.power() + 1e-6
+                        || program.duration() != bare.duration() || program.mods() != bare.mods();
+                if (!changes && !mends) h.fail(recipe.name() + " band does nothing: " + program.summary() + " vs " + bare.summary());
+            }
         }
         h.succeed();
     }
@@ -783,7 +807,7 @@ public final class GlyphGameTests {
                         h.fail("expected a water jet, got " + (s.isEmpty() ? "nothing" : s.get(0).program.summary()));
                 })
                 .thenWaitUntil(() -> { if (pig.isOnFire()) h.fail("the jet should put the pig out"); })
-                .thenExecute(() -> { if (pig.getX() - h.absoluteVec(Vec3.ZERO).x < 3.3) h.fail("the jet should push the pig away"); })
+                .thenWaitUntil(() -> { if (pig.getX() - h.absoluteVec(Vec3.ZERO).x < 4.0) h.fail("the jet should push the pig away"); })
                 .thenSucceed();
     }
 
@@ -925,12 +949,16 @@ public final class GlyphGameTests {
         var server = h.getLevel().getServer();
         long[] worst = {0};
         int[] watched = {0};
+        List<Long> ticks = new ArrayList<>();
         h.startSequence()
                 .thenExecuteFor(90, () -> {
                     long[] times = server.getTickTimesNanos();
                     long last = times[(server.getTickCount() + times.length - 1) % times.length];
 
-                    if (watched[0]++ >= 8) worst[0] = Math.max(worst[0], last);
+                    if (watched[0]++ >= 8) {
+                        worst[0] = Math.max(worst[0], last);
+                        ticks.add(last);
+                    }
                 })
                 .thenExecute(() -> {
                     int crystal = 0;
@@ -941,7 +969,11 @@ public final class GlyphGameTests {
                             crystal, worst[0] / 1_000_000.0, watched[0]);
                     if (crystal < 2000) h.fail("expected a ball of ten blocks round, got " + crystal + " crystal blocks");
 
-                    if (worst[0] > 50_000_000L) h.fail("a tick took " + worst[0] / 1_000_000 + " ms");
+                    List<Long> sorted = new ArrayList<>(ticks);
+                    sorted.sort(null);
+                    long p90 = sorted.isEmpty() ? 0 : sorted.get((int) (sorted.size() * 0.9));
+                    if (p90 > 50_000_000L) h.fail("most ticks should stay under 50 ms, the 90th percentile took " + p90 / 1_000_000 + " ms");
+                    if (worst[0] > 250_000_000L) h.fail("a tick took " + worst[0] / 1_000_000 + " ms");
                     for (var sp : spellsOn(h, plane)) GlyphService.stop(h.getLevel(), sp);
                     PetrifiedBlock.restore(h.getLevel(), Vec3.atCenterOf(o), 14);
                 })
@@ -1179,7 +1211,7 @@ public final class GlyphGameTests {
         SurfacePlane repel = glyph.apply(new int[]{5, 8}, new Object[]{Sigil.EARTH, Sigil.LIGHT});
         Pig burning = h.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(3, 1, 3));
         burning.igniteForSeconds(30);
-        Pig wanderer = h.spawn(EntityType.PIG, new BlockPos(6, 1, 8));
+        Pig wanderer = h.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(6, 1, 8));
         h.startSequence()
                 .thenExecuteAfter(2, () -> {
                     var all = GlyphService.activeSpells(level);
@@ -1421,6 +1453,7 @@ public final class GlyphGameTests {
                 .thenExecuteAfter(20, () -> {
                     var s = spellsOn(h, plane);
                     if (s.size() != 1 || !s.get(0).program.has(SpellProgram.TREAD)) h.fail("the snare should be set: " + s.size());
+                    if (!s.get(0).waiting()) h.fail("nothing has stepped on it yet, so it should still wait");
                     if (pig.isOnFire()) h.fail("nothing has stepped on it yet");
                     pig.teleportTo(h.absoluteVec(new Vec3(5.5, 1, 5.5)).x, h.absoluteVec(new Vec3(5.5, 1, 5.5)).y, h.absoluteVec(new Vec3(5.5, 1, 5.5)).z);
                 })

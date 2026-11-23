@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:raincleaver"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.many_small_seals.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.many_small_seals.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "many_small_seals": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "many_small_seals"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/nested",
+  "rewards": {
+    "experience": 100
+  }
+}

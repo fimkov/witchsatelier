@@ -39,6 +39,10 @@ public class InkwellBlockEntity extends BlockEntity {
         return t;
     }
 
+    public void refreshState() {
+        changed();
+    }
+
     private void changed() {
         setChanged();
         if (level != null && !level.isClientSide) {

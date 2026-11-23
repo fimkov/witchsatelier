@@ -21,7 +21,8 @@ public final class RingFinder {
 
     private RingFinder() {}
 
-    public static List<Ring> find(List<List<Pt>> strokes, double inkWidth) {
+    public static List<Ring> find(List<List<Pt>> raw, double inkWidth) {
+        List<List<Pt>> strokes = PointCloud.thin(raw, inkWidth);
         record Arc(int index, Circle circle, double length) {}
         List<Arc> arcs = new ArrayList<>();
         for (int i = 0; i < strokes.size(); i++) {

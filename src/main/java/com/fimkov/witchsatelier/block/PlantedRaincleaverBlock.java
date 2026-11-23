@@ -111,7 +111,7 @@ public class PlantedRaincleaverBlock extends BaseEntityBlock {
         int r = (int) Math.ceil(REACH);
         for (BlockPos p : BlockPos.betweenClosed(pos.offset(-r, -r, -r), pos.offset(r, r, r))) {
             if (p.distToCenterSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH * REACH) continue;
-            if (TimedBlocks.extend(level, p, 20)) continue;
+            if (TimedBlocks.extend(level, p, 20, true)) continue;
             BlockState s = level.getBlockState(p);
             if (!(s.getBlock() instanceof LiquidBlock)) continue;
             TimedBlocks.set(level, p, Blocks.AIR.defaultBlockState(), 20);

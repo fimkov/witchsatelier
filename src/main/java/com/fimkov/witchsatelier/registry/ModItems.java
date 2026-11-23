@@ -112,6 +112,13 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> GLOWSTONE_PATH = ITEMS.registerSimpleBlockItem(ModBlocks.GLOWSTONE_PATH);
     public static final DeferredItem<BlockItem> DRAGON_TEACUP = ITEMS.registerSimpleBlockItem(ModBlocks.DRAGON_TEACUP);
 
+    public static final DeferredItem<com.fimkov.witchsatelier.item.artifact.DoorknobItem> DOORKNOB = ITEMS.registerItem("doorknob",
+            com.fimkov.witchsatelier.item.artifact.DoorknobItem::new, new Item.Properties().stacksTo(16).rarity(Rarity.UNCOMMON));
+    public static final DeferredItem<com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem> GUIDANCE_ORB = ITEMS.registerItem("guidance_orb",
+            com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem::new, new Item.Properties().durability(128).rarity(Rarity.UNCOMMON));
+    public static final DeferredItem<com.fimkov.witchsatelier.item.artifact.FluttergramItem> FLUTTERGRAM = ITEMS.registerItem("fluttergram",
+            com.fimkov.witchsatelier.item.artifact.FluttergramItem::new, new Item.Properties().stacksTo(16));
+
     public static final DeferredItem<BrimhatMaskItem> BRIMHAT_MASK = ITEMS.registerItem("brimhat_mask",
             p -> new BrimhatMaskItem(p.durability(ArmorItem.Type.HELMET.getDurability(12)).rarity(Rarity.UNCOMMON)));
     public static final DeferredItem<DeferredSpawnEggItem> BRIMHAT_SPAWN_EGG = ITEMS.registerItem("brimhat_spawn_egg",
@@ -152,6 +159,9 @@ public final class ModItems {
                 out.accept(SNUGSTONE.get());
                 out.accept(VAPOR_BUBBLE.get());
                 out.accept(LIGHT_TRACER_BANGLE.get());
+                out.accept(DOORKNOB.get());
+                out.accept(GUIDANCE_ORB.get());
+                out.accept(FLUTTERGRAM.get());
                 out.accept(RAINCLEAVER.get());
                 out.accept(MIRROR_MANTLE.get());
                 out.accept(WINGCLOAK.get());

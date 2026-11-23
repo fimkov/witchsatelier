@@ -1,0 +1,9 @@
+{
+  "values": [
+    "minecraft:written_book",
+    "minecraft:writable_book",
+    "minecraft:paper",
+    "minecraft:filled_map",
+    "witchsatelier:torn_page"
+  ]
+}

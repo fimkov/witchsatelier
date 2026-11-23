@@ -123,6 +123,11 @@ public final class Templates {
                 .line(0, 0.95, 0, -0.55)
                 .poly(-0.32, -0.95, 0, -0.55, 0.32, -0.95));
 
+        sign(SignType.HORSE, Shapes.of()
+                .poly(-0.55, -1, -0.45, 0.15, -0.15, 0.75, -0.05, 1, 0.08, 0.62, 0.9, 0.2, 0.8, -0.12, 0.15, 0, 0.35, -1));
+
+        sign(SignType.REGION, Shapes.of().line(0, -1, 0, 0.2).poly(-0.55, 0.95, -0.55, 0.2, 0.55, 0.2, 0.55, 0.95));
+
         sign(SignType.TREAD, Shapes.of().poly(-0.9, -0.9, -0.9, -0.3, -0.3, -0.3, -0.3, 0.3, 0.3, 0.3, 0.3, 0.9, 0.9, 0.9));
         sign(SignType.DANCING_PUPPET, Shapes.of()
                 .circle(0, 0.75, 0.2).circle(0, -0.75, 0.2).circle(0.75, 0, 0.2).circle(-0.75, 0, 0.2)

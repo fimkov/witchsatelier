@@ -31,7 +31,18 @@ public final class PageDispensing extends DefaultDispenseItemBehavior {
         BlockPos pos = src.pos();
         SurfacePlane plane = SurfacePlane.of(pos, facing);
         Vec3 at = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.5));
-        if (PageService.castOnSurface(src.level(), gp.page(0), plane, at, null) == null) return super.execute(src, stack);
+        net.minecraft.server.level.ServerPlayer near = null;
+        double best = 8 * 8;
+        for (var pl : src.level().players()) {
+            double d = pl.distanceToSqr(at);
+            if (d < best && !pl.isSpectator()) { best = d; near = pl; }
+        }
+        var spell = PageService.castOnSurface(src.level(), gp.page(0), plane, at, null);
+        if (spell == null) return super.execute(src, stack);
+        if (near != null && spell.program.form() == com.fimkov.witchsatelier.spell.SpellProgram.Form.PETRIFY) {
+            com.fimkov.witchsatelier.entity.Taboo.add(near, 40);
+            com.fimkov.witchsatelier.entity.Witnesses.saw(near);
+        }
         stack.shrink(1);
         return stack;
     }

@@ -63,6 +63,7 @@ public abstract class SealedBlock extends BaseEntityBlock {
             return ItemInteractionResult.FAIL;
         }
         ink.consume(inkCost());
+        if (be.charge() == 0 && this instanceof BeastWardingTowerBlock) com.fimkov.witchsatelier.advancement.MagicTrigger.fire(sp, "ward_on_the_road");
         double quality = Math.max(0.4, ink.ink.duration * ink.ink.potency);
         be.addCharge((int) (chargePerInking() * Math.min(2, quality)), maxCharge());
         level.setBlock(pos, state.setValue(LIT, true), 3);
@@ -76,9 +77,9 @@ public abstract class SealedBlock extends BaseEntityBlock {
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @org.jetbrains.annotations.Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
-        if (!level.isClientSide && level.getBlockEntity(pos) instanceof SealedBlockEntity be && be.charge() == 0) {
-            be.addCharge(chargePerInking(), maxCharge());
-            level.setBlock(pos, state.setValue(LIT, true), 3);
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof SealedBlockEntity be) {
+            if (!stack.has(com.fimkov.witchsatelier.registry.ModComponents.SEAL_CHARGE.get()) && be.charge() == 0) be.addCharge(chargePerInking(), maxCharge());
+            level.setBlock(pos, state.setValue(LIT, be.charge() > 0), 3);
         }
     }
 

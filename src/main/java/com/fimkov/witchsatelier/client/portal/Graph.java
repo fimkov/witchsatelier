@@ -20,6 +20,7 @@ final class Graph {
     private int frames;
 
     private SectionOcclusionGraph savedGraph;
+    static volatile SectionOcclusionGraph mainDuringPass;
     private ObjectArrayList<SectionRenderDispatcher.RenderSection> savedVisible;
     private final double[] savedDoubles = new double[DOUBLES.length];
 
@@ -44,6 +45,7 @@ final class Graph {
 
         if (++frames % 30 == 0) graph.invalidate();
         savedGraph = (SectionOcclusionGraph) GRAPH.get(lr);
+        mainDuringPass = savedGraph;
         savedVisible = (ObjectArrayList<SectionRenderDispatcher.RenderSection>) VISIBLE.get(lr);
         for (int i = 0; i < DOUBLES.length; i++) savedDoubles[i] = DOUBLES[i].getDouble(lr);
         GRAPH.set(lr, graph);
@@ -58,10 +60,16 @@ final class Graph {
             GRAPH.set(lr, savedGraph);
             VISIBLE.set(lr, savedVisible);
             for (int i = 0; i < DOUBLES.length; i++) DOUBLES[i].setDouble(lr, savedDoubles[i]);
+            ViewArea after = (ViewArea) VIEW_AREA.get(lr);
+            if (after != area) {
+                savedGraph.waitAndReset(after);
+                area = after;
+            }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(e);
         } finally {
             savedGraph = null;
+            mainDuringPass = null;
         }
     }
 }

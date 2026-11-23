@@ -74,12 +74,30 @@ public final class Starfall {
         stars.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 0.25f, 1.6f);
         stars.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1f, 0.6f);
 
-        boolean pen = false;
-        for (ItemStack st : p.getInventory().items) if (st.getItem() instanceof InkPenItem) pen = true;
-        if (!pen) {
+        if (!canDraw(p)) {
             ItemStack lent = new ItemStack(ModItems.INK_PEN.get());
-            InkPenItem.setLoaded(lent, InkType.CONJURING, InkPenItem.NIB_CAPACITY);
+            InkPenItem.setLoaded(lent, InkType.CONJURING, 64);
+            lent.set(com.fimkov.witchsatelier.registry.ModComponents.LENT.get(), true);
             if (!p.getInventory().add(lent)) p.drop(lent, false);
+        }
+    }
+
+    private static boolean canDraw(ServerPlayer p) {
+        List<ItemStack> all = new ArrayList<>(p.getInventory().items);
+        all.addAll(p.getInventory().offhand);
+        for (ItemStack st : all) {
+            if (!(st.getItem() instanceof InkPenItem pen)) continue;
+            if (pen.selfInked() && st.getMaxDamage() - st.getDamageValue() > 8) return true;
+            var nib = InkPenItem.loaded(st);
+            if (nib != null && nib.amount() >= 32) return true;
+        }
+        return false;
+    }
+
+    private static void takeBackLent(ServerPlayer p) {
+        var inv = p.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (Boolean.TRUE.equals(inv.getItem(i).get(com.fimkov.witchsatelier.registry.ModComponents.LENT.get()))) inv.setItem(i, ItemStack.EMPTY);
         }
     }
 
@@ -170,6 +188,7 @@ public final class Starfall {
     }
 
     public static void onPlayerTick(PlayerTickEvent.Post e) {
+        if (e.getEntity() instanceof ServerPlayer lender && lender.tickCount % 20 == 0 && !isStarfall(lender.level())) takeBackLent(lender);
         if (e.getEntity() instanceof ServerPlayer p && p.getPersistentData().contains(LEAVING)) {
             long left = p.getPersistentData().getLong(LEAVING) - p.level().getGameTime();
             if (!isStarfall(p.level()) || left > RETURN_TICKS) {

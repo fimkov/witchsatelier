@@ -8,6 +8,7 @@ import com.fimkov.witchsatelier.compat.SableCompat;
 import com.fimkov.witchsatelier.dev.SmokeServer;
 import com.fimkov.witchsatelier.entity.StrangerSpawner;
 import com.fimkov.witchsatelier.entity.Taboo;
+import com.fimkov.witchsatelier.entity.Witnesses;
 import com.fimkov.witchsatelier.event.ServerEvents;
 import com.fimkov.witchsatelier.glyph.page.PageDispensing;
 import com.fimkov.witchsatelier.glyph.page.PageService;
@@ -62,6 +63,9 @@ public final class WitchsAtelier {
         if (System.getProperty("witchsatelier.smoke") != null && FMLEnvironment.dist.isDedicatedServer())
             SmokeServer.init();
         NeoForge.EVENT_BUS.addListener(Taboo::onDeath);
+        NeoForge.EVENT_BUS.addListener(Taboo::onClone);
+        NeoForge.EVENT_BUS.addListener(Witnesses::onTick);
+        NeoForge.EVENT_BUS.addListener(Witnesses::onDeath);
         ModItems.ITEMS.register(modBus);
         SpellLootModifier.SERIALIZERS.register(modBus);
         ModRecipes.SERIALIZERS.register(modBus);
@@ -72,6 +76,8 @@ public final class WitchsAtelier {
         modBus.addListener(ModNetwork::register);
         ServerEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StrangerSpawner::onLevelTick);
+        com.fimkov.witchsatelier.world.PassageStars.register(modBus, NeoForge.EVENT_BUS);
+        com.fimkov.witchsatelier.advancement.Feats.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(DormantEvents::onUseItem);
         NeoForge.EVENT_BUS.addListener(Starfall::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(PageService::washBoots);

@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
@@ -39,7 +40,11 @@ public class StatueRenderer implements BlockEntityRenderer<StatueBlock.Entity> {
         }
         EntityRenderDispatcher d = mc.getEntityRenderDispatcher();
 
-        MultiBufferSource stone = type -> buffers.getBuffer(RenderType.entityCutoutNoCull(STONE));
+        MultiBufferSource stone = type -> {
+            if (GLINTS.contains(type)) return NOTHING;
+            if (type.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.NEW_ENTITY) return buffers.getBuffer(type);
+            return buffers.getBuffer(RenderType.entityCutoutNoCull(STONE));
+        };
         boolean shadow = mc.options.entityShadows().get();
         d.setRenderShadow(false);
         try {
@@ -48,6 +53,18 @@ public class StatueRenderer implements BlockEntityRenderer<StatueBlock.Entity> {
             d.setRenderShadow(shadow);
         }
     }
+
+    private static final java.util.Set<RenderType> GLINTS = java.util.Set.of(RenderType.glint(), RenderType.glintTranslucent(),
+            RenderType.entityGlint(), RenderType.entityGlintDirect(), RenderType.armorEntityGlint());
+
+    private static final com.mojang.blaze3d.vertex.VertexConsumer NOTHING = new com.mojang.blaze3d.vertex.VertexConsumer() {
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer addVertex(float x, float y, float z) { return this; }
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer setColor(int r, int g, int b, int a) { return this; }
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer setUv(float u, float v) { return this; }
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer setUv1(int u, int v) { return this; }
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer setUv2(int u, int v) { return this; }
+        @Override public com.mojang.blaze3d.vertex.VertexConsumer setNormal(float x, float y, float z) { return this; }
+    };
 
     @Override
     public boolean shouldRenderOffScreen(StatueBlock.Entity be) {

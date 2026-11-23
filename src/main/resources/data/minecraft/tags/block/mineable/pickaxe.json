@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "witchsatelier:beast_warding_tower",
+    "witchsatelier:void_basin",
+    "witchsatelier:glowstone_path",
+    "witchsatelier:statue"
+  ]
+}

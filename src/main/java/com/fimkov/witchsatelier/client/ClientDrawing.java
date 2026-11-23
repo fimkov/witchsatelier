@@ -167,6 +167,15 @@ public final class ClientDrawing {
     static void onClientTick(ClientTickEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer p = mc.player;
+        if (p == null || mc.getConnection() == null) {
+            plane = null;
+            count = 0;
+            imagining = false;
+            laid = false;
+            imagined = null;
+            hover = null;
+            return;
+        }
         boolean using = mc.screen == null && usingTool(p);
         if (debugHold) return;
         if (!using) {
@@ -383,14 +392,18 @@ public final class ClientDrawing {
         if (count > 0 && plane != null && !erasing) {
             SENT.add(new Sent(plane, Arrays.copyOf(buf, count * 2), count, currentInk().color, Util.getMillis() + 1000));
         }
-        if (count > 0 && plane != null) {
-            int au = (int) Math.floor(buf[0]), av = (int) Math.floor(buf[1]);
-            float[] rel = new float[count * 2];
-            for (int i = 0; i < count; i++) {
-                rel[i * 2] = (float) (buf[i * 2] - au);
-                rel[i * 2 + 1] = (float) (buf[i * 2 + 1] - av);
+        if (count > 0 && plane != null && Minecraft.getInstance().getConnection() != null) {
+            for (int start = 0; start < count; start += MAX_POINTS - 1) {
+                int end = Math.min(count, start + MAX_POINTS);
+                int au = (int) Math.floor(buf[start * 2]), av = (int) Math.floor(buf[start * 2 + 1]);
+                float[] rel = new float[(end - start) * 2];
+                for (int i = start; i < end; i++) {
+                    rel[(i - start) * 2] = (float) (buf[i * 2] - au);
+                    rel[(i - start) * 2 + 1] = (float) (buf[i * 2 + 1] - av);
+                }
+                PacketDistributor.sendToServer(new Payloads.DrawStroke(plane, au, av, rel));
+                if (end >= count) break;
             }
-            PacketDistributor.sendToServer(new Payloads.DrawStroke(plane, au, av, rel));
         }
         count = 0;
     }

@@ -50,7 +50,7 @@ public class LightTracerBangleItem extends Item {
 
     private static void seen(ItemStack s, Level level, Vec3 at) {
         UUID b = bond(s);
-        if (b == null || level.isClientSide) return;
+        if (b == null || level.isClientSide || s.getCount() != 1) return;
         SEEN.computeIfAbsent(b, k -> new HashMap<>()).put(self(s), GlobalPos.of(level.dimension(), BlockPos.containing(at)));
     }
 
@@ -85,7 +85,7 @@ public class LightTracerBangleItem extends Item {
     public void onUseTick(Level level, LivingEntity user, ItemStack stack, int remaining) {
         if (!(level instanceof ServerLevel sl) || remaining % 5 != 0) return;
         UUID b = bond(stack);
-        if (b == null) return;
+        if (b == null || stack.getCount() != 1) return;
         seen(stack, level, user.position());
         UUID me = self(stack);
         GlobalPos best = null;

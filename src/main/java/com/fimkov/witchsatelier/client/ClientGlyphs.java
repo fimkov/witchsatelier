@@ -87,6 +87,7 @@ public final class ClientGlyphs implements ModNetwork.ClientHandlers {
         PennantRibbons.clear();
         BadAppleShow.clear();
         WindowwayClient.accept(List.of());
+        TraceGuide.reset();
     }
 
     @Override

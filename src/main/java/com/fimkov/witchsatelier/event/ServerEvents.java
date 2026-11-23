@@ -26,7 +26,9 @@ public final class ServerEvents {
         bus.addListener(ServerEvents::onLogin);
         bus.addListener(ServerEvents::onChangeDimension);
         bus.addListener(ServerEvents::onRespawn);
-        bus.addListener(ServerEvents::onBreak);
+        bus.addListener(net.neoforged.bus.api.EventPriority.LOWEST, ServerEvents::onBreak);
+        bus.addListener(ServerEvents::onStopping);
+        bus.addListener(ServerEvents::onLogout);
         bus.addListener(ServerEvents::onExplosion);
         bus.addListener(ServerEvents::onPiston);
         bus.addListener(ServerEvents::onLevelUnload);
@@ -54,7 +56,20 @@ public final class ServerEvents {
     }
 
     private static void onBreak(BlockEvent.BreakEvent e) {
-        if (e.getLevel() instanceof ServerLevel level) GlyphService.onBlocksRemoved(level, List.of(e.getPos().immutable()));
+        if (!e.isCanceled() && e.getLevel() instanceof ServerLevel level) GlyphService.onBlocksRemoved(level, List.of(e.getPos().immutable()));
+    }
+
+    private static void onLogout(PlayerEvent.PlayerLoggedOutEvent e) {
+        GlyphService.forgetPlayer(e.getEntity().getUUID());
+    }
+
+    private static void onStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent e) {
+        for (ServerLevel level : e.getServer().getAllLevels()) {
+            WorldGlyphs.tick(level);
+            GlyphService.shutdown(level);
+            WindowwayService.closeAll(level);
+            TimedBlocks.restoreAll(level);
+        }
     }
 
     private static void onPiston(PistonEvent.Post e) {
@@ -62,6 +77,8 @@ public final class ServerEvents {
     }
 
     private static void onExplosion(ExplosionEvent.Detonate e) {
+        var how = e.getExplosion().getBlockInteraction();
+        if (how == net.minecraft.world.level.Explosion.BlockInteraction.KEEP || how == net.minecraft.world.level.Explosion.BlockInteraction.TRIGGER_BLOCK) return;
         if (e.getLevel() instanceof ServerLevel level) GlyphService.onBlocksRemoved(level, List.copyOf(e.getAffectedBlocks()));
     }
 
@@ -69,7 +86,10 @@ public final class ServerEvents {
         if (e.getLevel() instanceof ServerLevel level) {
             WindowwayService.closeAll(level);
             TimedBlocks.restoreAll(level);
-            GlyphService.clearLevel(level.dimension());
+            GlyphService.clearLevel(level);
+            com.fimkov.witchsatelier.spell.Earthworks.clearLevel(level.dimension());
+            com.fimkov.witchsatelier.block.sealed.BeastWardingTowerBlock.clearLevel(level.dimension());
+            WorldGlyphs.clearLevel(level.dimension());
         }
     }
 }

@@ -65,6 +65,7 @@ public final class GlyphLevelData extends SavedData {
         InkStroke s = m.remove(id);
         if (m.isEmpty()) cells.remove(c);
         wear.remove(id);
+        keys.remove(id);
         setDirty();
         return s;
     }
@@ -111,6 +112,25 @@ public final class GlyphLevelData extends SavedData {
         return wear;
     }
 
+    private final Map<Long, java.util.UUID> keys = new java.util.HashMap<>();
+
+    public void setKey(Collection<Long> strokeIds, java.util.UUID who) {
+        for (long id : strokeIds) {
+            if (!index.containsKey(id)) continue;
+            if (who == null) keys.remove(id);
+            else keys.put(id, who);
+        }
+        setDirty();
+    }
+
+    public java.util.UUID keyOf(Collection<Long> strokeIds) {
+        for (long id : strokeIds) {
+            java.util.UUID k = keys.get(id);
+            if (k != null) return k;
+        }
+        return null;
+    }
+
     public Collection<Long> ids() {
         return index.keySet();
     }
@@ -126,6 +146,8 @@ public final class GlyphLevelData extends SavedData {
                 CompoundTag st = s.save();
                 byte[] w = wear.get(s.id());
                 if (w != null) st.putByteArray("wear", w);
+                java.util.UUID key = keys.get(s.id());
+                if (key != null) st.putUUID("key", key);
                 strokes.add(st);
             }
             p.put("strokes", strokes);
@@ -150,6 +172,7 @@ public final class GlyphLevelData extends SavedData {
                 d.add(plane, s);
                 byte[] w = st.getByteArray("wear");
                 if (w.length == s.size()) d.wear.put(s.id(), w);
+                if (st.hasUUID("key")) d.keys.put(s.id(), st.getUUID("key"));
             }
         }
         d.nextId = Math.max(d.nextId, d.index.keySet().stream().mapToLong(Long::longValue).max().orElse(0) + 1);

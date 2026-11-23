@@ -49,6 +49,16 @@ public record SpellProgram(
 
     public static final int REPEL = 512;
 
+    public static final int WALL = 1024;
+
+    public static final int BEND = 2048;
+
+    public static final int CAGE = 4096;
+
+    public static final int STEED = 8192;
+
+    public static final int REGION_IN = 1 << 22, REGION_OUT = 1 << 23, REGION_SIDE = 1 << 24, REGION_OCTANT = 25, TREAD_INVERTED = 1 << 28;
+
     public boolean has(int mod) {
         return (mods & mod) != 0;
     }
@@ -99,7 +109,9 @@ public record SpellProgram(
 
         FIZZLE,
 
-        PETRIFY
+        PETRIFY,
+
+        OBLIVION
     }
 
     public SpellProgram withPose(Vec3 origin, Vec3 normal, Vec3 direction) {

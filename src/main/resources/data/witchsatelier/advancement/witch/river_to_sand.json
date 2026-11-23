@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:sand"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.river_to_sand.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.river_to_sand.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "river_to_sand": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "river_to_sand"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/brimhat"
+}

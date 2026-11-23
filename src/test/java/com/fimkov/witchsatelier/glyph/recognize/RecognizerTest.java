@@ -53,7 +53,7 @@ class RecognizerTest {
                 System.out.printf("sign %-20s %-7s -> %-20s %-7s d=%.2f score=%.2f%s%n", t.id(), o,
                         m.template() == null ? "-" : m.template().id(), m.orientation(), m.distance(), m.score(),
                         sameMeaning ? "" : "   <-- MISMATCH");
-                if (!sameMeaning && !symmetricUnderTurn(t.sign(), o, m.orientation())) {
+                if (!sameMeaning && !(sameSign && symmetricUnderTurn(t.sign(), o, m.orientation()))) {
                     failures.add(t.id() + "/" + o + " -> " + (m.template() == null ? "-" : m.template().id() + "/" + m.orientation()));
                 }
             }

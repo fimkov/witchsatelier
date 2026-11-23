@@ -43,7 +43,15 @@ public final class Awakening {
             new Entry(ModItems.TENT_STAFF, glyph("tent_staff", Sigil.EARTH, SignType.LEVITATION, 4)),
             new Entry(ModItems.CAPTURE_PENNANT, glyph("capture_pennant", Sigil.LIGHT, SignType.WEAVE, 4)),
             new Entry(ModItems.LIGHT_TRACER_BANGLE, glyph("light_tracer_bangle", Sigil.LIGHT, SignType.PULL, 4)),
-            new Entry(ModItems.VAPOR_BUBBLE, glyph("vapor_bubble", Sigil.WATER, SignType.PULL, 4)));
+            new Entry(ModItems.VAPOR_BUBBLE, glyph("vapor_bubble", Sigil.WATER, SignType.PULL, 4)),
+            new Entry(ModItems.DOORKNOB, centre("doorknob", SignType.WINDOW, SignType.DIRECTION, 4)),
+            new Entry(ModItems.GUIDANCE_ORB, glyph("guidance_orb", Sigil.LIGHT, SignType.DIRECTION, 4)),
+            new Entry(ModItems.FLUTTERGRAM, glyph("fluttergram", Sigil.WIND, SignType.BIRD, 2)));
+
+    /** Artifacts crafted several at a time that one drawing wakes together, instead of splitting one off the stack. */
+    public static boolean wakesAsStack(ItemStack stack) {
+        return dormant(stack) && (stack.is(ModItems.DOORKNOB.get()) || stack.is(ModItems.FLUTTERGRAM.get()));
+    }
 
     public static ItemStack dormantStack(Entry e) {
         ItemStack s = new ItemStack(e.artifact().get());

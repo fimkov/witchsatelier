@@ -270,10 +270,20 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
+    public record StarShower(long start, int duration, long seed) implements CustomPacketPayload {
+        public static final Type<StarShower> TYPE = typeOf("star_shower");
+        public static final StreamCodec<ByteBuf, StarShower> CODEC = StreamCodec.of((buf, f) -> {
+            buf.writeLong(f.start); buf.writeInt(f.duration); buf.writeLong(f.seed);
+        }, buf -> new StarShower(buf.readLong(), buf.readInt(), buf.readLong()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
     public record WindowwaySync(List<PortalFrame> frames) implements CustomPacketPayload {
         public static final Type<WindowwaySync> TYPE = typeOf("windowway_sync");
         public static final StreamCodec<ByteBuf, WindowwaySync> CODEC = PortalFrame.CODEC
-                .apply(ByteBufCodecs.list(256)).map(WindowwaySync::new, WindowwaySync::frames);
+                .apply(ByteBufCodecs.list(8192)).map(WindowwaySync::new, WindowwaySync::frames);
 
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }

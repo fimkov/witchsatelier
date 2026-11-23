@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:cauldron"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.steam_and_silence.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.steam_and_silence.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "steam_and_silence": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "steam_and_silence"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/water"
+}

@@ -18,10 +18,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -55,6 +58,11 @@ public class StatueBlock extends BaseEntityBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new Entity(pos, state);
+    }
+
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        return level.isClientSide ? null : createTickerHelper(type, ModBlocks.STATUE_BE.get(), StatueBlock::stirring);
     }
 
     public static boolean petrify(ServerLevel level, Mob mob) {
@@ -100,9 +108,47 @@ public class StatueBlock extends BaseEntityBlock {
         return n;
     }
 
+    /**
+     * Integration drawn in any ink but blood: the body cannot be given back, only the mind is woken. The statue stays
+     * stone and does not move, but its eyes glint and now and then it makes its sounds.
+     * Returns how many statues were reached.
+     */
+    public static int stir(ServerLevel level, Vec3 center, double range) {
+        int n = 0;
+        BlockPos c = BlockPos.containing(center);
+        int r = (int) Math.ceil(range);
+        for (BlockPos p : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
+            if (p.distToCenterSqr(center) > range * range || !(level.getBlockEntity(p) instanceof Entity be) || be.data == null) continue;
+            if (!be.stirred) {
+                be.stirred = true;
+                be.setChanged();
+                level.sendBlockUpdated(p, be.getBlockState(), be.getBlockState(), 3);
+            }
+            glint(level, be);
+            be.speak(level);
+            level.playSound(null, p, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.NEUTRAL, 1f, 0.6f);
+            n++;
+        }
+        return n;
+    }
+
+    private static void stirring(Level level, BlockPos pos, BlockState state, Entity be) {
+        if (!be.stirred || be.data == null || !(level instanceof ServerLevel sl) || (sl.getGameTime() + pos.asLong()) % 20 != 0) return;
+        if (sl.random.nextInt(3) == 0) glint(sl, be);
+        if (sl.random.nextInt(8) == 0) be.speak(sl);
+    }
+
+    private static void glint(ServerLevel level, Entity be) {
+        BlockPos p = be.getBlockPos();
+        double eye = be.eyeHeight(level);
+        level.sendParticles(ParticleTypes.END_ROD, p.getX() + 0.5, p.getY() + eye, p.getZ() + 0.5, 2, 0.12, 0.04, 0.12, 0);
+    }
+
     public static class Entity extends BlockEntity {
         CompoundTag data;
         float yaw;
+        boolean stirred;
+        private Mob voice;
 
         public net.minecraft.world.entity.Entity shown;
 
@@ -124,11 +170,35 @@ public class StatueBlock extends BaseEntityBlock {
             return yaw;
         }
 
+        /** Woken by Integration in ordinary ink: still stone, but awake inside. */
+        public boolean stirred() {
+            return stirred;
+        }
+
+        private Mob voice(ServerLevel level) {
+            if (voice == null && data != null && EntityType.create(data, level).orElse(null) instanceof Mob m) {
+                m.moveTo(worldPosition.getX() + 0.5, worldPosition.getY(), worldPosition.getZ() + 0.5, yaw, 0);
+                voice = m;
+            }
+            return voice;
+        }
+
+        double eyeHeight(ServerLevel level) {
+            Mob m = voice(level);
+            return m == null ? 1 : m.getEyeHeight();
+        }
+
+        void speak(ServerLevel level) {
+            Mob m = voice(level);
+            if (m != null) m.playAmbientSound();
+        }
+
         @Override
         protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
             super.saveAdditional(tag, registries);
             if (data != null) tag.put("creature", data);
             tag.putFloat("yaw", yaw);
+            if (stirred) tag.putBoolean("stirred", true);
         }
 
         @Override
@@ -136,6 +206,8 @@ public class StatueBlock extends BaseEntityBlock {
             super.loadAdditional(tag, registries);
             data = tag.contains("creature") ? tag.getCompound("creature") : null;
             yaw = tag.getFloat("yaw");
+            stirred = tag.getBoolean("stirred");
+            voice = null;
             shown = null;
         }
 
