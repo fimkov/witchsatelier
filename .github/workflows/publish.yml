@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,13 +36,17 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "minecraft=${minecraft}" >> "$GITHUB_OUTPUT"
       - run: ./gradlew build
+      - name: Attach the jar to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" "build/libs/witchsatelier-${{ steps.meta.outputs.version }}.jar" --clobber
       - uses: Kir-Antipov/mc-publish@v3.3
+        if: ${{ env.MODRINTH_TOKEN != '' && env.CURSEFORGE_TOKEN != '' }}
         with:
           modrinth-id: ${{ vars.MODRINTH_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           files: build/libs/witchsatelier-${{ steps.meta.outputs.version }}.jar
           name: Witch's Atelier ${{ steps.meta.outputs.version }}
           version: ${{ steps.meta.outputs.version }}
