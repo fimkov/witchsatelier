@@ -53,3 +53,7 @@ Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wi
 ```
 
 Run the client with `./gradlew runClient`, tests with `./gradlew test` and `./gradlew runGameTestServer`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

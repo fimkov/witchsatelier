@@ -1,6 +1,7 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
+issueTrackerURL="https://github.com/fimkov/witchsatelier/issues"
 
 [[mods]]
 modId="${mod_id}"
@@ -8,6 +9,7 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
 logoFile="logo.png"
+displayURL="https://fimkov.github.io/witchsatelier-wiki/"
 description='''
 Draw your own spells. Magic inspired by drawn-glyph witchcraft: a sigil in the centre, signs around it,
 and nothing happens until you close the ring.
