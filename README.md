@@ -11,12 +11,12 @@ Minecraft 1.21.1 · NeoForge · [Wiki](https://fimkov.github.io/witchsatelier-wi
 - The spell wakes the moment the ring closes, and stops when the ring is broken, rubbed out or the block under it is gone.
 - 8 sigils (Fire, Water, Earth, Wind, Light, Crystal, Wind Underfoot, Aeriforms) and 25 signs; reversed signs give the opposite effect.
 - How it is drawn matters: a bigger ring makes a bigger, stronger spell, a lopsided layout bends it, a careless hand misfires.
-- 38 grimoire spells, from Pillar of Flame and Wall Breaker to Windowway portals, Birds of Light and Rain of Light.
+- 41 grimoire spells, from Pillar of Flame and Wall Breaker to Windowway portals, Birds of Light and Rain of Light.
 - A quick-close key for prepared pages and an imagined-ring technique.
 
 **Spellbuilding**
 - Rings inside rings, as deep as you like: every band adds its own layer to the spell at the heart.
-- Sigils beside the middle one mix their elements in: Floating Drops, Rainflinger, Beast Repellent.
+- Sigils beside the middle one mix their elements in: Floating Drops, Rainflinger, Beast Repellent. Like the old books draw them, they sit in small circles in lunes cut from the rim, and the middle sigil can have a ring of its own.
 - Big signs make a strong spell, small ones a weak one; a longer sign on one side pulls the spell that way.
 - Glyphs joined by lines are one chain: they light in a wave, or wait for a Tread glyph that works while it is stood on or powered by redstone: doors, traps, lights on a lever.
 - Glyph arrows cast where they strike; dispensers shoot them, or cast a page's glyph from their own front.

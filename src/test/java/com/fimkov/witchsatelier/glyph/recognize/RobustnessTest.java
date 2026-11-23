@@ -1,5 +1,6 @@
 package com.fimkov.witchsatelier.glyph.recognize;
 
+import com.fimkov.witchsatelier.glyph.model.Sigil;
 import com.fimkov.witchsatelier.glyph.model.SignType;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
 import org.junit.jupiter.api.Test;
@@ -26,18 +27,24 @@ class RobustnessTest {
         if (g.ring() == null) return "no ring";
         if (!g.closed()) return "ring open";
         GlyphReading core = g;
-        if (r.band() != null) {
-            if (g.core() == null) return "nest not seen";
-            String band = signsMistake(r.band().signs(), g);
-            if (band != null) return "band: " + band;
-            if (r.band().sigil() != g.sigil()) return "band sigil " + r.band().sigil() + " read as " + g.sigil();
-            core = g.core();
-        } else if (g.core() != null) {
-            return "nest seen where there is none";
+        int depth = 0;
+        for (GlyphLibrary.Band band : r.bands()) {
+            depth++;
+            if (core.core() == null) return "nest " + depth + " not seen";
+            String b = signsMistake(band.signs(), core);
+            if (b != null) return "band " + depth + ": " + b;
+            if (band.sigil() != core.sigil()) return "band sigil " + band.sigil() + " read as " + core.sigil();
+            core = core.core();
         }
+        if (core.core() != null) return "nest seen where there is none";
         if (r.sigil() != core.sigil()) return "sigil " + r.sigil() + " read as " + (core.sigil() != null ? core.sigil() : core.centerSign());
         if (r.centerSign() != core.centerSign()) return "centre " + r.centerSign() + " read as " + core.centerSign();
-        return signsMistake(r.signs(), core);
+        String signs = signsMistake(r.signs(), core);
+        if (signs != null) return signs;
+        List<Sigil> want = new ArrayList<>(r.sides()), got = new ArrayList<>(core.sides());
+        want.sort(null);
+        got.sort(null);
+        return want.equals(got) ? null : "side sigils " + want + " read as " + got;
     }
 
     private static String signsMistake(List<GlyphLibrary.Signs> want, GlyphReading g) {
@@ -60,10 +67,16 @@ class RobustnessTest {
         return null;
     }
 
+    static double ringRadius(GlyphLibrary.Recipe r, HandDrawn h) {
+        if (r.bands().size() > 1) return 2.6 + h.rnd.nextDouble() * 1.4;
+        if (!r.bands().isEmpty() || !r.lunes().isEmpty()) return 2.0 + h.rnd.nextDouble() * 1.5;
+        return 1.2 + h.rnd.nextDouble() * 1.8;
+    }
+
     static GlyphReading read(GlyphLibrary.Recipe r, long seed, double sloppiness) {
         HandDrawn h = new HandDrawn(seed, sloppiness);
 
-        double ringRadius = r.band() != null ? 2.0 + h.rnd.nextDouble() * 1.5 : 1.2 + h.rnd.nextDouble() * 1.8;
+        double ringRadius = ringRadius(r, h);
         double turn = h.rnd.nextDouble() * Math.PI * 2;
         h.recipe(r, ringRadius, turn);
 

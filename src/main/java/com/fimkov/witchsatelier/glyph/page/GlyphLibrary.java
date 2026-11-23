@@ -29,9 +29,36 @@ public final class GlyphLibrary {
 
     public record Band(Sigil sigil, List<Signs> signs) {}
 
-    public record Recipe(String name, Sigil sigil, SignType centerSign, double sigilSize, List<Signs> signs, Band band) {
+    public record Lune(Sigil sigil, double angleDeg) {}
+
+    public record Recipe(String name, Sigil sigil, SignType centerSign, double sigilSize, List<Signs> signs, List<Band> bands,
+                         boolean framed, List<Lune> lunes) {
         public Recipe(String name, Sigil sigil, double sigilSize, List<Signs> signs) {
-            this(name, sigil, null, sigilSize, signs, null);
+            this(name, sigil, null, sigilSize, signs, List.of(), false, List.of());
+        }
+
+        public Recipe(String name, Sigil sigil, SignType centerSign, double sigilSize, List<Signs> signs, Band band) {
+            this(name, sigil, centerSign, sigilSize, signs, band == null ? List.of() : List.of(band), false, List.of());
+        }
+
+        public Recipe framedCentre() {
+            return new Recipe(name, sigil, centerSign, sigilSize, signs, bands, true, lunes);
+        }
+
+        public Recipe withLunes(Sigil s, double... anglesDeg) {
+            List<Lune> all = new ArrayList<>(lunes);
+            for (double a : anglesDeg) all.add(new Lune(s, a));
+            return new Recipe(name, sigil, centerSign, sigilSize, signs, bands, framed, List.copyOf(all));
+        }
+
+        public Recipe withBands(Band... more) {
+            return new Recipe(name, sigil, centerSign, sigilSize, signs, List.of(more), framed, lunes);
+        }
+
+        public List<Sigil> sides() {
+            List<Sigil> out = new ArrayList<>();
+            for (Lune l : lunes) out.add(l.sigil());
+            return out;
         }
     }
 
@@ -76,10 +103,14 @@ public final class GlyphLibrary {
             new Recipe("puppet_dance", null, SignType.DANCING_PUPPET, 0.6, List.of(), null),
             new Recipe("gathering_breeze", Sigil.WIND, null, 0.5, List.of(new Signs(SignType.COLLECTION, 4, 45, 0.26)), null),
             new Recipe("steam_pillar", Sigil.FIRE, null, 0.55, List.of(new Signs(SignType.COLUMN, 4, 45, 0.28)),
-                    new Band(Sigil.WATER, List.of(new Signs(SignType.COLUMN, 3, 30, 0.14)))));
+                    new Band(Sigil.WATER, List.of(new Signs(SignType.COLUMN, 3, 30, 0.14)))),
+            new Recipe("floating_drops", Sigil.WIND, 0.38, List.of()).framedCentre().withLunes(Sigil.WATER, 90, 270),
+            new Recipe("rainflinger", Sigil.WATER, 0.38, List.of()).framedCentre().withLunes(Sigil.FIRE, 90, 270),
+            new Recipe("beast_repellent", Sigil.EARTH, 0.38, List.of()).framedCentre().withLunes(Sigil.LIGHT, 90, 270));
 
     public static final List<Recipe> FORBIDDEN = List.of(
-            new Recipe("petrification", Sigil.EARTH, 0.55, List.of(new Signs(SignType.EYE, 4, 45, 0.28))));
+            new Recipe("petrification", Sigil.EARTH, 0.4, List.of(new Signs(SignType.EYE, 4, 0, 0.26)))
+                    .framedCentre().withLunes(Sigil.EARTH, 45, 135, 225, 315));
 
     public static Recipe byName(String name) {
         for (Recipe r : ALL) if (r.name().equals(name)) return r;
@@ -95,25 +126,38 @@ public final class GlyphLibrary {
         return page;
     }
 
+    public static final double OUTER_RADIUS = 0.85;
+
+    public static double bandRatio(Recipe r) {
+        return r.bands().size() > 1 ? 0.68 : 0.6;
+    }
+
     public static Page draw(Recipe recipe, RandomSource rnd, boolean gap, InkType ink) {
         List<PageStroke> out = new ArrayList<>();
-        double radius = 0.85;
+        double radius = OUTER_RADIUS;
         double from = gap ? 25 + rnd.nextInt(360) : 0, to = gap ? from + 310 : 360;
         out.add(new PageStroke(ring(radius, from, to, rnd), ink));
-        if (recipe.band() == null) {
-            core(out, recipe, radius, 1, rnd, ink);
-        } else {
-            double inner = radius * 0.6;
+        double r = radius;
+        for (Band band : recipe.bands()) {
+            double inner = r * bandRatio(recipe);
             out.add(new PageStroke(ring(inner, 0, 360, rnd), ink));
-            core(out, recipe, inner, inner / radius, rnd, ink);
-            double mid = (radius + inner) / 2;
-            for (Signs s : recipe.band().signs()) signs(out, s, mid, rnd, ink);
-            if (recipe.band().sigil() != null) {
-                Pt at = new Pt(0, mid);
-                put(out, sigilTemplate(recipe.band().sigil()), at, 0.2, 0, rnd, ink);
-            }
+            double mid = (r + inner) / 2, width = (r - inner) / (OUTER_RADIUS * 0.4);
+            for (Signs s : band.signs()) signs(out, new Signs(s.type(), s.count(), s.startDeg(), s.size() * width), mid, rnd, ink);
+            if (band.sigil() != null) put(out, sigilTemplate(band.sigil()), new Pt(0, mid), 0.2 * width, 0, rnd, ink);
+            r = inner;
         }
+        core(out, recipe, r, r / radius, rnd, ink);
         return new Page(List.copyOf(out));
+    }
+
+    public static final double FRAME = 0.36, LUNE = 0.6, SEAL_RADIUS = 0.22, SEAL_SIGIL = 0.32;
+
+    public record LuneShape(double rho, double sealAt, double sealRadius, double sealSigil, double frame) {}
+
+    public static LuneShape luneShape(Recipe r) {
+        double k = r.lunes().size() <= 2 ? 1.1 : 1.0;
+        double rho = LUNE * k;
+        return new LuneShape(rho, 1 - rho / 2, SEAL_RADIUS * k, SEAL_SIGIL * k, Math.min(FRAME, 1 - rho - 0.04));
     }
 
     private static void core(List<PageStroke> out, Recipe recipe, double radius, double scale, RandomSource rnd, InkType ink) {
@@ -122,7 +166,52 @@ public final class GlyphLibrary {
         } else if (recipe.centerSign() != null) {
             put(out, signTemplate(recipe.centerSign()), new Pt(0, 0), recipe.sigilSize() * scale, 0, rnd, ink);
         }
+        LuneShape shape = luneShape(recipe);
+        if (recipe.framed()) out.add(new PageStroke(circle(new Pt(0, 0), radius * shape.frame(), rnd), ink));
         for (Signs s : recipe.signs()) signs(out, new Signs(s.type(), s.count(), s.startDeg(), s.size() * scale), radius * 0.62, rnd, ink);
+        for (Lune l : recipe.lunes()) {
+            double a = Math.toRadians(l.angleDeg());
+            Pt dir = new Pt(Math.cos(a), Math.sin(a));
+            out.add(new PageStroke(luneArc(radius, a, shape.rho(), rnd), ink));
+            Pt seal = dir.scale(radius * shape.sealAt());
+            out.add(new PageStroke(circle(seal, radius * shape.sealRadius(), rnd), ink));
+            put(out, sigilTemplate(l.sigil()), seal, radius * shape.sealSigil(), 0, rnd, ink);
+        }
+    }
+
+    public static List<Pt> luneArcPoints(double radius, double angle, double rhoFraction) {
+        double rho = radius * rhoFraction;
+        double half = Math.acos(rho / (2 * radius));
+        List<Pt> pts = new ArrayList<>();
+        Pt centre = new Pt(Math.cos(angle) * radius, Math.sin(angle) * radius);
+        int n = 24;
+        for (int i = 0; i <= n; i++) {
+            double t = angle + Math.PI - half + 2 * half * i / n;
+            pts.add(centre.plus(new Pt(Math.cos(t) * rho, Math.sin(t) * rho)));
+        }
+        return pts;
+    }
+
+    private static float[] luneArc(double radius, double angle, double rho, RandomSource rnd) {
+        List<Pt> pts = luneArcPoints(radius, angle, rho);
+        float[] f = new float[pts.size() * 2];
+        for (int i = 0; i < pts.size(); i++) {
+            f[i * 2] = (float) (pts.get(i).x() + rnd.nextGaussian() * 0.003);
+            f[i * 2 + 1] = (float) (pts.get(i).y() + rnd.nextGaussian() * 0.003);
+        }
+        return f;
+    }
+
+    private static float[] circle(Pt at, double radius, RandomSource rnd) {
+        int n = Math.max(16, (int) Math.ceil(Math.PI * 2 * radius / 0.02));
+        float[] f = new float[(n + 1) * 2];
+        double start = rnd.nextDouble() * Math.PI * 2;
+        for (int i = 0; i <= n; i++) {
+            double a = start + Math.PI * 2 * i / n;
+            f[i * 2] = (float) (at.x() + Math.cos(a) * radius);
+            f[i * 2 + 1] = (float) (at.y() + Math.sin(a) * radius);
+        }
+        return f;
     }
 
     private static void signs(List<PageStroke> out, Signs s, double at, RandomSource rnd, InkType ink) {
@@ -189,13 +278,15 @@ public final class GlyphLibrary {
     public static boolean readsAs(Recipe r, GlyphReading g) {
         if (g.ring() == null) return false;
         GlyphReading core = g;
-        if (r.band() != null) {
-            if (g.core() == null || g.sigil() != r.band().sigil() || !sameSigns(r.band().signs(), g)) return false;
-            core = g.core();
-        } else if (g.core() != null) {
-            return false;
+        for (Band band : r.bands()) {
+            if (core.core() == null || core.sigil() != band.sigil() || !sameSigns(band.signs(), core)) return false;
+            core = core.core();
         }
-        return core.sigil() == r.sigil() && core.centerSign() == r.centerSign() && sameSigns(r.signs(), core);
+        if (core.core() != null) return false;
+        Map<Sigil, Integer> sides = new EnumMap<>(Sigil.class), read = new EnumMap<>(Sigil.class);
+        for (Sigil s : r.sides()) sides.merge(s, 1, Integer::sum);
+        for (Sigil s : core.sides()) read.merge(s, 1, Integer::sum);
+        return core.sigil() == r.sigil() && core.centerSign() == r.centerSign() && sameSigns(r.signs(), core) && sides.equals(read);
     }
 
     private static boolean sameSigns(List<Signs> want, GlyphReading g) {
@@ -260,9 +351,9 @@ public final class GlyphLibrary {
 
     public static final List<Volume> VOLUMES = List.of(
             new Volume("flame", List.of("fan_of_flame", "fire_bolts", "warming_hearth", "snare_of_flame", "steam_pillar")),
-            new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep")),
-            new Volume("earth", List.of("stone_breaker", "bed_of_sand", "earthen_wall", "rising_earth", "mire", "quickening_soil")),
-            new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step")),
+            new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep", "rainflinger")),
+            new Volume("earth", List.of("stone_breaker", "bed_of_sand", "earthen_wall", "rising_earth", "mire", "quickening_soil", "beast_repellent")),
+            new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step", "floating_drops")),
             new Volume("light", List.of("great_lantern", "rain_of_light", "sunlit_spill", "lance_of_light", "beacon_of_birds")),
             new Volume("rings_within_rings", List.of("everburning_pillar", "sentinel_bolts", "pillar_and_volley", "crystal_ward", "binding_threads")),
             new Volume("odd_signs", List.of("windowway", "night_eye", "veil_of_unseeing", "puppet_dance")));
