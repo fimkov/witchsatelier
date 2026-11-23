@@ -3,7 +3,6 @@ name: Publish
 on:
   release:
     types: [published]
-  workflow_dispatch:
 
 jobs:
   publish:
@@ -17,22 +16,37 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+      - name: Read the version and its changelog
+        id: meta
+        run: |
+          version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          minecraft=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match mod_version ${version}" >&2
+            exit 1
+          fi
+          awk -v v="## ${version}" '$0 == v {found = 1; next} /^## / {found = 0} found' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md has no section for ${version}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "minecraft=${minecraft}" >> "$GITHUB_OUTPUT"
       - run: ./gradlew build
       - uses: Kir-Antipov/mc-publish@v3.3
-        if: ${{ vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '' }}
         with:
           modrinth-id: ${{ vars.MODRINTH_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          files: build/libs/witchsatelier-*.jar
-          name: Witch's Atelier 1.0.0
-          version: 1.0.0
+          files: build/libs/witchsatelier-${{ steps.meta.outputs.version }}.jar
+          name: Witch's Atelier ${{ steps.meta.outputs.version }}
+          version: ${{ steps.meta.outputs.version }}
           version-type: release
-          changelog-file: CHANGELOG.md
+          changelog-file: release-notes.md
           loaders: neoforge
-          game-versions: 1.21.1
+          game-versions: ${{ steps.meta.outputs.minecraft }}
           java: 21
           dependencies: |
             emi(optional){modrinth:emi}{curseforge:emi}
