@@ -48,7 +48,9 @@ class SideSigilTest {
             for (int i = 0; i < 6; i++) {
                 GlyphReading g = RobustnessTest.read(r, 4242L * k + i * 131L, 1.0);
                 all++;
-                if (!g.sides().isEmpty()) grown.add(r.name() + "#" + i + " " + g.sides());
+                List<Sigil> extra = new ArrayList<>(g.sides());
+                for (Sigil want : r.sides()) extra.remove(want);
+                if (!extra.isEmpty()) grown.add(r.name() + "#" + i + " " + g.sides());
             }
         }
         System.out.println("side sigils grown in " + grown.size() + " of " + all + ": " + grown);

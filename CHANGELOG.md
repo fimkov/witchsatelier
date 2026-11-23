@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- Glyphs drawn the way the old picture books draw them: the middle sigil can sit in a ring of its own, and extra sigils sit in small circles inside lunes cut from the rim. A sigil in a lune mixes its element in, like a sigil beside the middle one.
+- Petrification is redrawn after the glyph in the picture book: Earth in its own ring, four Eyes, four Earth seals in lunes.
+- New spells: Floating Drops (Wind with Water), Rainflinger (Water with Fire) and Beast Repellent (Earth with Light), in the wind, waters and earth volumes.
+
 ## 1.0.0
 
 The first release.

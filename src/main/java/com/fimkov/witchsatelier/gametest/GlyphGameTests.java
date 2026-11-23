@@ -719,25 +719,32 @@ public final class GlyphGameTests {
         }
         if (books < 10 || pages < 15) h.fail("too few spell finds in 100 library chests: " + books + " grimoires, " + pages + " pages");
 
-        for (var recipe : GlyphLibrary.ALL) {
+        for (var recipe : allRecipes()) {
             var page = GlyphLibrary.draw(recipe, RandomSource.create(1), false, InkType.CONJURING);
             var r = GlyphAnalyzer.analyze(PageService.pointsOf(page), PageService.PAGE_INK);
             if (!r.closed()) h.fail(recipe.name() + " should be closed: " + r.describe());
             var inner = r;
-            if (recipe.band() != null) {
-                if (r.core() == null) h.fail(recipe.name() + " should read as nested: " + r.describe());
-                inner = r.core();
-                if (r.sigil() != recipe.band().sigil()) h.fail(recipe.name() + " band sigil read as " + r.sigil() + ": " + r.describe());
-                for (var sg : recipe.band().signs()) if (r.count(sg.type()) < sg.count()) h.fail(recipe.name() + " band: " + sg.type() + " read " + r.count(sg.type()) + "x: " + r.describe());
+            for (var band : recipe.bands()) {
+                if (inner.core() == null) h.fail(recipe.name() + " should read as nested: " + r.describe());
+                if (inner.sigil() != band.sigil()) h.fail(recipe.name() + " band sigil read as " + inner.sigil() + ": " + r.describe());
+                for (var sg : band.signs()) if (inner.count(sg.type()) < sg.count()) h.fail(recipe.name() + " band: " + sg.type() + " read " + inner.count(sg.type()) + "x: " + r.describe());
+                inner = inner.core();
             }
+            if (!GlyphLibrary.readsAs(recipe, r)) h.fail(recipe.name() + " does not read as its page: " + r.describe());
             if (inner.sigil() != recipe.sigil()) h.fail(recipe.name() + " read as " + inner.sigil() + ": " + r.describe());
             if (inner.centerSign() != recipe.centerSign() && recipe.centerSign() != null) h.fail(recipe.name() + " centre read as " + inner.centerSign());
             for (var sg : recipe.signs()) if (inner.count(sg.type()) < sg.count()) h.fail(recipe.name() + ": " + sg.type() + " read " + inner.count(sg.type()) + "x: " + r.describe());
             var program = SpellCompiler.compile(r, GlyphFrame.facing(new Vec3(0, 1, 0)), Vec3.ZERO, 1, 1, 1, 0);
             if (program.form() == SpellProgram.Form.FIZZLE) h.fail(recipe.name() + " fizzles: " + r.describe());
-            if (recipe.band() != null && program.layers().isEmpty() && program.duration() <= 0) h.fail(recipe.name() + " band does nothing");
+            if (!recipe.bands().isEmpty() && program.layers().isEmpty() && program.duration() <= 0) h.fail(recipe.name() + " band does nothing");
         }
         h.succeed();
+    }
+
+    private static List<GlyphLibrary.Recipe> allRecipes() {
+        List<GlyphLibrary.Recipe> all = new ArrayList<>(GlyphLibrary.ALL);
+        all.addAll(GlyphLibrary.FORBIDDEN);
+        return all;
     }
 
     @GameTest(template = "empty", timeoutTicks = 40)

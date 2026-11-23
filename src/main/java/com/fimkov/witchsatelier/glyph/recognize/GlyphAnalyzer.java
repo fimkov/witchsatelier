@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class GlyphAnalyzer {
-    static final double SIDE_SIGIL_SCORE = 0.5, SIDE_SIGIL_MARGIN = 0.12;
+    static final double SIDE_SIGIL_SCORE = 0.5, SIDE_SIGIL_MARGIN = 0.12, FRAME_GIVE = 0.08, FRAME_SURE = 0.5;
 
     public static final double MIN_SCORE = 0.35;
 
@@ -228,7 +228,11 @@ public final class GlyphAnalyzer {
             for (Pt p : st) if (nearInk(p, ringInk, over)) on++;
             return on >= st.size() * 0.8;
         });
+        List<List<Integer>> seals = stripFrames(strokes, inside, c, r, inkWidth, turn);
+        List<Integer> sealed = new ArrayList<>();
+        for (List<Integer> seal : seals) sealed.addAll(seal);
         List<List<Integer>> groups = group(strokes, inside, Math.max(inkWidth * 2.5, 0.07 * r));
+        joinSeals(groups, seals);
         mergeEnclosed(strokes, groups, c, r);
         mergeParts(strokes, groups, c, r);
 
@@ -398,9 +402,11 @@ public final class GlyphAnalyzer {
             for (int k = 0; k < outerGroups.size(); k++) {
                 if (outerGroups.get(k).isEmpty()) continue;
                 Match cm = center(pick(strokes, outerGroups.get(k)), turn);
-                if (cm.template() == null || cm.template().sigil() == null || cm.score() < SIDE_SIGIL_SCORE) continue;
+                boolean inSeal = sealed.containsAll(outerGroups.get(k));
+                if (cm.template() == null || cm.template().sigil() == null || cm.template().sigil() == Sigil.APPLE
+                        || cm.score() < (inSeal ? MIN_SCORE : SIDE_SIGIL_SCORE)) continue;
                 double asSign = chosen[k] == null ? 0 : chosen[k].score();
-                if (cm.score() < asSign + SIDE_SIGIL_MARGIN) continue;
+                if (!inSeal && cm.score() < asSign + SIDE_SIGIL_MARGIN) continue;
                 sides.add(cm.template().sigil());
                 scoreSum += cm.score();
                 scored++;
@@ -438,6 +444,87 @@ public final class GlyphAnalyzer {
         Pt imbalance = wsum > 0 ? new Pt(wx / wsum, wy / wsum) : new Pt(0, 0);
         double neatness = scored > 0 ? scoreSum / (scored + unknown) : 0;
         return new GlyphReading(outer, inner, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, used, core, List.copyOf(sides));
+    }
+
+    static void joinSeals(List<List<Integer>> groups, List<List<Integer>> seals) {
+        for (List<Integer> seal : seals) {
+            List<Integer> joined = null;
+            for (int k = 0; k < groups.size(); k++) {
+                if (!seal.containsAll(groups.get(k))) continue;
+                if (joined == null) {
+                    joined = groups.get(k);
+                } else {
+                    joined.addAll(groups.get(k));
+                    groups.remove(k--);
+                }
+            }
+        }
+    }
+
+    static List<List<Integer>> stripFrames(List<List<Pt>> strokes, List<Integer> inside, Pt c, double r, double inkWidth, double turn) {
+        List<List<Integer>> sealed = new ArrayList<>();
+        double tol = Math.max(0.08 * r, inkWidth * 2.5);
+        inside.removeIf(i -> isLuneArc(strokes.get(i), c, r, tol));
+        for (int i : new ArrayList<>(inside)) {
+            double[] fc = circleOf(strokes.get(i));
+            if (fc == null || fc[2] > 0.45 * r || fc[2] < 0.06 * r) continue;
+            Pt at = new Pt(fc[0], fc[1]);
+            List<Integer> content = new ArrayList<>();
+            for (int j : inside) {
+                if (j == i) continue;
+                int in = 0;
+                for (Pt p : strokes.get(j)) if (p.dist(at) <= fc[2] * 1.25) in++;
+                if (PointCloud.centroid(strokes.get(j)).dist(at) <= fc[2] && in >= strokes.get(j).size() * 0.6) content.add(j);
+            }
+            if (content.isEmpty()) continue;
+            List<Integer> with = new ArrayList<>(content);
+            with.add(i);
+            Match framed = asSymbol(strokes, with, at, c, r, turn), bare = asSymbol(strokes, content, at, c, r, turn);
+            if (bare.template() != null && bare.score() >= MIN_SCORE && (bare.score() >= framed.score() - FRAME_GIVE || bare.score() >= FRAME_SURE)) {
+                inside.remove(Integer.valueOf(i));
+                if (at.dist(c) >= 0.2 * r) sealed.add(content);
+            }
+        }
+        return sealed;
+    }
+
+    static Match asSymbol(List<List<Pt>> strokes, List<Integer> g, Pt at, Pt c, double r, double turn) {
+        Match centre = Match.NONE;
+        for (int k = 0; k < 8; k++) {
+            Match m = center(pick(strokes, g), turn + k * Math.PI / 4);
+            if (m.template() != null && (centre.template() == null || m.score() > centre.score())) centre = m;
+        }
+        if (at.dist(c) < 0.2 * r) return centre;
+        Match sign = SymbolRecognizer.classifySign(pick(strokes, g), Math.atan2(at.y() - c.y(), at.x() - c.x()));
+        return sign.template() != null && sign.score() > centre.score() ? sign : centre;
+    }
+
+    static boolean isLuneArc(List<Pt> st, Pt c, double r, double tol) {
+        if (st.size() < 4) return false;
+        Pt a = st.get(0), b = st.get(st.size() - 1);
+        if (Math.abs(a.dist(c) - r) > tol || Math.abs(b.dist(c) - r) > tol || a.dist(b) < 0.25 * r) return false;
+        double nearest = Double.MAX_VALUE;
+        for (Pt p : st) nearest = Math.min(nearest, p.dist(c));
+        return nearest < 0.85 * r && nearest > 0.3 * r && PointCloud.pathLength(st) > 0.3 * r;
+    }
+
+    static double[] circleOf(List<Pt> st) {
+        if (st.size() < 12) return null;
+        Pt m = PointCloud.centroid(st);
+        double sum = 0;
+        for (Pt p : st) sum += p.dist(m);
+        double mean = sum / st.size(), var = 0, worst = 0;
+        for (Pt p : st) {
+            var += (p.dist(m) - mean) * (p.dist(m) - mean);
+            worst = Math.max(worst, Math.abs(p.dist(m) - mean));
+        }
+        if (mean <= 0 || Math.sqrt(var / st.size()) / mean > 0.09 || worst / mean > 0.2) return null;
+        double[] ang = new double[st.size()];
+        for (int k = 0; k < st.size(); k++) ang[k] = Math.atan2(st.get(k).y() - m.y(), st.get(k).x() - m.x());
+        Arrays.sort(ang);
+        double gap = ang[0] + Math.PI * 2 - ang[ang.length - 1];
+        for (int k = 1; k < ang.length; k++) gap = Math.max(gap, ang[k] - ang[k - 1]);
+        return gap > Math.toRadians(60) ? null : new double[]{m.x(), m.y(), mean};
     }
 
     static void mergeEnclosed(List<List<Pt>> strokes, List<List<Integer>> groups, Pt c, double r) {

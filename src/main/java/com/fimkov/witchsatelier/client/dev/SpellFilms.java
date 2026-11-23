@@ -89,7 +89,7 @@ final class SpellFilms {
         String name = r.name();
         boolean wall = name.equals("stone_breaker");
         boolean night = r.sigil() == Sigil.LIGHT || name.equals("night_eye") || name.equals("petrification");
-        double radius = r.band() != null ? 2.3 : 1.6;
+        double radius = r.bands().isEmpty() && r.lunes().isEmpty() ? 1.6 : r.bands().size() > 1 ? 2.8 : 2.3;
         Glyph[] glyph = new Glyph[1];
         Consumer<ServerLevel> setup = l -> {
             stage(l, night);

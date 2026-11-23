@@ -25,20 +25,20 @@ final class HandDrawn {
     }
 
     HandDrawn recipe(GlyphLibrary.Recipe r, double ringRadius, double turn) {
-        double radius = 0.85;
+        double radius = GlyphLibrary.OUTER_RADIUS;
         this.scale = ringRadius / radius;
         this.turn = turn;
         ring(radius);
-        if (r.band() == null) {
-            core(r, radius, 1);
-        } else {
-            double inner = radius * 0.6;
+        double at = radius;
+        for (GlyphLibrary.Band band : r.bands()) {
+            double inner = at * GlyphLibrary.bandRatio(r);
             ring(inner);
-            core(r, inner, inner / radius);
-            double mid = (radius + inner) / 2;
-            for (GlyphLibrary.Signs s : r.band().signs()) signs(s.type(), s.count(), s.startDeg(), s.size(), mid);
-            if (r.band().sigil() != null) symbol(sigil(r.band().sigil()), new Pt(0, mid), 0.2, 0);
+            double mid = (at + inner) / 2, width = (at - inner) / (GlyphLibrary.OUTER_RADIUS * 0.4);
+            for (GlyphLibrary.Signs s : band.signs()) signs(s.type(), s.count(), s.startDeg(), s.size() * width, mid);
+            if (band.sigil() != null) symbol(sigil(band.sigil()), new Pt(0, mid), 0.2 * width, 0);
+            at = inner;
         }
+        core(r, at, at / radius);
         return this;
     }
 
@@ -52,7 +52,32 @@ final class HandDrawn {
     private void core(GlyphLibrary.Recipe r, double radius, double k) {
         if (r.sigil() != null) symbol(sigil(r.sigil()), new Pt(0, 0), r.sigilSize() * k, 0);
         else if (r.centerSign() != null) symbol(sign(r.centerSign()), new Pt(0, 0), r.sigilSize() * k, 0);
+        GlyphLibrary.LuneShape shape = GlyphLibrary.luneShape(r);
+        if (r.framed()) circle(new Pt(0, 0), radius * shape.frame());
         for (GlyphLibrary.Signs s : r.signs()) signs(s.type(), s.count(), s.startDeg(), s.size() * k, radius * 0.62);
+        for (GlyphLibrary.Lune l : r.lunes()) {
+            double a = Math.toRadians(l.angleDeg());
+            List<Pt> arc = new ArrayList<>();
+            for (Pt p : GlyphLibrary.luneArcPoints(radius, a, shape.rho())) arc.add(world(p.plus(new Pt(g(0.006), g(0.006)))));
+            strokes.add(jitter(resampleWorld(arc, 0.035), 0.003));
+            Pt seal = new Pt(Math.cos(a), Math.sin(a)).scale(radius * shape.sealAt());
+            circle(seal, radius * shape.sealRadius());
+            symbol(sigil(l.sigil()), seal, radius * shape.sealSigil(), 0);
+        }
+    }
+
+    private void circle(Pt at, double radius) {
+        Pt c = at.plus(new Pt(g(0.01), g(0.01)));
+        double ecc = Math.abs(g(0.04)), a0 = rnd.nextDouble() * Math.PI * 2;
+        double sweep = Math.PI * 2 + Math.toRadians(4 + Math.abs(g(8)));
+        List<Pt> s = new ArrayList<>();
+        int n = Math.max(16, (int) Math.ceil(sweep * radius / 0.02));
+        for (int i = 0; i <= n; i++) {
+            double a = a0 + sweep * i / n;
+            double rr = radius * (1 + ecc * Math.cos(2 * a));
+            s.add(world(c.plus(new Pt(Math.cos(a) * rr, Math.sin(a) * rr))));
+        }
+        strokes.add(jitter(s, 0.003));
     }
 
     private void signs(SignType type, int count, double startDeg, double size, double at) {

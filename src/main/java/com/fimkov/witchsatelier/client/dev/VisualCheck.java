@@ -277,7 +277,7 @@ public final class VisualCheck {
         imaginedShot();
         appleShots();
 
-        for (String[] v : new String[][]{{"forbidden", "0"}, {"forbidden", "1"}, {"forbidden", "2"}, {"forbidden", "3"}, {"forbidden", "4"}, {"forbidden", "5"}, {"flame", "1"}, {"imagined_ring", "0"}, {"primer", "0"}}) {
+        for (String[] v : new String[][]{{"forbidden", "0"}, {"forbidden", "1"}, {"forbidden", "2"}, {"forbidden", "3"}, {"forbidden", "4"}, {"forbidden", "5"}, {"wind", "5"}, {"waters", "4"}, {"earth", "6"}, {"flame", "1"}, {"imagined_ring", "0"}, {"primer", "0"}}) {
             SHOTS.add(new Shot("volume_" + v[0] + "_" + v[1], 30, l -> {
                 ServerPlayer p = player(l.getServer());
                 if (p == null) return;
