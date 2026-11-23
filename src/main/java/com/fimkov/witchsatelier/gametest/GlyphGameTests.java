@@ -1417,7 +1417,12 @@ public final class GlyphGameTests {
                     if (pig.isOnFire()) h.fail("nothing has stepped on it yet");
                     pig.teleportTo(h.absoluteVec(new Vec3(5.5, 1, 5.5)).x, h.absoluteVec(new Vec3(5.5, 1, 5.5)).y, h.absoluteVec(new Vec3(5.5, 1, 5.5)).z);
                 })
-                .thenWaitUntil(() -> { if (!pig.isOnFire()) h.fail("stepping on the snare should spring its pillar"); })
+                .thenWaitUntil(() -> {
+                    if (!pig.isOnFire()) h.fail("stepping on the snare should spring its pillar");
+                    if (spellsOn(h, plane).get(0).waiting()) h.fail("the snare should be pressed while the pig stands on it");
+                })
+                .thenExecute(() -> pig.teleportTo(h.absoluteVec(new Vec3(1.5, 1, 1.5)).x, h.absoluteVec(new Vec3(1.5, 1, 1.5)).y, h.absoluteVec(new Vec3(1.5, 1, 1.5)).z))
+                .thenWaitUntil(() -> { if (!spellsOn(h, plane).get(0).waiting()) h.fail("left alone, the snare should set itself again"); })
                 .thenSucceed();
     }
 
@@ -1442,10 +1447,20 @@ public final class GlyphGameTests {
                         h.fail("nothing is closed yet");
                     GlyphService.inscribe(level, plane, new GlyphSketch(a, 1.0).ring(0, 362).sigil(Sigil.LIGHT, 0.6).strokes, null);
                 })
-                .thenExecuteAfter(2, () -> {
+                .thenExecuteAfter(1, () -> {
                     Vec3 mid = h.absoluteVec(new Vec3(5.5, 1, 5.5));
                     var s = GlyphService.activeSpells(level).stream().filter(sp -> plane.equals(sp.plane) && sp.program.origin().distanceTo(mid) < 6).toList();
                     if (s.size() != 2) h.fail("closing one glyph should wake the one joined to it: " + s.size() + " spells");
+                    var closed = s.stream().filter(sp -> sp.hop == 0).findFirst().orElse(null);
+                    var joined = s.stream().filter(sp -> sp.hop == 1).findFirst().orElse(null);
+                    if (closed == null || joined == null || closed.chain != joined.chain) h.fail("the two glyphs should be one chain");
+                    if (closed.held) h.fail("the glyph just closed should light at once");
+                    if (!joined.held) h.fail("the light should take a moment to run along the line");
+                })
+                .thenWaitUntil(() -> {
+                    Vec3 mid = h.absoluteVec(new Vec3(5.5, 1, 5.5));
+                    if (GlyphService.activeSpells(level).stream().anyMatch(sp -> plane.equals(sp.plane) && sp.program.origin().distanceTo(mid) < 6 && sp.held))
+                        h.fail("the joined glyph should light when the wave reaches it");
                 })
                 .thenSucceed();
     }
