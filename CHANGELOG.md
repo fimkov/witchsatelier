@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
 - New spells from the manga: Pyreball Seal, Floatglow Lamp, Rising Platform of Water, Water Cage, Wall of Wind, Wall Bend, Water Horse, Ring of Fire, and the Seal of Obliviation.
 - New signs: Region (where a spell may happen) and the Horse picture. A line struck through a sign switches it off; inward Columns lay the element flat; a Tread remembers who stood in it and can be turned inward.
