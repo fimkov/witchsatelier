@@ -18,6 +18,10 @@ public final class GlyphAnalyzer {
 
     public static final double MIN_SCORE = 0.35;
 
+    static final double SURE_SIGN = 0.5, PICTURE_SCORE = 0.55;
+
+    static final java.util.Set<SignType> PICTURES = java.util.EnumSet.of(SignType.DANCING_PUPPET, SignType.HORSE);
+
     static final double INNER_RING_MIN = 0.5;
 
     private GlyphAnalyzer() {}
@@ -27,7 +31,8 @@ public final class GlyphAnalyzer {
     }
 
     public static GlyphReading analyzeFromAnySide(List<List<Pt>> strokes, double inkWidth, double upAngle) {
-        return SymbolRecognizer.cached(() -> fromAnySide(strokes, inkWidth, upAngle));
+        List<List<Pt>> thin = PointCloud.thin(strokes, inkWidth);
+        return SymbolRecognizer.cached(() -> fromAnySide(thin, inkWidth, upAngle));
     }
 
     private static GlyphReading fromAnySide(List<List<Pt>> strokes, double inkWidth, double upAngle) {
@@ -49,19 +54,15 @@ public final class GlyphAnalyzer {
         return r.centerScore() + (r.core() != null ? sideScore(r.core()) : 0);
     }
 
-    static List<Match> pupilMakesAnEye(List<List<Pt>> strokes, List<Integer> g, List<Match> rank) {
+    static List<Match> pupilMakesAnEye(List<List<Pt>> strokes, List<Integer> g, List<Match> rank, double outwardAngle) {
         if (rank.isEmpty() || rank.get(0).template() == null || rank.get(0).template().sign() != SignType.DIAMOND) return rank;
         if (!hasPupil(strokes, g)) return rank;
-        for (int i = 1; i < rank.size(); i++) {
-            Match m = rank.get(i);
-            if (m.template().sign() == SignType.EYE && m.score() >= 0.25) {
-                List<Match> out = new ArrayList<>(rank);
-                out.remove(i);
-                out.add(0, m);
-                return out;
-            }
-        }
-        return rank;
+        Match eye = SymbolRecognizer.exactSign(pick(strokes, g), outwardAngle, SignType.EYE);
+        if (eye.template() == null || eye.score() < 0.25) return rank;
+        List<Match> out = new ArrayList<>(rank);
+        out.removeIf(m -> m.template() != null && m.template().sign() == SignType.EYE);
+        out.add(0, eye);
+        return out;
     }
 
     static List<Match> barOrHook(List<List<Pt>> strokes, List<Integer> g, List<Match> rank) {
@@ -161,7 +162,8 @@ public final class GlyphAnalyzer {
     }
 
     public static GlyphReading analyze(List<List<Pt>> strokes, double inkWidth, double upAngle) {
-        return SymbolRecognizer.cached(() -> analyzeNow(strokes, inkWidth, upAngle));
+        List<List<Pt>> thin = PointCloud.thin(strokes, inkWidth);
+        return SymbolRecognizer.cached(() -> analyzeNow(thin, inkWidth, upAngle));
     }
 
     private static GlyphReading analyzeNow(List<List<Pt>> strokes, double inkWidth, double upAngle) {
@@ -235,6 +237,12 @@ public final class GlyphAnalyzer {
         joinSeals(groups, seals);
         mergeEnclosed(strokes, groups, c, r);
         mergeParts(strokes, groups, c, r);
+        for (var it = groups.iterator(); it.hasNext(); ) {
+            List<Integer> g = it.next();
+            if (centroid(strokes, g).dist(c) < 0.35 * r || !struckOut(strokes, g, c, turn)) continue;
+            it.remove();
+            used.removeAll(g);
+        }
 
         List<Integer> centerGroup = null;
         List<List<Integer>> centerParts = new ArrayList<>();
@@ -270,10 +278,13 @@ public final class GlyphAnalyzer {
                 if (centroid(strokes, g).dist(c) <= 0.62 * r && size(strokes, g) < 0.3 * sigilSize) specks.add(g);
             }
             if (!specks.isEmpty()) {
-                outerGroups.removeAll(specks);
                 List<Integer> with = new ArrayList<>(centerGroup);
                 for (List<Integer> g : specks) with.addAll(g);
-                if (center(pick(strokes, with), turn).score() >= center(pick(strokes, centerGroup), turn).score() - 0.03) {
+                boolean joins = center(pick(strokes, with), turn).score() >= center(pick(strokes, centerGroup), turn).score() - 0.03;
+                for (List<Integer> g : specks) {
+                    if (joins || signScore(strokes, g, c) < SURE_SIGN) outerGroups.remove(g);
+                }
+                if (joins) {
                     centerGroup = with;
                     centerParts.clear();
                     centerParts.add(with);
@@ -326,8 +337,9 @@ public final class GlyphAnalyzer {
         Sigil sigil = null;
         SignType centerSign = null;
         double centerScore = 0;
+        double speck = inkWidth * 1.5;
         if (centerGroup != null) {
-            Match m = center(pick(strokes, centerGroup), turn);
+            Match m = bboxDiagonal(pick(strokes, centerGroup)) < speck ? Match.NONE : center(pick(strokes, centerGroup), turn);
             if (m.template() != null && m.score() >= MIN_SCORE) {
                 sigil = m.template().sigil();
                 centerSign = m.template().sign();
@@ -348,14 +360,19 @@ public final class GlyphAnalyzer {
         for (int k = 0; k < outerGroups.size(); k++) {
             List<Integer> g = outerGroups.get(k);
             Pt cen = centroid(strokes, g);
+            if (bboxDiagonal(pick(strokes, g)) < speck) {
+                ranked.add(List.of());
+                continue;
+            }
             List<Match> rank = SymbolRecognizer.rankSign(pick(strokes, g), Math.atan2(cen.y() - c.y(), cen.x() - c.x()));
-            rank = pupilMakesAnEye(strokes, g, rank);
+            rank = pupilMakesAnEye(strokes, g, rank, Math.atan2(cen.y() - c.y(), cen.x() - c.x()));
             rank = barOrHook(strokes, g, rank);
             ranked.add(rank);
             Match best = rank.isEmpty() ? Match.NONE : rank.get(0);
             double margin = rank.size() > 1 ? best.score() - rank.get(1).score() : best.score();
 
-            if (best.template() != null && (best.score() >= MIN_SCORE || (best.score() >= 0.27 && margin >= 0.1))) {
+            boolean picture = best.template() != null && PICTURES.contains(best.template().sign());
+            if (best.template() != null && (picture ? best.score() >= PICTURE_SCORE : best.score() >= MIN_SCORE || (best.score() >= 0.27 && margin >= 0.1))) {
                 chosen[k] = best;
                 votes.merge(best.template().sign(), 1, Integer::sum);
             }
@@ -381,6 +398,7 @@ public final class GlyphAnalyzer {
             Match bestSigil = null;
             int at = -1;
             for (int k = 0; k < outerGroups.size(); k++) {
+                if (bboxDiagonal(pick(strokes, outerGroups.get(k))) < speck) continue;
                 Match cm = center(pick(strokes, outerGroups.get(k)), turn);
                 if (cm.template() == null || cm.template().sigil() == null || cm.score() < MIN_SCORE) continue;
                 double asSign = chosen[k] == null ? 0 : chosen[k].score();
@@ -400,7 +418,7 @@ public final class GlyphAnalyzer {
         List<Sigil> sides = new ArrayList<>();
         if (core == null && (sigil != null || centerSign != null)) {
             for (int k = 0; k < outerGroups.size(); k++) {
-                if (outerGroups.get(k).isEmpty()) continue;
+                if (outerGroups.get(k).isEmpty() || bboxDiagonal(pick(strokes, outerGroups.get(k))) < speck) continue;
                 Match cm = center(pick(strokes, outerGroups.get(k)), turn);
                 boolean inSeal = sealed.containsAll(outerGroups.get(k));
                 if (cm.template() == null || cm.template().sigil() == null || cm.template().sigil() == Sigil.APPLE
@@ -443,7 +461,8 @@ public final class GlyphAnalyzer {
         }
         Pt imbalance = wsum > 0 ? new Pt(wx / wsum, wy / wsum) : new Pt(0, 0);
         double neatness = scored > 0 ? scoreSum / (scored + unknown) : 0;
-        return new GlyphReading(outer, inner, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness, used, core, List.copyOf(sides));
+        return new GlyphReading(outer, inner, sigil, centerSign, centerScore, signs, unknown, imbalance, neatness,
+                List.copyOf(new java.util.LinkedHashSet<>(used)), core, List.copyOf(sides));
     }
 
     static void joinSeals(List<List<Integer>> groups, List<List<Integer>> seals) {
@@ -464,11 +483,25 @@ public final class GlyphAnalyzer {
     static List<List<Integer>> stripFrames(List<List<Pt>> strokes, List<Integer> inside, Pt c, double r, double inkWidth, double turn) {
         List<List<Integer>> sealed = new ArrayList<>();
         double tol = Math.max(0.08 * r, inkWidth * 2.5);
-        inside.removeIf(i -> isLuneArc(strokes.get(i), c, r, tol));
+        List<double[]> lunes = new ArrayList<>();
+        inside.removeIf(i -> {
+            List<Pt> st = strokes.get(i);
+            if (!isLuneArc(st, c, r, tol)) return false;
+            Pt a = st.get(0), b = st.get(st.size() - 1);
+            double ang = Math.atan2((a.y() + b.y()) / 2 - c.y(), (a.x() + b.x()) / 2 - c.x());
+            Pt rim = new Pt(c.x() + Math.cos(ang) * r, c.y() + Math.sin(ang) * r);
+            double rho = 0;
+            for (Pt q : st) rho += q.dist(rim);
+            lunes.add(new double[]{rim.x(), rim.y(), rho / st.size()});
+            return true;
+        });
         for (int i : new ArrayList<>(inside)) {
             double[] fc = circleOf(strokes.get(i));
             if (fc == null || fc[2] > 0.45 * r || fc[2] < 0.06 * r) continue;
             Pt at = new Pt(fc[0], fc[1]);
+            boolean inLune = false;
+            for (double[] l : lunes) if (at.dist(new Pt(l[0], l[1])) < l[2] * 0.95 && fc[2] < l[2]) inLune = true;
+            if (!lunes.isEmpty() && at.dist(c) < 0.15 * r && fc[2] < 0.45 * r) inLune = true;
             List<Integer> content = new ArrayList<>();
             for (int j : inside) {
                 if (j == i) continue;
@@ -480,7 +513,7 @@ public final class GlyphAnalyzer {
             List<Integer> with = new ArrayList<>(content);
             with.add(i);
             Match framed = asSymbol(strokes, with, at, c, r, turn), bare = asSymbol(strokes, content, at, c, r, turn);
-            if (bare.template() != null && bare.score() >= MIN_SCORE && (bare.score() >= framed.score() - FRAME_GIVE || bare.score() >= FRAME_SURE)) {
+            if (inLune || bare.template() != null && bare.score() >= MIN_SCORE && (bare.score() >= framed.score() - FRAME_GIVE || bare.score() >= FRAME_SURE)) {
                 inside.remove(Integer.valueOf(i));
                 if (at.dist(c) >= 0.2 * r) sealed.add(content);
             }
@@ -672,10 +705,13 @@ public final class GlyphAnalyzer {
     static List<List<Integer>> group(List<List<Pt>> strokes, List<Integer> idx, double mergeDist) {
         int n = idx.size();
         int[] parent = new int[n];
-        for (int i = 0; i < n; i++) parent[i] = i;
+        double[][] box = new double[n][];
+        for (int i = 0; i < n; i++) { parent[i] = i; box[i] = bbox(strokes.get(idx.get(i))); }
         for (int a = 0; a < n; a++) {
             for (int b = a + 1; b < n; b++) {
-                if (minDist(strokes.get(idx.get(a)), strokes.get(idx.get(b))) < mergeDist) {
+                double gx = Math.max(box[a][0] - box[b][2], box[b][0] - box[a][2]), gy = Math.max(box[a][1] - box[b][3], box[b][1] - box[a][3]);
+                if (gx >= mergeDist || gy >= mergeDist || find(parent, a) == find(parent, b)) continue;
+                if (closerThan(strokes.get(idx.get(a)), strokes.get(idx.get(b)), mergeDist)) {
                     parent[find(parent, a)] = find(parent, b);
                 }
             }
@@ -694,6 +730,68 @@ public final class GlyphAnalyzer {
     private static int find(int[] p, int i) {
         while (p[i] != i) { p[i] = p[p[i]]; i = p[i]; }
         return i;
+    }
+
+    static boolean struckOut(List<List<Pt>> strokes, List<Integer> g, Pt c, double turn) {
+        if (g.size() < 2) return false;
+        int longest = g.get(0);
+        for (int i : g) if (PointCloud.pathLength(strokes.get(i)) > PointCloud.pathLength(strokes.get(longest))) longest = i;
+        for (int i : List.of(longest)) {
+            List<Pt> st = strokes.get(i);
+            if (st.size() < 2) continue;
+            Pt a = st.get(0), b = st.get(st.size() - 1);
+            double path = PointCloud.pathLength(st), chord = a.dist(b);
+            if (path <= 0 || chord < 0.95 * path) continue;
+            List<Integer> rest = new ArrayList<>(g);
+            rest.remove((Integer) i);
+            List<List<Pt>> sym = pick(strokes, rest);
+            double size = bboxDiagonal(sym);
+            if (size <= 0) continue;
+            Pt rc = centroid(strokes, rest);
+            if (segmentDist(rc, a, b) > 0.25 * size) continue;
+            double dx = (b.x() - a.x()) / chord, dy = (b.y() - a.y()) / chord;
+            double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY, sxx = 0, syy = 0, sxy = 0;
+            int pts = 0;
+            for (List<Pt> q : sym) for (Pt p : q) {
+                double along = (p.x() - a.x()) * dx + (p.y() - a.y()) * dy;
+                lo = Math.min(lo, along);
+                hi = Math.max(hi, along);
+                double ex = p.x() - rc.x(), ey = p.y() - rc.y();
+                sxx += ex * ex; syy += ey * ey; sxy += ex * ey;
+                pts++;
+            }
+            if (pts == 0 || lo < 0.12 * chord || hi > 0.88 * chord) continue;
+            double tr = sxx + syy, det = sxx * syy - sxy * sxy, disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+            double big = tr / 2 + disc, small = Math.max(1e-12, tr / 2 - disc);
+            if (big / small > 1.7) {
+                double axis = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+                if (Math.abs(Math.cos(axis) * dx + Math.sin(axis) * dy) > 0.7) continue;
+            }
+            double out = Math.atan2(rc.y() - c.y(), rc.x() - c.x());
+            Match asSign = SymbolRecognizer.classifySign(sym, out);
+            if (asSign.template() == null || asSign.score() < SURE_SIGN) continue;
+            Match whole = SymbolRecognizer.classifySign(pick(strokes, g), out);
+            if (whole.template() != null && asSign.score() <= whole.score() + 0.1) continue;
+            Match wholeSigil = center(pick(strokes, g), turn);
+            if (wholeSigil.template() != null && wholeSigil.score() + 0.1 >= asSign.score()) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private static double segmentDist(Pt p, Pt a, Pt b) {
+        double dx = b.x() - a.x(), dy = b.y() - a.y(), l2 = dx * dx + dy * dy;
+        double t = l2 == 0 ? 0 : Math.max(0, Math.min(1, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / l2));
+        return Math.hypot(a.x() + dx * t - p.x(), a.y() + dy * t - p.y());
+    }
+
+    private static boolean closerThan(List<Pt> a, List<Pt> b, double limit) {
+        double l2 = limit * limit;
+        for (Pt p : a) for (Pt q : b) {
+            double dx = p.x() - q.x(), dy = p.y() - q.y();
+            if (dx * dx + dy * dy < l2) return true;
+        }
+        return false;
     }
 
     private static double minDist(List<Pt> a, List<Pt> b) {

@@ -65,7 +65,7 @@ public final class GlyphRenderer {
                         break;
                     }
 
-                    double left = en.duration() > 0 ? Math.max(0, (en.until() - time) / en.duration()) : 1;
+                    double left = en.duration() > 0 ? Math.max(0, Math.min(1, (en.until() - time) / en.duration())) : 1;
                     double life = 0.25 + 0.75 * left;
                     if (left < 0.2) life *= 0.6 + 0.4 * Math.abs(Math.sin(time * 0.9));
                     double pulse = 0.75 + 0.25 * Math.sin(time * 0.25 + s.id());
@@ -349,6 +349,7 @@ public final class GlyphRenderer {
     }
 
     private static int mix(int a, int b, double t) {
+        t = Math.max(0, Math.min(1, t));
         int r = (int) (((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
         int g = (int) (((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
         int bl = (int) ((a & 0xFF) * (1 - t) + (b & 0xFF) * t);

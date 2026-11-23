@@ -94,6 +94,7 @@ public final class GlyphLibrary {
             new Recipe("great_lantern", Sigil.LIGHT, null, 0.6, List.of(), new Band(null, List.of(new Signs(SignType.ENLARGE, 4, 0, 0.14)))),
             new Recipe("night_eye", null, SignType.VISION, 0.55, List.of(), null),
             new Recipe("veil_of_unseeing", null, SignType.VISION, 0.5, List.of(new Signs(SignType.BEND, 4, 45, 0.26)), null),
+            new Recipe("seal_of_obliviation", null, SignType.VISION, 0.4, List.of(new Signs(SignType.PULL, 4, 45, 0.26)), null).framedCentre(),
             new Recipe("feather_fall", Sigil.WIND, 0.55, List.of(new Signs(SignType.FLOAT, 4, 45, 0.28))),
             new Recipe("warming_hearth", Sigil.FIRE, 0.55, List.of(new Signs(SignType.RADIAL, 4, 45, 0.28))),
             new Recipe("sylph_step", Sigil.WIND_UNDERFOOT, 0.6, List.of()),
@@ -106,7 +107,15 @@ public final class GlyphLibrary {
                     new Band(Sigil.WATER, List.of(new Signs(SignType.COLUMN, 3, 30, 0.14)))),
             new Recipe("floating_drops", Sigil.WIND, 0.38, List.of()).framedCentre().withLunes(Sigil.WATER, 90, 270),
             new Recipe("rainflinger", Sigil.WATER, 0.38, List.of()).framedCentre().withLunes(Sigil.FIRE, 90, 270),
-            new Recipe("beast_repellent", Sigil.EARTH, 0.38, List.of()).framedCentre().withLunes(Sigil.LIGHT, 90, 270));
+            new Recipe("beast_repellent", Sigil.EARTH, 0.38, List.of()).framedCentre().withLunes(Sigil.LIGHT, 90, 270),
+            new Recipe("pyreball", Sigil.FIRE, 0.55, List.of(new Signs(SignType.LEVITATION, 4, 45, 0.28))),
+            new Recipe("floatglow_lamp", Sigil.LIGHT, 0.55, List.of(new Signs(SignType.LEVITATION, 4, 45, 0.28))),
+            new Recipe("rising_water", Sigil.WATER, 0.55, List.of(new Signs(SignType.LEVITATION, 4, 45, 0.28))),
+            new Recipe("water_cage", Sigil.WATER, 0.55, List.of(new Signs(SignType.CRUSH, 4, 45, 0.28))),
+            new Recipe("wall_of_wind", Sigil.WIND, null, 0.5, List.of(new Signs(SignType.COLUMN, 2, 90, 0.26), new Signs(SignType.CONVERGENCE, 2, 0, 0.26)), null),
+            new Recipe("ring_of_fire", Sigil.FIRE, null, 0.5, List.of(new Signs(SignType.DISPERSION, 4, 45, 0.24), new Signs(SignType.REGION, 4, 0, 0.24)), null),
+            new Recipe("water_horse", Sigil.WATER, null, 0.5, List.of(new Signs(SignType.HORSE, 1, 90, 0.32)), null),
+            new Recipe("wall_bend", Sigil.EARTH, null, 0.5, List.of(new Signs(SignType.PULL, 2, 0, 0.26), new Signs(SignType.DIRECTION, 1, 270, 0.26)), null));
 
     public static final List<Recipe> FORBIDDEN = List.of(
             new Recipe("petrification", Sigil.EARTH, 0.4, List.of(new Signs(SignType.EYE, 4, 0, 0.26)))
@@ -155,9 +164,10 @@ public final class GlyphLibrary {
     public record LuneShape(double rho, double sealAt, double sealRadius, double sealSigil, double frame) {}
 
     public static LuneShape luneShape(Recipe r) {
-        double k = r.lunes().size() <= 2 ? 1.1 : 1.0;
+        int n = r.lunes().size();
+        double k = n <= 2 ? 1.1 : n == 3 ? 0.9 : 0.8, seal = k;
         double rho = LUNE * k;
-        return new LuneShape(rho, 1 - rho / 2, SEAL_RADIUS * k, SEAL_SIGIL * k, Math.min(FRAME, 1 - rho - 0.04));
+        return new LuneShape(rho, 1 - rho / 2, SEAL_RADIUS * seal, SEAL_SIGIL * seal, Math.min(FRAME, 1 - rho - 0.04));
     }
 
     private static void core(List<PageStroke> out, Recipe recipe, double radius, double scale, RandomSource rnd, InkType ink) {
@@ -347,14 +357,14 @@ public final class GlyphLibrary {
 
     public static final Volume RING_NOTES = new Volume("imagined_ring", List.of(IMAGINED_RING));
 
-    public static final Volume FORBIDDEN_BOOK = new Volume("forbidden", List.of("forbidden_magic", "the_pact", "blood_ink", "petrification", "brimhats", "knights_moralis"));
+    public static final Volume FORBIDDEN_BOOK = new Volume("forbidden", List.of("forbidden_magic", "the_pact", "blood_ink", "petrification", "brimhats", "knights_moralis", "seal_of_obliviation"));
 
     public static final List<Volume> VOLUMES = List.of(
-            new Volume("flame", List.of("fan_of_flame", "fire_bolts", "warming_hearth", "snare_of_flame", "steam_pillar")),
-            new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep", "rainflinger")),
-            new Volume("earth", List.of("stone_breaker", "bed_of_sand", "earthen_wall", "rising_earth", "mire", "quickening_soil", "beast_repellent")),
-            new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step", "floating_drops")),
-            new Volume("light", List.of("great_lantern", "rain_of_light", "sunlit_spill", "lance_of_light", "beacon_of_birds")),
+            new Volume("flame", List.of("fan_of_flame", "fire_bolts", "warming_hearth", "snare_of_flame", "steam_pillar", "pyreball", "ring_of_fire")),
+            new Volume("waters", List.of("spilling_water", "water_jet", "tidal_ring", "breath_of_the_deep", "rainflinger", "rising_water", "water_cage", "water_horse")),
+            new Volume("earth", List.of("stone_breaker", "bed_of_sand", "earthen_wall", "rising_earth", "mire", "quickening_soil", "beast_repellent", "wall_bend")),
+            new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step", "floating_drops", "wall_of_wind")),
+            new Volume("light", List.of("great_lantern", "rain_of_light", "sunlit_spill", "lance_of_light", "beacon_of_birds", "floatglow_lamp")),
             new Volume("rings_within_rings", List.of("everburning_pillar", "sentinel_bolts", "pillar_and_volley", "crystal_ward", "binding_threads")),
             new Volume("odd_signs", List.of("windowway", "night_eye", "veil_of_unseeing", "puppet_dance")));
 

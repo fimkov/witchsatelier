@@ -104,9 +104,15 @@ class RobustnessTest {
     @Test
     void handDrawnCopiesReadAsTheirPage() {
         Map<String, Integer> mistakes = new TreeMap<>();
-        double careful = accuracy(0.5, 6, null, null);
-        double ordinary = accuracy(1.0, 6, mistakes, null);
+        Map<String, double[]> perRecipe = new TreeMap<>();
+        double careful = accuracy(0.5, 6, null, perRecipe);
+        double ordinary = accuracy(1.0, 6, mistakes, perRecipe);
+        System.out.println("careful " + careful + ", ordinary " + ordinary);
+        perRecipe.forEach((name, v) -> System.out.printf("  %-20s careful %.2f ordinary %.2f%n", name, v[0], v[1]));
         assertTrue(careful >= 0.94, "careful copies read right only " + careful);
         assertTrue(ordinary >= 0.80, "ordinary copies read right only " + ordinary + ": " + mistakes);
+        List<String> unreadable = new ArrayList<>();
+        perRecipe.forEach((name, v) -> { if (v[0] == 0) unreadable.add(name); });
+        assertTrue(unreadable.isEmpty(), "no careful copy of these reads at all: " + unreadable);
     }
 }

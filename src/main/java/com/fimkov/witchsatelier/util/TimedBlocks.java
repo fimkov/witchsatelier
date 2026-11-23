@@ -31,11 +31,16 @@ public final class TimedBlocks {
     }
 
     public static boolean extend(ServerLevel level, BlockPos pos, int ticks) {
+        return extend(level, pos, ticks, false);
+    }
+
+    public static boolean extend(ServerLevel level, BlockPos pos, int ticks, boolean onlyCleared) {
         List<Entry> list = ALL.get(level.dimension());
         if (list == null) return false;
         for (int i = 0; i < list.size(); i++) {
             Entry e = list.get(i);
             if (!e.pos.equals(pos)) continue;
+            if (onlyCleared && !e.placed.isAir()) return false;
             if (level.getBlockState(pos) != e.placed) return false;
             list.set(i, new Entry(e.pos, e.placed, e.original, Math.max(e.until, level.getGameTime() + ticks)));
             return true;
@@ -50,7 +55,8 @@ public final class TimedBlocks {
         for (Iterator<Entry> it = list.iterator(); it.hasNext(); ) {
             Entry e = it.next();
             if (e.until > now) continue;
-            if (level.isLoaded(e.pos) && level.getBlockState(e.pos) == e.placed) level.setBlock(e.pos, e.original, 3);
+            if (!level.isLoaded(e.pos)) continue;
+            if (level.getBlockState(e.pos) == e.placed) level.setBlock(e.pos, e.original, 3);
             it.remove();
         }
     }

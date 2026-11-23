@@ -447,11 +447,12 @@ public final class SpellFxClient {
             sceneCopy.setClearColor(0, 0, 0, 0);
         }
         if (sceneCopy.width != main.width || sceneCopy.height != main.height) sceneCopy.resize(main.width, main.height, Minecraft.ON_OSX);
+        int was = GlStateManager._getInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
         GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, sceneCopy.frameBufferId);
         GlStateManager._glBlitFrameBuffer(0, 0, main.width, main.height, 0, 0, main.width, main.height,
                 GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
-        main.bindWrite(false);
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, was);
 
         var b = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS,
                 DefaultVertexFormat.POSITION_TEX_COLOR);

@@ -52,6 +52,9 @@ public final class ItemInfo {
                 of(ModItems.LIGHT_TRACER_BANGLE, "glyph.witchsatelier.light_tracer_bangle.desc", "jei.witchsatelier.info.awakening"),
                 of(ModItems.BLACKENED_TWIG, "jei.witchsatelier.info.blackened_silverwood_twig"),
                 of(ModItems.TORN_PAGE, "jei.witchsatelier.info.torn_page"),
-                of(ModItems.BRIMHAT_MANTLE, "jei.witchsatelier.info.brimhat_mantle"));
+                of(ModItems.BRIMHAT_MANTLE, "jei.witchsatelier.info.brimhat_mantle"),
+                of(ModItems.DOORKNOB, "glyph.witchsatelier.doorknob.desc", "jei.witchsatelier.info.awakening"),
+                of(ModItems.GUIDANCE_ORB, "glyph.witchsatelier.guidance_orb.desc", "jei.witchsatelier.info.awakening"),
+                of(ModItems.FLUTTERGRAM, "glyph.witchsatelier.fluttergram.desc", "jei.witchsatelier.info.awakening"));
     }
 }

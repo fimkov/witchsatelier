@@ -49,6 +49,7 @@ public final class WindowwayService {
 
     private static final Map<ResourceKey<Level>, Map<Long, Open>> OPEN = new HashMap<>();
     private static final Map<UUID, Long> COOLDOWN = new HashMap<>();
+    private static final Map<UUID, Vec3> LAST = new HashMap<>();
 
     private static Map<Long, Open> of(ServerLevel level) {
         return OPEN.computeIfAbsent(level.dimension(), k -> new LinkedHashMap<>());
@@ -69,6 +70,7 @@ public final class WindowwayService {
         if (spell.plane == null || of(level).containsKey(spell.id)) return;
         SurfacePlane plane = spell.plane;
         Vec3 n = plane.normal();
+        if (com.fimkov.witchsatelier.compat.Ships.onShip(level, BlockPos.containing(spell.program.origin().subtract(n.scale(0.2))))) return;
         Vec3 center = spell.program.origin().subtract(n.scale(0.05));
         Vec3 up;
         if (Math.abs(n.y) < 0.5) {
@@ -81,13 +83,16 @@ public final class WindowwayService {
         }
         Open me = new Open(spell, PortalFrame.of(spell.id, center, up, n, spell.program.radius(), -1));
         of(level).put(spell.id, me);
+        pair(level, me);
+        sync(level);
+    }
 
+    private static void pair(ServerLevel level, Open me) {
         Open partner = null;
         for (Open other : of(level).values()) {
             if (other != me && other.frame.link() < 0 && Objects.equals(other.owner, me.owner)) partner = other;
         }
         if (partner != null) link(level, me, partner);
-        sync(level);
     }
 
     private static void link(ServerLevel level, Open a, Open b) {
@@ -110,6 +115,7 @@ public final class WindowwayService {
         if (partner != null) {
             partner.frame = partner.frame.withLink(-1);
             closeGaps(level, partner);
+            pair(level, partner);
         }
         sync(level);
     }
@@ -156,6 +162,13 @@ public final class WindowwayService {
             if (to == null) continue;
             PortalFrame f = o.frame;
             AABB box = new AABB(f.center(), f.center()).inflate(f.radius() + 2);
+            for (ServerPlayer p : level.getEntitiesOfClass(ServerPlayer.class, box, p -> p.isAlive() && !p.isPassenger() && !p.isSpectator())) {
+                Vec3 cur = p.position().add(0, p.getBbHeight() / 2, 0);
+                Vec3 prev = LAST.put(p.getUUID(), cur);
+                Long cd = COOLDOWN.get(p.getUUID());
+                if (prev == null || (cd != null && now - cd < 6) || prev.distanceTo(cur) > 2 || !crossed(f, prev, cur)) continue;
+                cross(level, p, o, to);
+            }
             for (Entity e : level.getEntities((Entity) null, box, e -> !(e instanceof Player) && e.isAlive() && !e.isPassenger())) {
                 Long cd = COOLDOWN.get(e.getUUID());
                 if (cd != null && now - cd < 4) continue;
@@ -166,7 +179,10 @@ public final class WindowwayService {
                 COOLDOWN.put(e.getUUID(), now);
             }
         }
-        if (now % 200 == 0) COOLDOWN.values().removeIf(t -> now - t > 100);
+        if (now % 200 == 0) {
+            COOLDOWN.values().removeIf(t -> now - t > 100);
+            LAST.keySet().removeIf(id -> !(level.getPlayerByUUID(id) instanceof ServerPlayer));
+        }
     }
 
     public static boolean crossed(PortalFrame f, Vec3 prev, Vec3 cur) {
@@ -197,20 +213,35 @@ public final class WindowwayService {
         Open o = of(level).get(id);
         Open to = o == null || o.frame.link() < 0 ? null : of(level).get(o.frame.link());
         if (to == null) return;
+        Long cd = COOLDOWN.get(player.getUUID());
+        if (cd != null && level.getGameTime() - cd < 6) return;
+        cross(level, player, o, to);
+    }
+
+    private static void cross(ServerLevel level, ServerPlayer player, Open o, Open to) {
         PortalFrame f = o.frame;
         Vec3 c = player.position().add(0, player.getBbHeight() / 2, 0);
-        if (Math.abs(f.side(c)) > 2.5 || f.inPlane(c) > f.radius() + 1.5) return;
+        double side = f.side(c);
+        if (Math.abs(side) > 2.5 || f.inPlane(c) > f.radius() + 1.5) return;
+        Vec3 onPlane = c.subtract(f.n().scale(side));
+        if (!f.inOpening(onPlane)) return;
+        if (side > -0.05) c = onPlane.subtract(f.n().scale(0.05));
+        COOLDOWN.put(player.getUUID(), level.getGameTime());
         double h = player.getBbHeight() / 2;
         Vec3 at = PortalFrame.mapPoint(f, to.frame, c);
         float[] yp = PortalFrame.yawPitch(PortalFrame.mapDir(f, to.frame, player.getLookAngle()));
         Vec3 vel = PortalFrame.mapDir(f, to.frame, player.getDeltaMovement());
+        level.getChunkSource().addRegionTicket(net.minecraft.server.level.TicketType.POST_TELEPORT,
+                new net.minecraft.world.level.ChunkPos(BlockPos.containing(at)), 1, player.getId());
         if (player.position().distanceTo(at) > 96) {
             player.teleportTo(level, at.x, at.y - h, at.z, yp[0], yp[1]);
         } else {
             player.moveTo(at.x, at.y - h, at.z, yp[0], yp[1]);
             player.setYHeadRot(yp[0]);
             player.connection.resetPosition();
+            level.getChunkSource().move(player);
         }
+        LAST.put(player.getUUID(), at);
         player.setDeltaMovement(vel);
         player.resetFallDistance();
         whoosh(level, f, to.frame);

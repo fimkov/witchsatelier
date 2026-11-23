@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PFP",
+    "PIP"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "F": {
+      "item": "minecraft:feather"
+    },
+    "I": {
+      "item": "witchsatelier:conjuring_ink"
+    }
+  },
+  "result": {
+    "id": "witchsatelier:fluttergram",
+    "count": 4,
+    "components": {
+      "witchsatelier:dormant": true
+    }
+  }
+}

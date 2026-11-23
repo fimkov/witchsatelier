@@ -76,13 +76,7 @@ public final class SymbolRecognizer {
         boolean light = best.template().sigil() == Sigil.LIGHT;
         boolean window = best.template().sign() == SignType.WINDOW;
         if (!light && !window) return best;
-        Match other = Match.NONE;
-        for (Match m : per) {
-            if (m.template() == null) continue;
-            boolean isOther = light ? m.template().sign() == SignType.WINDOW
-                    : m.template().sigil() == Sigil.LIGHT;
-            if (isOther && m.distance() < other.distance()) other = m;
-        }
+        Match other = exactCentre(strokes, t -> light ? t.sign() == SignType.WINDOW : t.sigil() == Sigil.LIGHT);
 
         if (other.template() == null || other.score() < 0.2) return best;
         int shape = boxShape(strokes);
@@ -155,7 +149,29 @@ public final class SymbolRecognizer {
             best.accumulateAndGet(Double.doubleToLongBits(m.distance()),
                     (a, b) -> Double.longBitsToDouble(b) < Double.longBitsToDouble(a) ? b : a);
         });
+        double min = Double.POSITIVE_INFINITY;
+        for (Match m : out) min = Math.min(min, m.distance());
+        for (int i = 0; i < out.length; i++) {
+            if (out[i].distance() > min + FAR) out[i] = new Match(out[i].template(), out[i].orientation(), Double.POSITIVE_INFINITY, 0);
+        }
         return out;
+    }
+
+    public static Match exactSign(List<List<Pt>> strokes, double outwardAngle, SignType type) {
+        Pt[][][] turns = turns(PointCloud.normalize(turn(strokes, Math.PI / 2 - outwardAngle)));
+        Match best = Match.NONE;
+        for (Template t : Templates.SIGNS) {
+            if (t.sign() != type) continue;
+            for (int o = 0; o < ORIENT.length; o++) best = better(best, matchTurned(turns[o], t, ORIENT[o], Double.POSITIVE_INFINITY));
+        }
+        return best;
+    }
+
+    private static Match exactCentre(List<List<Pt>> strokes, java.util.function.Predicate<Template> which) {
+        Pt[][] jittered = turns(PointCloud.normalize(strokes))[0];
+        Match best = Match.NONE;
+        for (Template t : CENTRE) if (which.test(t)) best = better(best, matchTurned(jittered, t, Orientation.OUTWARD, Double.POSITIVE_INFINITY));
+        return best;
     }
 
     public static List<Match> rankSign(List<List<Pt>> strokes, double outwardAngle) {

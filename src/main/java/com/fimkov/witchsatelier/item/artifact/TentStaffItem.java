@@ -35,9 +35,10 @@ public class TentStaffItem extends Item {
         if (ctx.getClickedFace() != Direction.UP || ctx.getPlayer() == null || ctx.getPlayer().getCooldowns().isOnCooldown(this)) return InteractionResult.PASS;
         if (!(ctx.getLevel() instanceof ServerLevel sl)) return InteractionResult.SUCCESS;
         BlockPos ground = ctx.getClickedPos();
-        BlockState earth = sl.getBlockState(ground);
-        if (!(earth.is(BlockTags.DIRT) || earth.is(BlockTags.SAND) || earth.is(Blocks.GRAVEL) || earth.is(BlockTags.BASE_STONE_OVERWORLD))) earth = Blocks.PACKED_MUD.defaultBlockState();
+        BlockState earth = com.fimkov.witchsatelier.spell.Earthworks.conjured(sl.getBlockState(ground), Blocks.PACKED_MUD.defaultBlockState());
         if (earth.is(Blocks.GRASS_BLOCK)) earth = Blocks.DIRT.defaultBlockState();
+        var user = ctx.getPlayer();
+        if (!user.mayBuild()) return InteractionResult.PASS;
         Direction door = ctx.getHorizontalDirection().getOpposite();
         BlockPos c = ground.above();
         int placed = 0;
@@ -47,13 +48,15 @@ public class TentStaffItem extends Item {
 
             if (dy <= 1 && door.getStepX() * dx + door.getStepZ() * dz >= R - 1 && Math.abs(door.getStepX() == 0 ? dx : dz) <= 0) continue;
             BlockPos p = c.offset(dx, dy, dz);
-            if (!sl.getBlockState(p).canBeReplaced()) continue;
+            if (!sl.getBlockState(p).canBeReplaced() || !sl.mayInteract(user, p)) continue;
+            if (!sl.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, new net.minecraft.world.phys.AABB(p)).isEmpty()) continue;
             TimedBlocks.set(sl, p, earth, TICKS + sl.random.nextInt(60));
             if (placed++ % 4 == 0) sl.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, earth), p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, 4, 0.3, 0.3, 0.3, 0.05);
         }
 
-        TimedBlocks.set(sl, c, Blocks.OAK_FENCE.defaultBlockState(), TICKS);
-        TimedBlocks.set(sl, c.above(), Blocks.OAK_FENCE.defaultBlockState(), TICKS);
+        for (BlockPos pole : new BlockPos[]{c, c.above()}) {
+            if (sl.getBlockState(pole).canBeReplaced() && sl.mayInteract(user, pole)) TimedBlocks.set(sl, pole, Blocks.OAK_FENCE.defaultBlockState(), TICKS);
+        }
         sl.playSound(null, c, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.PLAYERS, 1.2f, 0.6f);
         sl.playSound(null, c, SoundEvents.GRAVEL_BREAK, SoundSource.PLAYERS, 1f, 0.5f);
         ctx.getItemInHand().hurtAndBreak(1, ctx.getPlayer(), ctx.getHand() == InteractionHand.MAIN_HAND

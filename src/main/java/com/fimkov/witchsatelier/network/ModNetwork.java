@@ -36,7 +36,7 @@ public final class ModNetwork {
         r.playToServer(Payloads.TracePin.TYPE, Payloads.TracePin.CODEC, (p, ctx) -> {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
             boolean sane = p.pinned() && Double.isFinite(p.u()) && Double.isFinite(p.v()) && Double.isFinite(p.turn())
-                    && p.scale() > 0.3 && p.scale() < 8 && p.plane().toWorld(p.u(), p.v(), 0).distanceTo(sp.position()) < 48;
+                    && p.scale() > 0.3 && p.scale() < 8 && p.plane().toWorld(p.u(), p.v(), 0).distanceTo(GlyphService.eyeFor(sp.serverLevel(), p.plane(), p.u(), p.v(), sp)) < 48;
             Tracing.pin(sp, sane ? new Tracing.Pin(p.plane(), p.u(), p.v(), p.turn(), p.scale()) : null);
         });
         r.playToServer(Payloads.EraseAt.TYPE, Payloads.EraseAt.CODEC, (p, ctx) -> {
@@ -69,6 +69,7 @@ public final class ModNetwork {
         r.playToClient(Payloads.PennantFx.TYPE, Payloads.PennantFx.CODEC, (p, ctx) -> { if (client != null) client.pennantFx(p); });
         r.playToClient(Payloads.BadApple.TYPE, Payloads.BadApple.CODEC, (p, ctx) -> { if (client != null) client.badApple(p); });
         r.playToClient(Payloads.Techniques.TYPE, Payloads.Techniques.CODEC, (p, ctx) -> { if (client != null) client.techniques(p); });
+        r.playToClient(Payloads.StarShower.TYPE, Payloads.StarShower.CODEC, (p, ctx) -> com.fimkov.witchsatelier.world.PassageStars.toClient(p));
         r.playToClient(Payloads.WindowwaySync.TYPE, Payloads.WindowwaySync.CODEC, (p, ctx) -> { if (client != null) client.windowways(p); });
         r.playToServer(Payloads.PortalCross.TYPE, Payloads.PortalCross.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) WindowwayService.handleCross(sp, p.id());

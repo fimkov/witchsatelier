@@ -45,6 +45,10 @@ public final class WorldGlyphs {
         QUEUE.add(new Job(dim, plane, strokes));
     }
 
+    public static void clearLevel(ResourceKey<Level> dim) {
+        QUEUE.removeIf(j -> j.dim().equals(dim));
+    }
+
     public static void tick(ServerLevel level) {
         if (QUEUE.isEmpty()) return;
         for (var it = QUEUE.iterator(); it.hasNext(); ) {

@@ -85,6 +85,7 @@ neoForge {
             type = "gameTestServer"
             gameDirectory = project.file('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'witchsatelier.syncReading', 'true'
         }
 
         data {

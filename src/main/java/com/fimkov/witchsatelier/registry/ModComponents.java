@@ -49,5 +49,15 @@ public final class ModComponents {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> DORMANT =
             COMPONENTS.registerComponentType("dormant", b -> b.persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL));
 
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> SEAL_CHARGE =
+            COMPONENTS.registerComponentType("seal_charge", b -> b.persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> LENT =
+            COMPONENTS.registerComponentType("lent", b -> b.persistent(Codec.BOOL).networkSynchronized(ByteBufCodecs.BOOL));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem.Fragment>> FRAGMENT =
+            COMPONENTS.registerComponentType("fragment", b -> b.persistent(com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem.Fragment.CODEC)
+                    .networkSynchronized(com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem.Fragment.STREAM_CODEC));
+
     private ModComponents() {}
 }

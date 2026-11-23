@@ -19,7 +19,8 @@ class AwakeningGlyphsTest {
                 {"WATER", "REPETITION", "4"}, {"LIGHT", "FLOAT", "4"}, {"-WINDOW", "PULL", "4"}, {"WATER", "COLUMN", "4"},
                 {"WIND", "FLOAT", "4"}, {"-DIAMOND", "COLUMN", "4"}, {"LIGHT", "CONVERGENCE", "4"}, {"FIRE", "RADIAL", "4"},
                 {"WATER", "CRUSH", "4"}, {"-VISION", "WEAVE", "4"}, {"WIND_UNDERFOOT", null, "0"}, {"EARTH", "LEVITATION", "4"},
-                {"LIGHT", "WEAVE", "4"}, {"LIGHT", "PULL", "4"}, {"WATER", "PULL", "4"}};
+                {"LIGHT", "WEAVE", "4"}, {"LIGHT", "PULL", "4"}, {"WATER", "PULL", "4"},
+                {"-WINDOW", "DIRECTION", "4"}, {"LIGHT", "DIRECTION", "4"}, {"WIND", "BIRD", "2"}};
         for (String[] r : rows) {
             int n = Integer.parseInt(r[2]);
             List<GlyphLibrary.Signs> signs = r[1] == null ? List.of()

@@ -66,6 +66,10 @@ public final class WindowwayClient {
         for (PortalFrame f : frames) PORTALS.put(f.id(), f);
     }
 
+    public static net.minecraft.client.renderer.SectionOcclusionGraph mainGraphDuringPass() {
+        return Graph.mainDuringPass;
+    }
+
     public static boolean inPortalPass() {
         return inPortalPass;
     }

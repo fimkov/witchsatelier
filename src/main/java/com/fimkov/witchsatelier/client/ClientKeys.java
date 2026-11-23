@@ -35,7 +35,7 @@ public final class ClientKeys {
         boolean down = mc.screen == null && mc.options.keyJump.isDown();
         sinceJump++;
         if (down && !jumpWasDown) {
-            if (sinceJump <= 7 && mc.player != null && hasBootsGlyph(mc.player)) {
+            if (sinceJump <= 7 && mc.player != null && !mc.player.getAbilities().mayfly && hasBootsGlyph(mc.player)) {
                 PacketDistributor.sendToServer(new Payloads.BootsJoin());
                 sinceJump = 100;
             } else {

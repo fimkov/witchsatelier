@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "witchsatelier:grimoire"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.read_it_twice.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.read_it_twice.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "read_it_twice": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "read_it_twice"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/palm_quire",
+  "rewards": {
+    "experience": 40
+  }
+}

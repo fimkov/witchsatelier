@@ -37,6 +37,12 @@ public class InkwellBlock extends BaseEntityBlock {
         registerDefaultState(stateDefinition.any().setValue(FILL, 0).setValue(INK, InkType.CONJURING));
     }
 
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @org.jetbrains.annotations.Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof InkwellBlockEntity well) well.refreshState();
+    }
+
     public static int fillFor(int amount) {
         if (amount <= 0) return 0;
         return amount < InkwellBlockEntity.CAPACITY / 3 ? 1 : amount < InkwellBlockEntity.CAPACITY * 2 / 3 ? 2 : 3;
@@ -82,7 +88,8 @@ public class InkwellBlock extends BaseEntityBlock {
             level.playSound(null, pos, SoundEvents.BOTTLE_EMPTY, SoundSource.BLOCKS, 1f, 0.8f);
             return ItemInteractionResult.SUCCESS;
         }
-        if (stack.getItem() instanceof InkPenItem) {
+        if (stack.getItem() instanceof InkPenItem pen) {
+            if (pen.selfInked()) return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
             if (level.isClientSide) return ItemInteractionResult.SUCCESS;
             if (well.amount() <= 0) return ItemInteractionResult.CONSUME;
             var nib = InkPenItem.loaded(stack);

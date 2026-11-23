@@ -8,10 +8,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.DyedItemColor;
 
 public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
     private static final ResourceLocation POLE = ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "textures/entity/capture_pennant_pole.png");
@@ -54,7 +56,9 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
             blade(pole, ps.last(), light, overlay);
             ps.popPose();
         }
-        if (unfurled > 0.04f) flag(buffers.getBuffer(RenderType.entityCutoutNoCull(FLAG)), pose, time, unfurled, light, overlay);
+        DyedItemColor dyed = stack.get(DataComponents.DYED_COLOR);
+        int tint = dyed == null ? -1 : 0xFF000000 | dyed.rgb();
+        if (unfurled > 0.04f) flag(buffers.getBuffer(RenderType.entityCutoutNoCull(FLAG)), pose, time, unfurled, tint, light, overlay);
         ps.popPose();
     }
 
@@ -76,7 +80,7 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
         quad(vc, p, -hw, w, 0, 0, t, 0, hw, w, 0, 0, b, 0, GOLD, GOLD + 0.25f, 0, 0.5f, 0, 0.3f, 1, light, overlay);
     }
 
-    private static void flag(VertexConsumer vc, PoseStack.Pose p, double time, float unfurled, int light, int overlay) {
+    private static void flag(VertexConsumer vc, PoseStack.Pose p, double time, float unfurled, int tint, int light, int overlay) {
         int n = 14;
         float len = 1.05f * unfurled, top = 1.42f, bottom = 0.98f;
         float[] x = new float[n + 1], z = new float[n + 1], yt = new float[n + 1], yb = new float[n + 1];
@@ -96,16 +100,22 @@ public final class PennantItemRenderer extends BlockEntityWithoutLevelRenderer {
             float l = Mth.sqrt(dx * dx + dz * dz);
             float nx = -dz / l, nz = Math.abs(dx / l);
             quad(vc, p, x[i], yb[i], z[i], x[i + 1], yb[i + 1], z[i + 1], x[i + 1], yt[i + 1], z[i + 1], x[i], yt[i], z[i],
-                    u0, u1, 1, 0, nx, 0, nz, light, overlay);
+                    u0, u1, 1, 0, nx, 0, nz, tint, light, overlay);
         }
     }
 
     private static void quad(VertexConsumer vc, PoseStack.Pose p,
                              float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz, float dx, float dy, float dz,
                              float u0, float u1, float v0, float v1, float nx, float ny, float nz, int light, int overlay) {
-        vc.addVertex(p, ax, ay, az).setColor(-1).setUv(u0, v0).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
-        vc.addVertex(p, bx, by, bz).setColor(-1).setUv(u1, v0).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
-        vc.addVertex(p, cx, cy, cz).setColor(-1).setUv(u1, v1).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
-        vc.addVertex(p, dx, dy, dz).setColor(-1).setUv(u0, v1).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
+        quad(vc, p, ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, u0, u1, v0, v1, nx, ny, nz, -1, light, overlay);
+    }
+
+    private static void quad(VertexConsumer vc, PoseStack.Pose p,
+                             float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz, float dx, float dy, float dz,
+                             float u0, float u1, float v0, float v1, float nx, float ny, float nz, int color, int light, int overlay) {
+        vc.addVertex(p, ax, ay, az).setColor(color).setUv(u0, v0).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
+        vc.addVertex(p, bx, by, bz).setColor(color).setUv(u1, v0).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
+        vc.addVertex(p, cx, cy, cz).setColor(color).setUv(u1, v1).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
+        vc.addVertex(p, dx, dy, dz).setColor(color).setUv(u0, v1).setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz);
     }
 }

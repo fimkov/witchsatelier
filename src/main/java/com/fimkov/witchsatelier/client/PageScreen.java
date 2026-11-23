@@ -569,6 +569,7 @@ public class PageScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+        if (!drawing && getFocused() != null) return super.mouseDragged(x, y, button, dx, dy);
         if (button == 0 && drawing) addPoint(x, y);
         return true;
     }
@@ -580,6 +581,7 @@ public class PageScreen extends Screen {
             send();
         }
         if (button == 1) erasing = false;
+        if (!drawing) super.mouseReleased(x, y, button);
         return true;
     }
 
@@ -688,6 +690,9 @@ public class PageScreen extends Screen {
     }
 
     private void makeNoteBoxes() {
+        boolean keep = titleBox != null && notesPage == page;
+        String keepTitle = keep ? titleBox.getValue() : null, keepNotes = keep ? notesBox.getValue() : null;
+        String keepStored = storedTitle, keepShown = shownTitle;
         flushNotes();
         float r = Math.min(radius(), width / 4.5f), lcx = width / 2f - r, cy = height / 2f;
         int x0 = Math.round(lcx - r * 0.8f), w = Math.round(r * 1.6f), y = Math.round(cy - r * 0.8f);
@@ -700,6 +705,15 @@ public class PageScreen extends Screen {
         notesBox.setValueListener(t -> notesDirty = true);
         addWidget(titleBox);
         addWidget(notesBox);
+        if (keep) {
+            titleBox.setValue(keepTitle);
+            notesBox.setValue(keepNotes);
+            storedTitle = keepStored;
+            shownTitle = keepShown;
+            notesPage = page;
+            notesDirty = false;
+            return;
+        }
         notesPage = -1;
         loadNotes();
     }
@@ -759,6 +773,7 @@ public class PageScreen extends Screen {
             float du = p[0] - cur[(count - 1) * 2], dv = p[1] - cur[(count - 1) * 2 + 1];
             if (du * du + dv * dv < 0.004f * 0.004f) return;
         }
+        if (imagining && count >= 4000) return;
         if (count * 2 + 2 > cur.length) cur = Arrays.copyOf(cur, cur.length * 2);
         cur[count * 2] = p[0];
         cur[count * 2 + 1] = p[1];
@@ -779,7 +794,7 @@ public class PageScreen extends Screen {
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
                     ModSounds.QUILL_SCRATCH.get(), 0.9f + (float) Math.random() * 0.2f, 0.35f));
         }
-        if (count >= 2000) {
+        if (count >= 2000 && !imagining) {
             float lu = cur[(count - 1) * 2], lv = cur[(count - 1) * 2 + 1];
             send();
             cur[0] = lu;

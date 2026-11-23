@@ -10,6 +10,40 @@ public final class PointCloud {
 
     private PointCloud() {}
 
+    public static final int MAX_GLYPH_POINTS = 3000;
+
+    public static List<List<Pt>> thin(List<List<Pt>> strokes, double inkWidth) {
+        double step = inkWidth * 0.2;
+        List<List<Pt>> out = strokes;
+        for (int round = 0; round < 12; round++) {
+            List<List<Pt>> next = new ArrayList<>(strokes.size());
+            int total = 0;
+            for (List<Pt> s : strokes) {
+                List<Pt> kept = thinStroke(s, step);
+                next.add(kept);
+                total += kept.size();
+            }
+            out = next;
+            if (total <= MAX_GLYPH_POINTS) break;
+            step *= 1.5;
+        }
+        return out;
+    }
+
+    private static List<Pt> thinStroke(List<Pt> s, double step) {
+        if (s.size() <= 2) return s;
+        List<Pt> kept = new ArrayList<>();
+        Pt last = s.get(0);
+        kept.add(last);
+        for (int i = 1; i < s.size() - 1; i++) {
+            Pt p = s.get(i);
+            if (p.dist(last) >= step) { kept.add(p); last = p; }
+        }
+        Pt end = s.get(s.size() - 1);
+        if (end.dist(last) > 0 || kept.size() == 1) kept.add(end);
+        return kept.size() == s.size() ? s : kept;
+    }
+
     public static Pt[] normalize(List<List<Pt>> strokes) {
         List<List<Pt>> expanded = expandDots(strokes);
         Pt[] pts = resample(expanded, N);

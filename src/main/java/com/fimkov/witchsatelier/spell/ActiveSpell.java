@@ -163,6 +163,30 @@ public final class ActiveSpell {
     public boolean held;
     public long releaseAt;
 
+    public long expiresAt;
+    public boolean quiet;
+    public double ringRadius;
+
+    /** Set for glyphs cast from a page drawn mostly in blood ink; glyphs on a surface are judged by their own strokes. */
+    public boolean bloodInk;
+
+    /** Whether this glyph was drawn mostly in blood ink, the only ink that can undo forbidden magic. */
+    public boolean drawnInBlood(ServerLevel level) {
+        if (bloodInk) return true;
+        var data = com.fimkov.witchsatelier.glyph.storage.GlyphLevelData.get(level);
+        double all = 0, blood = 0;
+        for (long id : strokes) {
+            var s = data.get(id);
+            if (s == null) continue;
+            double l = Math.max(0.05, s.length());
+            all += l;
+            if (s.ink() == com.fimkov.witchsatelier.glyph.ink.InkType.BLOOD) blood += l;
+        }
+        return all > 0 && blood * 2 > all;
+    }
+
+    private boolean stopped;
+
     public boolean fxOff;
     private int unpressed, pressTick;
     private boolean lastPressed;
@@ -172,6 +196,7 @@ public final class ActiveSpell {
     }
 
     public boolean tick(ServerLevel level) {
+        if (stopped || (expiresAt > 0 && level.getGameTime() >= expiresAt)) return false;
         if (handheld && !followCaster(level)) return false;
         if (held) {
             if (releaseAt <= 0 || level.getGameTime() < releaseAt) return true;
@@ -230,10 +255,26 @@ public final class ActiveSpell {
         return false;
     }
 
+    public UUID key;
+
     private boolean pressed(ServerLevel level) {
         if ((pressTick++ & 3) != 0) return lastPressed;
-        lastPressed = steppedOn(level) || powered(level);
+        boolean on = steppedOn(level) || powered(level);
+        lastPressed = program.has(SpellProgram.TREAD_INVERTED) != on;
         return lastPressed;
+    }
+
+    public UUID standingInside(ServerLevel level) {
+        Vec3 o = program.origin(), n = program.normal();
+        double r = Math.max(0.8, program.radius());
+        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o.add(n.scale(1.5))).inflate(r), LivingEntity::isAlive)) {
+            if (e.isSpectator()) continue;
+            Vec3 rel = e.position().subtract(o);
+            double along = rel.dot(n);
+            if (along < -0.6 || along > 1.8) continue;
+            if (rel.subtract(n.scale(along)).length() <= r) return e.getUUID();
+        }
+        return null;
     }
 
     private boolean powered(ServerLevel level) {
@@ -251,6 +292,7 @@ public final class ActiveSpell {
     }
 
     public void pause(ServerLevel level) {
+        WindowwayService.close(level, id);
         for (TempBlock t : temps) {
             if (level.getBlockState(t.pos()) == t.placed()) level.setBlock(t.pos(), Blocks.AIR.defaultBlockState(), 3);
         }
@@ -267,7 +309,8 @@ public final class ActiveSpell {
         Vec3 o = program.origin(), n = program.normal();
         double r = Math.max(0.8, program.radius());
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(o, o.add(n.scale(1.5))).inflate(r), LivingEntity::isAlive)) {
-            if (e.getUUID().equals(caster) || e.isSpectator()) continue;
+            if (e.isSpectator()) continue;
+            if (key != null ? !e.getUUID().equals(key) : e.getUUID().equals(caster)) continue;
             Vec3 rel = e.position().subtract(o);
             double along = rel.dot(n);
             if (along < -0.6 || along > 1.8) continue;
@@ -298,7 +341,7 @@ public final class ActiveSpell {
             ticksLeft = 1;
             return;
         }
-        if (level.random.nextDouble() < program.misfire()) {
+        if (!quiet && level.random.nextDouble() < program.misfire()) {
             misfire(level);
             ticksLeft = 1;
             return;
@@ -314,7 +357,8 @@ public final class ActiveSpell {
             Earthworks.restore(level, program.origin(), program.radius() * 2 + 4 + program.power() * 0.1);
 
             PetrifiedBlock.restore(level, program.origin(), program.radius() * 3 + 10);
-            if (StatueBlock.revive(level, program.origin(), program.radius() * 3 + 10) > 0 && caster != null) {
+            if (!drawnInBlood(level)) StatueBlock.stir(level, program.origin(), program.radius() * 3 + 10);
+            else if (StatueBlock.revive(level, program.origin(), program.radius() * 3 + 10) > 0 && caster != null) {
                 Player who = level.getPlayerByUUID(caster);
                 if (who != null) MagicTrigger.fire(who, "revive");
             }
@@ -351,6 +395,7 @@ public final class ActiveSpell {
             look = m.getTarget().getBoundingBox().getCenter().subtract(p.getEyePosition()).normalize();
         }
         if (worn) {
+            if (!(p instanceof Player pl) || !com.fimkov.witchsatelier.glyph.page.PageService.hasBootsGlyph(pl)) return false;
             Vec3 flat = new Vec3(look.x, 0, look.z);
             Vec3 fwd = flat.lengthSqr() > 1e-4 ? flat.normalize() : new Vec3(0, 0, 1);
             Vec3 right = fwd.cross(new Vec3(0, 1, 0)).normalize();
@@ -385,6 +430,8 @@ public final class ActiveSpell {
     }
 
     public void stop(ServerLevel level) {
+        stopped = true;
+        if (steed != null && level.getEntity(steed) instanceof com.fimkov.witchsatelier.entity.WaterHorseEntity w) w.splash();
         WindowwayService.close(level, id);
 
         for (TempBlock t : temps) {
@@ -402,7 +449,7 @@ public final class ActiveSpell {
     private void run(ServerLevel level) {
         if (worn && wornRun(level)) return;
         switch (program.form()) {
-            case BEAM -> beam(level);
+            case BEAM -> { if (program.inverted() && !program.has(SpellProgram.WALL) && !handheld) spill(level); else beam(level); }
             case SPILL -> spill(level);
             case BOLTS -> bolts(level);
             case LIFT -> lift(level);
@@ -412,12 +459,14 @@ public final class ActiveSpell {
             case BIRD -> {}
             case MANIFEST -> manifest(level);
             case CENTER_SIGN -> centerSign(level);
+            case OBLIVION -> Obliviation.run(level, this);
             default -> {}
         }
     }
 
     private void beam(ServerLevel level) {
         SpellProgram p = program;
+        if (p.has(SpellProgram.WALL)) { windWall(level); return; }
         if (p.element() == Sigil.WATER) { waterJet(level); return; }
 
         double len = Math.min(3 + p.power() * 0.35 + p.radius() * 3, 48) * (p.focused() ? 1.5 : 1);
@@ -490,7 +539,7 @@ public final class ActiveSpell {
             switch (p.element()) {
                 case FIRE -> {
                     if (p.gentle()) melt(level, hp);
-                    else if (level.isEmptyBlock(front) && BaseFireBlock.canBePlacedAt(level, front, hit.getDirection())) {
+                    else if (level.isEmptyBlock(front) && BaseFireBlock.canBePlacedAt(level, front, hit.getDirection()) && Earthworks.mayChange(level, front, caster, false)) {
                         level.setBlock(front, BaseFireBlock.getState(level, front), 11);
                     }
                 }
@@ -521,6 +570,7 @@ public final class ActiveSpell {
                 for (int k = 0; k < steps; k++) {
                     double a = k * Math.PI * 2 / steps + age * 0.05;
                     Vec3 at = o.add(p.normal().scale(0.15)).add(ring(p, a).scale(front));
+                    if (!allowed(at)) continue;
                     Vec3 v = ring(p, a).scale(0.05).add(p.normal().scale(0.04));
                     ParticleOptions part = switch (p.element()) {
                         case FIRE -> p.gentle() ? ParticleTypes.SMALL_FLAME : ParticleTypes.FLAME;
@@ -539,13 +589,13 @@ public final class ActiveSpell {
             double a = level.random.nextDouble() * Math.PI * 2;
             double d = level.random.nextDouble() * r;
             Vec3 at = o.add(p.normal().scale(0.3)).add(ring(p, a).scale(d));
-            level.sendParticles(ElementLook.particle(p.element()), at.x, at.y, at.z, 1, 0.1, 0.1, 0.1, 0.02);
+            if (allowed(at)) level.sendParticles(ElementLook.particle(p.element()), at.x, at.y, at.z, 1, 0.1, 0.1, 0.1, 0.02);
         }
         if (p.element() == Sigil.EARTH && age <= 24 && age % 6 == 0) earthWall(level, o, r, age / 6);
         if (age % 10 != 0) return;
         AABB box = new AABB(o, o).inflate(r);
         for (Entity e : level.getEntities((Entity) null, box, Entity::isAlive)) {
-            if (e.position().distanceTo(o) > r) continue;
+            if (e.position().distanceTo(o) > r || !allowed(e.position())) continue;
             switch (p.element()) {
                 case FIRE -> { if (!p.gentle()) e.igniteForSeconds(3); }
                 case WATER -> e.clearFire();
@@ -575,9 +625,10 @@ public final class ActiveSpell {
                 case LIGHT, CRYSTAL -> {
                     for (int i = 0; i < 4; i++) {
                         double a = i * Math.PI / 2;
-                        placeTemp(level, BlockPos.containing(o.add(p.normal().scale(1)).add(ring(p, a).scale(r * 0.6))), light(14));
+                        Vec3 spot = o.add(p.normal().scale(1)).add(ring(p, a).scale(r * 0.6));
+                        if (allowed(spot)) placeTemp(level, BlockPos.containing(spot), light(14));
                     }
-                    placeTemp(level, front, light(15));
+                    if (allowed(Vec3.atCenterOf(front))) placeTemp(level, front, light(15));
                 }
                 default -> {}
             }
@@ -585,9 +636,10 @@ public final class ActiveSpell {
         if (p.element() == Sigil.FIRE && age % 20 == 0) {
             BlockPos center = BlockPos.containing(o);
             for (BlockPos bp : BlockPos.betweenClosed(center.offset(-(int) r, -1, -(int) r), center.offset((int) r, 1, (int) r))) {
-                if (bp.distToCenterSqr(o) > r * r) continue;
+                if (bp.distToCenterSqr(o) > r * r || !allowed(Vec3.atCenterOf(bp))) continue;
+                if (regional() && Math.sqrt(bp.distToCenterSqr(o)) > p.radius() + 1.0) continue;
                 if (p.gentle()) melt(level, bp);
-                else if (level.random.nextInt(12) == 0 && level.isEmptyBlock(bp) && BaseFireBlock.canBePlacedAt(level, bp, Direction.UP)) {
+                else if ((level.random.nextInt(12) == 0 || (regional() && level.random.nextInt(4) == 0)) && level.isEmptyBlock(bp) && BaseFireBlock.canBePlacedAt(level, bp, Direction.UP) && Earthworks.mayChange(level, bp, caster, false)) {
                     level.setBlock(bp.immutable(), BaseFireBlock.getState(level, bp), 11);
                 }
             }
@@ -611,10 +663,12 @@ public final class ActiveSpell {
         switch (p.element()) {
             case FIRE -> {
                 SmallFireball fb = new SmallFireball(level, from.x, from.y, from.z, dir.scale(speed));
+                fb.setOwner(casterEntity(level));
                 level.addFreshEntity(fb);
             }
             case WIND, WIND_UNDERFOOT, AERIFORMS -> {
                 WindCharge wc = new WindCharge(level, from.x, from.y, from.z, dir.scale(speed));
+                wc.setOwner(casterEntity(level));
                 level.addFreshEntity(wc);
             }
             case EARTH -> {
@@ -646,7 +700,8 @@ public final class ActiveSpell {
             level.sendParticles(ElementLook.trail(program.element()), at.x, at.y, at.z, 1, 0.02, 0.02, 0.02, 0);
         }
         if (target != null) {
-            target.hurt(level.damageSources().magic(), damage);
+            LivingEntity by = casterEntity(level);
+            target.hurt(by == null ? level.damageSources().magic() : level.damageSources().indirectMagic(by, by), damage);
             push(target, dir.scale(0.5));
             if (program.element() == Sigil.WATER) target.clearFire();
             if (program.element() == Sigil.LIGHT && target instanceof LivingEntity le) {
@@ -660,6 +715,14 @@ public final class ActiveSpell {
     private void lift(ServerLevel level) {
         SpellProgram p = program;
         if (p.element() == Sigil.EARTH && !p.inverted() && p.normal().y > 0.5) { earthRise(level); return; }
+        if (!p.inverted() && !worn) {
+            switch (p.element()) {
+                case FIRE -> { pyreball(level); return; }
+                case LIGHT -> { floatglow(level); return; }
+                case WATER -> { if (handheld || p.normal().y > 0.5) { waterRise(level); return; } }
+                default -> {}
+            }
+        }
         double r = Math.max(0.6, p.radius());
 
         boolean soft = p.has(SpellProgram.SOFT) && !p.inverted();
@@ -677,7 +740,7 @@ public final class ActiveSpell {
             Vec3 rel = e.position().subtract(o);
             double along = rel.dot(n);
             double side = rel.subtract(n.scale(along)).length();
-            if (side > r || along < -0.5 || along > h) continue;
+            if (side > r || along < -0.5 || along > h || !allowed(e.position())) continue;
             Vec3 v = e.getDeltaMovement();
             double target = p.inverted() ? -0.6 : soft ? -0.08 : 0.25 + Math.min(p.power() * 0.01, 0.4);
             double cur = v.dot(n);
@@ -693,6 +756,7 @@ public final class ActiveSpell {
 
     private void pull(ServerLevel level) {
         SpellProgram p = program;
+        if (p.has(SpellProgram.BEND)) { wallBend(level); return; }
         double r = 3 + p.radius() * 1.5 + p.power() * 0.1;
         fxLength = (float) r;
         Vec3 o = p.origin().add(p.normal().scale(0.5));
@@ -706,7 +770,7 @@ public final class ActiveSpell {
         for (Entity e : level.getEntities((Entity) null, new AABB(o, o).inflate(r), Entity::isAlive)) {
             Vec3 to = o.subtract(e.position());
             double d = to.length();
-            if (d > r || d < 0.4) continue;
+            if (d > r || d < 0.4 || !allowed(e.position())) continue;
             Vec3 f = to.normalize().scale(p.inverted() ? -accel * 1.5 : accel);
             push(e, f);
             if (p.vortex() != 0) swirl(e, o, p.normal(), p.vortex() * accel * 2);
@@ -753,7 +817,7 @@ public final class ActiveSpell {
         BlockPos c = BlockPos.containing(o);
         int ri = (int) Math.ceil(r);
         for (BlockPos bp : BlockPos.betweenClosed(c.offset(-ri, -2, -ri), c.offset(ri, 2, ri))) {
-            if (bp.distToCenterSqr(o) > r * r) continue;
+            if (bp.distToCenterSqr(o) > r * r || !allowed(Vec3.atCenterOf(bp))) continue;
             BlockPos at = bp.immutable();
             BlockState st = level.getBlockState(at);
             if (p.element() == Sigil.WATER) {
@@ -767,6 +831,7 @@ public final class ActiveSpell {
             }
         }
         for (Entity e : level.getEntities((Entity) null, new AABB(o, top).inflate(r, 1, r), Entity::isAlive)) {
+            if (!allowed(e.position())) continue;
             switch (p.element()) {
                 case WATER -> e.clearFire();
                 case FIRE -> { if (!p.gentle()) e.igniteForSeconds(2); }
@@ -794,6 +859,8 @@ public final class ActiveSpell {
 
     private void manifest(ServerLevel level) {
         SpellProgram p = program;
+        if (p.has(SpellProgram.CAGE)) { waterCage(level); return; }
+        if (p.has(SpellProgram.STEED)) { waterHorse(level); return; }
         Vec3 o = p.origin().add(p.normal().scale(0.4));
         if (age % 2 == 0) level.sendParticles(ElementLook.particle(p.element()), o.x, o.y, o.z, 2, p.radius() * 0.2, 0.1, p.radius() * 0.2, 0.01);
         if (age == 1) {
@@ -950,6 +1017,7 @@ public final class ActiveSpell {
             }
             AABB cell = new AABB(pos);
             if (level.getBlockState(pos).isAir() && living.stream().anyMatch(cell::intersects)) continue;
+            if (!level.getBlockState(pos).isAir() && !Earthworks.mayChange(level, pos, caster, false)) continue;
             if (PetrifiedBlock.petrify(level, pos) && taken++ % 7 == 0)
                 level.sendParticles(ParticleTypes.END_ROD, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 1, 0.4, 0.4, 0.4, 0.02);
         }
@@ -1055,8 +1123,10 @@ public final class ActiveSpell {
             }
         }
         if (p.has(SpellProgram.BIND) && age % 10 == 0) {
+            LivingEntity by = casterEntity(level);
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, area)) {
                 if (caster != null && e.getUUID().equals(caster)) continue;
+                if (by instanceof Mob && e.getType() == by.getType()) continue;
                 e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 30, 4, false, false));
                 e.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 30, 1, false, false));
                 for (int i = 0; i < 6; i++) {
@@ -1271,7 +1341,7 @@ public final class ActiveSpell {
                     Vec3 v = ring(p, a).scale(0.12).add(0, 0.18 + level.random.nextDouble() * 0.1, 0);
                     level.sendParticles(ElementLook.droplet(), at.x, at.y + 0.1, at.z, 0, v.x, v.y, v.z, 1);
 
-                    if (phase % 2 == 0 && front > p.radius() + 0.6) {
+                    if (phase % 2 == 0 && front > p.radius() + 0.6 && allowed(at)) {
                         BlockPos bp = BlockPos.containing(at.x, o.y + 0.2, at.z);
                         if (level.getBlockState(bp).isAir() && level.getBlockState(bp.below()).isFaceSturdy(level, bp.below(), Direction.UP)) {
                             int lvl = Math.min(6, 2 + (int) (front / r * 4));
@@ -1430,6 +1500,7 @@ public final class ActiveSpell {
     }
 
     private void placeTemp(ServerLevel level, BlockPos pos, BlockState state) {
+        if (stopped) return;
         BlockState current = level.getBlockState(pos);
 
         if (!current.isAir() && !(current.canBeReplaced() && current.getFluidState().isEmpty())) return;
@@ -1447,8 +1518,7 @@ public final class ActiveSpell {
     private void earthWall(ServerLevel level, Vec3 o, double r, int step) {
         if (plane == null || program.normal().y < 0.5) return;
         BlockPos below = BlockPos.containing(o.subtract(0, 0.5, 0));
-        BlockState mat = level.getBlockState(below);
-        if (mat.isAir() || mat.getDestroySpeed(level, below) < 0 || mat.hasBlockEntity() || !mat.isCollisionShapeFullBlock(level, below)) mat = Blocks.COARSE_DIRT.defaultBlockState();
+        BlockState mat = Earthworks.conjured(level.getBlockState(below), Blocks.COARSE_DIRT.defaultBlockState());
         int height = Math.min(step, 1 + (int) (program.power() / 12));
         double wr = Math.max(2, r * 0.8);
         int steps = (int) Math.ceil(wr * Math.PI * 2 / 0.7);
@@ -1456,7 +1526,7 @@ public final class ActiveSpell {
         for (int k = 0; k < steps; k++) {
             double a = k * Math.PI * 2 / steps;
             BlockPos col = BlockPos.containing(o.x + Math.cos(a) * wr, o.y + 0.5, o.z + Math.sin(a) * wr);
-            if (!done.add(col)) continue;
+            if (!done.add(col) || !allowed(Vec3.atCenterOf(col))) continue;
             BlockPos at = col.above(height - 1);
             if (level.getBlockState(at.below()).isAir() && height > 1 && !temps.isEmpty() && temps.stream().noneMatch(t -> t.pos().equals(at.below()))) continue;
             placeTemp(level, at, mat);
@@ -1473,8 +1543,7 @@ public final class ActiveSpell {
         fxWidth = (float) p.radius();
         if (age % 8 != 0 || step > h) return;
         BlockPos below = BlockPos.containing(p.origin().subtract(0, 0.5, 0));
-        BlockState mat = level.getBlockState(below);
-        if (mat.isAir() || mat.getDestroySpeed(level, below) < 0 || mat.hasBlockEntity() || !mat.isCollisionShapeFullBlock(level, below)) mat = Blocks.PACKED_MUD.defaultBlockState();
+        BlockState mat = Earthworks.conjured(level.getBlockState(below), Blocks.PACKED_MUD.defaultBlockState());
         int rr = (int) Math.max(0, Math.min(2, Math.round(p.radius() * 0.6)));
         BlockPos c = BlockPos.containing(p.origin().add(0, 0.5, 0)).above(step - 1);
         for (int dx = -rr; dx <= rr; dx++) for (int dz = -rr; dz <= rr; dz++) {
@@ -1493,13 +1562,325 @@ public final class ActiveSpell {
     private void raisePillar(ServerLevel level, Vec3 from, Vec3 dir, double height) {
         if (plane == null) return;
         BlockPos base = plane.blockAt(plane.toUV(from).x(), plane.toUV(from).y());
-        BlockState mat = level.getBlockState(base);
-        if (mat.isAir() || mat.getDestroySpeed(level, base) < 0 || mat.hasBlockEntity()) mat = Blocks.DIRT.defaultBlockState();
+        BlockState mat = Earthworks.conjured(level.getBlockState(base), Blocks.DIRT.defaultBlockState());
         for (int i = 1; i <= (int) height; i++) {
             BlockPos at = BlockPos.containing(from.add(dir.scale(i - 0.5)));
             if (!level.getBlockState(at).canBeReplaced()) break;
             placeTemp(level, at, mat);
         }
+    }
+
+    private final java.util.Map<UUID, Integer> cooking = new java.util.HashMap<>();
+    private Vec3 lamp;
+    private BlockPos lampLight;
+    private UUID caged;
+
+    private boolean regional() {
+        return (program.mods() & (SpellProgram.REGION_IN | SpellProgram.REGION_OUT | SpellProgram.REGION_SIDE)) != 0;
+    }
+
+    boolean allowed(Vec3 at) {
+        int m = program.mods();
+        if ((m & (SpellProgram.REGION_IN | SpellProgram.REGION_OUT | SpellProgram.REGION_SIDE)) == 0) return true;
+        Vec3 n = program.normal();
+        Vec3 rel = at.subtract(program.origin());
+        rel = rel.subtract(n.scale(rel.dot(n)));
+        if ((m & SpellProgram.REGION_SIDE) != 0) {
+            double a = ((m >> SpellProgram.REGION_OCTANT) & 7) * Math.PI / 4;
+            return rel.dot(frame.planeVector(Math.cos(a), Math.sin(a))) >= -0.3;
+        }
+        double d = rel.length(), ring = program.radius();
+        boolean in = (m & SpellProgram.REGION_IN) != 0, out = (m & SpellProgram.REGION_OUT) != 0;
+        if (in && out) return Math.abs(d - ring) <= 0.8;
+        return in ? d <= ring + 0.3 : d >= ring - 0.3;
+    }
+
+    private void clearTemp(ServerLevel level, BlockPos pos) {
+        if (pos == null) return;
+        for (var it = temps.iterator(); it.hasNext(); ) {
+            TempBlock t = it.next();
+            if (!t.pos().equals(pos)) continue;
+            if (level.getBlockState(pos) == t.placed()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+            it.remove();
+        }
+        tempAt.remove(pos);
+    }
+
+    private Vec3 aboveGlyph(ServerLevel level, double height) {
+        SpellProgram p = program;
+        Vec3 from = p.origin().add(p.normal().scale(0.3));
+        Vec3 to = p.origin().add(p.normal().scale(height));
+        BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+        if (hit.getType() == HitResult.Type.BLOCK) to = hit.getLocation().subtract(p.normal().scale(0.8));
+        return to.distanceTo(p.origin()) < 0.6 ? p.origin().add(p.normal().scale(0.6)) : to;
+    }
+
+    private Vec3 heldBeside(ServerLevel level) {
+        LivingEntity c = casterEntity(level);
+        if (c == null) return program.origin();
+        Vec3 look = c.getLookAngle();
+        Vec3 right = look.cross(new Vec3(0, 1, 0));
+        right = right.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : right.normalize();
+        return c.getEyePosition().add(right.scale(0.7)).add(0, 0.35, 0);
+    }
+
+    private void pyreball(ServerLevel level) {
+        SpellProgram p = program;
+        Vec3 lean = p.direction().subtract(p.normal().scale(p.direction().dot(p.normal())));
+        Vec3 ball = handheld ? heldBeside(level) : aboveGlyph(level, 1.2 + p.radius() * 0.3).add(lean.scale(0.8));
+        double size = Math.min(0.8, 0.3 + p.radius() * 0.15);
+        fxLength = 0;
+        fxWidth = (float) size;
+        level.sendParticles(ParticleTypes.FLAME, ball.x, ball.y, ball.z, 2, size * 0.4, size * 0.4, size * 0.4, 0.004);
+        if (age % 4 == 0) level.sendParticles(ParticleTypes.SMALL_FLAME, ball.x, ball.y + size * 0.4, ball.z, 2, size * 0.3, 0.1, size * 0.3, 0.01);
+        if (age % 30 == 1) level.playSound(null, ball.x, ball.y, ball.z, SoundEvents.FIRE_AMBIENT, SoundSource.BLOCKS, 0.6f, 0.9f + level.random.nextFloat() * 0.2f);
+        if (!handheld && (age == 1 || age % 40 == 0)) {
+            BlockPos at = BlockPos.containing(ball);
+            if (!at.equals(lampLight)) { clearTemp(level, lampLight); lampLight = at; }
+            placeTemp(level, at, light(13));
+        }
+        AABB around = new AABB(ball, ball).inflate(size + 0.5);
+        for (var it : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, around.inflate(0.4))) {
+            var input = new net.minecraft.world.item.crafting.SingleRecipeInput(it.getItem());
+            var recipe = level.getRecipeManager().getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CAMPFIRE_COOKING, input, level);
+            if (recipe.isEmpty()) continue;
+            it.setDeltaMovement(ball.subtract(it.position()).scale(0.2).add(0, 0.04, 0));
+            it.hurtMarked = true;
+            int done = cooking.merge(it.getUUID(), 1, Integer::sum);
+            if (done % 10 == 0) level.sendParticles(ParticleTypes.SMOKE, it.getX(), it.getY() + 0.2, it.getZ(), 2, 0.05, 0.05, 0.05, 0.01);
+            if (done >= Math.max(40, recipe.get().value().getCookingTime() / 4)) {
+                ItemStack cooked = recipe.get().value().assemble(input, level.registryAccess());
+                cooked.setCount(it.getItem().getCount());
+                it.setItem(cooked);
+                cooking.remove(it.getUUID());
+                Vec3 out = it.position().subtract(ball);
+                out = new Vec3(out.x, 0, out.z);
+                out = out.lengthSqr() < 1e-4 ? new Vec3(0.2, 0, 0) : out.normalize().scale(0.25);
+                it.setDeltaMovement(out.add(0, 0.2, 0));
+                level.playSound(null, it.getX(), it.getY(), it.getZ(), SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS, 0.8f, 1.2f);
+            }
+        }
+        if (age % 100 == 0) cooking.keySet().removeIf(id -> !(level.getEntity(id) instanceof net.minecraft.world.entity.item.ItemEntity));
+        if (!p.gentle()) {
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(ball, ball).inflate(size), LivingEntity::isAlive)) {
+                if (caster != null && e.getUUID().equals(caster)) continue;
+                e.igniteForSeconds(3);
+            }
+        }
+    }
+
+    private void floatglow(ServerLevel level) {
+        SpellProgram p = program;
+        Vec3 home = handheld ? heldBeside(level) : aboveGlyph(level, Math.min(12, 2 + p.power() * 0.15 + p.radius() * 1.2));
+        Vec3 target = home;
+        if (!handheld && !p.focused()) {
+            Player near = level.getNearestPlayer(home.x, home.y, home.z, 6, false);
+            if (near != null) {
+                Vec3 head = near.getEyePosition().add(0, 0.9, 0);
+                Vec3 off = head.subtract(home);
+                target = off.length() > 5 ? home.add(off.normalize().scale(5)) : head;
+            }
+            target = target.add(0, Math.sin(age * 0.05) * 0.15, 0);
+        }
+        lamp = lamp == null ? home : lamp.add(target.subtract(lamp).scale(handheld ? 0.5 : 0.08));
+        fxLength = 0;
+        fxWidth = (float) Math.min(0.6, 0.25 + p.radius() * 0.1);
+        if (age % 2 == 0) level.sendParticles(ParticleTypes.END_ROD, lamp.x, lamp.y, lamp.z, 1, 0.12, 0.12, 0.12, 0.003);
+        if (age % 6 == 0) level.sendParticles(ParticleTypes.GLOW, lamp.x, lamp.y, lamp.z, 1, 0.2, 0.2, 0.2, 0.0);
+        if (age % 5 == 0) {
+            BlockPos at = BlockPos.containing(lamp);
+            if (!at.equals(lampLight)) {
+                clearTemp(level, lampLight);
+                lampLight = at;
+            }
+            placeTemp(level, at, light(Math.min(15, 10 + (int) (p.power() * 0.2))));
+        }
+    }
+
+    private void waterRise(ServerLevel level) {
+        SpellProgram p = program;
+        double r = Math.max(0.7, p.radius() * 0.8);
+        double h = handheld ? 3 : Math.min(16, 2 + p.power() * 0.15 + p.radius() * 1.2);
+        double top = Math.min(h, age / 4.0);
+        Vec3 o = handheld ? heldBeside(level).subtract(0, 1.5, 0) : p.origin();
+        Vec3 n = handheld ? new Vec3(0, 1, 0) : p.normal();
+        fxLength = (float) top;
+        fxWidth = (float) r;
+        for (int k = 0; k < 4; k++) {
+            double a = level.random.nextDouble() * Math.PI * 2, rr = Math.sqrt(level.random.nextDouble()) * r, along = level.random.nextDouble() * top;
+            Vec3 at = o.add(n.scale(along)).add(frame.planeVector(Math.cos(a), Math.sin(a)).scale(rr));
+            level.sendParticles(ParticleTypes.BUBBLE_COLUMN_UP, at.x, at.y, at.z, 1, 0, 0.1, 0, 0.1);
+            if (k == 0) level.sendParticles(ParticleTypes.SPLASH, at.x, at.y, at.z, 2, 0.1, 0.1, 0.1, 0.05);
+        }
+        if (age % 3 == 0) {
+            Vec3 crest = o.add(n.scale(top));
+            level.sendParticles(ParticleTypes.FALLING_WATER, crest.x, crest.y, crest.z, 6, r * 0.6, 0.05, r * 0.6, 0);
+        }
+        if (age % 20 == 1) level.playSound(null, o.x, o.y, o.z, SoundEvents.BUBBLE_COLUMN_UPWARDS_AMBIENT, SoundSource.BLOCKS, 0.8f, 1f);
+        AABB column = new AABB(o, o.add(n.scale(top + 0.5))).inflate(r);
+        for (Entity e : level.getEntities((Entity) null, column, Entity::isAlive)) {
+            Vec3 rel = e.position().subtract(o);
+            double along = rel.dot(n);
+            if (along < -0.5 || along > top + 0.5 || rel.subtract(n.scale(along)).length() > r) continue;
+            Vec3 v = e.getDeltaMovement();
+            double lift = along < top - 0.6 ? 0.32 : 0.08;
+            e.setDeltaMovement(v.x * 0.8, Math.max(v.y, lift), v.z * 0.8);
+            e.hurtMarked = true;
+            e.resetFallDistance();
+            e.clearFire();
+        }
+        if (age % 10 == 0 && !handheld) {
+            BlockPos c = BlockPos.containing(o);
+            int rr = (int) Math.ceil(r), hh = (int) Math.ceil(top);
+            for (BlockPos bp : BlockPos.betweenClosed(c.offset(-rr, 0, -rr), c.offset(rr, hh, rr))) {
+                if (level.getBlockState(bp).is(net.minecraft.tags.BlockTags.FIRE)) level.removeBlock(bp, false);
+            }
+        }
+    }
+
+    private void windWall(ServerLevel level) {
+        SpellProgram p = program;
+        double ring = Math.min(10, 1.5 + p.radius() * 1.2), height = Math.min(8, 3 + p.radius());
+        Vec3 o = p.origin(), n = p.normal();
+        fxLength = 0;
+        fxWidth = 0;
+        int around = (int) Math.max(10, ring * 6);
+        for (int k = 0; k < around; k++) {
+            double a = (k + level.random.nextDouble()) * Math.PI * 2 / around + age * 0.08, up = level.random.nextDouble() * height;
+            Vec3 at = o.add(frame.planeVector(Math.cos(a), Math.sin(a)).scale(ring)).add(n.scale(up));
+            Vec3 swirl = frame.planeVector(-Math.sin(a), Math.cos(a)).scale(0.06);
+            level.sendParticles(k % 3 == 0 ? ParticleTypes.CLOUD : ParticleTypes.WHITE_ASH, at.x, at.y, at.z, 0, swirl.x, swirl.y + 0.02, swirl.z, 1);
+        }
+        if (age % 6 == 0) {
+            double a = level.random.nextDouble() * Math.PI * 2;
+            Vec3 at = o.add(frame.planeVector(Math.cos(a), Math.sin(a)).scale(ring)).add(n.scale(level.random.nextDouble() * height));
+            level.sendParticles(ParticleTypes.SMALL_GUST, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+        }
+        if (age % 30 == 1) level.playSound(null, o.x, o.y, o.z, SoundEvents.BREEZE_IDLE_AIR, SoundSource.BLOCKS, 1f, 0.6f);
+        AABB box = new AABB(o, o.add(n.scale(height))).inflate(ring + 2);
+        for (Entity e : level.getEntities((Entity) null, box, Entity::isAlive)) {
+            if (caster != null && e.getUUID().equals(caster)) continue;
+            if (e instanceof net.minecraft.world.entity.TamableAnimal t && caster != null && caster.equals(t.getOwnerUUID())) continue;
+            Vec3 now = e.position().subtract(o), was = new Vec3(e.xo, e.yo, e.zo).subtract(o);
+            double along = now.dot(n);
+            if (along < -1 || along > height) continue;
+            double dNow = now.subtract(n.scale(along)).length(), dWas = was.subtract(n.scale(was.dot(n))).length();
+            boolean inside = dWas < ring;
+            boolean near = inside ? dNow > ring - 0.7 : dNow < ring + 0.7;
+            if (!near) continue;
+            Vec3 radial = now.subtract(n.scale(along));
+            radial = radial.lengthSqr() < 1e-4 ? frame.planeVector(1, 0) : radial.normalize();
+            Vec3 back = radial.scale(inside ? -0.45 : 0.45);
+            if (inside ? dNow > ring - 0.2 : dNow < ring + 0.2) {
+                Vec3 keep = o.add(n.scale(along)).add(radial.scale(inside ? ring - 0.6 : ring + 0.6));
+                e.teleportTo(keep.x, keep.y, keep.z);
+            }
+            if (e instanceof net.minecraft.world.entity.projectile.Projectile) {
+                e.setDeltaMovement(back.scale(0.2).add(0, -0.1, 0));
+            } else {
+                e.setDeltaMovement(e.getDeltaMovement().multiply(0.2, 1, 0.2).add(back));
+            }
+            e.hurtMarked = true;
+        }
+    }
+
+    private void wallBend(ServerLevel level) {
+        SpellProgram p = program;
+        if (plane == null) return;
+        Vec3 n = p.normal();
+        Vec3 along = p.direction().subtract(n.scale(p.direction().dot(n)));
+        if (along.lengthSqr() < 1e-4) return;
+        along = along.normalize();
+        int length = (int) Math.min(16, 3 + 2 * p.radius() + 0.1 * p.power());
+        int height = (int) Math.min(6, 2 + p.radius());
+        int step = age / 4;
+        fxLength = step;
+        fxWidth = height;
+        if (age % 4 != 0 || step < 1 || step > length) return;
+        BlockPos under = BlockPos.containing(p.origin().subtract(n.scale(0.5)));
+        BlockState mat = Earthworks.conjured(level.getBlockState(under), Blocks.PACKED_MUD.defaultBlockState());
+        Vec3 base = p.origin().add(along.scale(step));
+        boolean any = false;
+        for (int j = 0; j < height; j++) {
+            BlockPos at = BlockPos.containing(base.add(n.scale(j + 0.5)));
+            if (!level.getBlockState(at).canBeReplaced() || !Earthworks.mayChange(level, at, caster, false)) continue;
+            if (!level.getEntitiesOfClass(LivingEntity.class, new AABB(at)).isEmpty()) continue;
+            placeTemp(level, at, mat);
+            any = true;
+        }
+        if (any) {
+            Vec3 s = base.add(n.scale(0.5));
+            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, mat), s.x, s.y, s.z, 10, 0.3, 0.3, 0.3, 0.05);
+            level.playSound(null, s.x, s.y, s.z, SoundEvents.STONE_PLACE, SoundSource.BLOCKS, 0.8f, 0.7f);
+        }
+    }
+
+    private UUID steed;
+
+    private void waterHorse(ServerLevel level) {
+        SpellProgram p = program;
+        fxLength = 0;
+        fxWidth = (float) p.radius();
+        var horse = steed == null ? null : level.getEntity(steed) instanceof com.fimkov.witchsatelier.entity.WaterHorseEntity w && w.isAlive() ? w : null;
+        if (horse == null && steed != null) {
+            ticksLeft = 1;
+            return;
+        }
+        if (horse == null) {
+            horse = com.fimkov.witchsatelier.registry.ModEntities.WATER_HORSE.get().create(level);
+            if (horse == null) return;
+            Vec3 at = handheld ? casterEntity(level) == null ? p.origin() : casterEntity(level).position() : p.origin().add(p.normal().scale(0.2));
+            horse.moveTo(at.x, at.y, at.z, level.random.nextFloat() * 360, 0);
+            horse.conjure(caster == null ? null : level.getPlayerByUUID(caster));
+            level.addFreshEntity(horse);
+            steed = horse.getUUID();
+            level.sendParticles(ParticleTypes.SPLASH, at.x, at.y + 1, at.z, 40, 0.6, 0.6, 0.6, 0.2);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.HORSE_AMBIENT, SoundSource.NEUTRAL, 1f, 1.3f);
+        }
+    }
+
+    private void waterCage(ServerLevel level) {
+        SpellProgram p = program;
+        Vec3 c = p.origin().add(p.normal().scale(1.4));
+        double reach = 2 + p.radius() * 1.5;
+        fxLength = 0;
+        fxWidth = (float) Math.min(1.4, 0.8 + p.radius() * 0.2);
+        LivingEntity target = caged == null ? null : level.getEntity(caged) instanceof LivingEntity le && le.isAlive() ? le : null;
+        if (target == null || target.distanceToSqr(c) > (reach + 3) * (reach + 3)) {
+            target = null;
+            caged = null;
+            double best = reach * reach;
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(c, c).inflate(reach), LivingEntity::isAlive)) {
+                if (caster != null && e.getUUID().equals(caster) || e.isSpectator()) continue;
+                double d = e.distanceToSqr(c);
+                if (d < best) { best = d; target = e; }
+            }
+            if (target != null) {
+                caged = target.getUUID();
+                level.playSound(null, c.x, c.y, c.z, SoundEvents.PLAYER_SPLASH_HIGH_SPEED, SoundSource.PLAYERS, 1f, 0.8f);
+            }
+        }
+        Vec3 hold = target == null ? c : c.subtract(0, target.getBbHeight() / 2, 0);
+        Vec3 mid = target == null ? c : target.getBoundingBox().getCenter();
+        double size = target == null ? 0.7 : Math.max(0.8, target.getBbWidth() * 0.8 + 0.5);
+        for (int k = 0; k < 6; k++) {
+            double a = level.random.nextDouble() * Math.PI * 2, b = Math.acos(2 * level.random.nextDouble() - 1);
+            Vec3 at = mid.add(Math.sin(b) * Math.cos(a) * size, Math.cos(b) * size, Math.sin(b) * Math.sin(a) * size);
+            level.sendParticles(k % 2 == 0 ? ParticleTypes.DRIPPING_WATER : ParticleTypes.BUBBLE, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+        }
+        if (target == null) return;
+        if (target.position().distanceTo(hold) > size + 0.4) target.teleportTo(hold.x, hold.y, hold.z);
+        target.setDeltaMovement(hold.subtract(target.position()).scale(0.3));
+        target.hurtMarked = true;
+        target.resetFallDistance();
+        target.clearFire();
+        if (target instanceof net.minecraft.world.entity.Mob m) m.getNavigation().stop();
+        if (!target.canBreatheUnderwater()) {
+            target.setAirSupply(Math.max(-20, target.getAirSupply() - 5));
+            if (target.getAirSupply() <= -20 && age % 20 == 0) target.hurt(level.damageSources().drown(), 2f);
+        }
+        if (target.isSensitiveToWater() && age % 10 == 0) target.hurt(level.damageSources().drown(), 1f);
+        if (age % 20 == 0) com.fimkov.witchsatelier.glyph.GlyphService.washArea(level, mid, size + 0.5, strokes);
     }
 
     private static BlockState light(int lvl) {

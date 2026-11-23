@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:white_wool"
+    },
+    "title": {
+      "translate": "advancements.witchsatelier.behind_the_curtains.title"
+    },
+    "description": {
+      "translate": "advancements.witchsatelier.behind_the_curtains.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "behind_the_curtains": {
+      "trigger": "witchsatelier:magic",
+      "conditions": {
+        "event": "behind_the_curtains"
+      }
+    }
+  },
+  "parent": "witchsatelier:witch/first_glyph"
+}

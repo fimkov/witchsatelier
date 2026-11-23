@@ -25,11 +25,12 @@ public final class Taboo {
 
     public static void add(Player p, int amount) {
         int before = of(p);
-        int now = Math.min(MAX, before + amount);
+        int now = Math.max(0, Math.min(MAX, before + amount));
         p.getPersistentData().putInt(KEY, now);
         if (before < HUNTED && now >= HUNTED && p instanceof ServerPlayer sp) {
             sp.level().playSound(null, sp.getX(), sp.getY(), sp.getZ(), SoundEvents.BELL_RESONATE,
                     SoundSource.AMBIENT, 0.6f, 0.5f);
+            com.fimkov.witchsatelier.advancement.Feats.hunted(sp);
         }
     }
 
@@ -51,6 +52,7 @@ public final class Taboo {
         if (p.tickCount % 1200 == 0) {
             int t = of(p);
             if (t > 0) p.getPersistentData().putInt(KEY, t - 1);
+            if (t == 1) com.fimkov.witchsatelier.advancement.Feats.forgiven(p);
         }
         if (p.tickCount % 100 != 0) return;
         int t = of(p);
@@ -102,11 +104,24 @@ public final class Taboo {
         return sent;
     }
 
+    public static void onClone(net.neoforged.neoforge.event.entity.player.PlayerEvent.Clone e) {
+        var from = e.getOriginal().getPersistentData();
+        var to = e.getEntity().getPersistentData();
+        for (String k : new String[]{KEY, HUNT, LOST, Witnesses.SEEN_AT, StrangerEntity.GIFT_TAG}) {
+            if (from.contains(k)) to.put(k, from.get(k).copy());
+        }
+    }
+
     public static void onDeath(LivingDeathEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p)) return;
         boolean byKnight = e.getSource().getEntity() instanceof KnightMoralisEntity;
         if (huntOf(p) == 0 && !byKnight) return;
-        p.getPersistentData().putInt(KEY, 0);
+        settle(p, 0);
+    }
+
+    /** Ends the hunt for this player, leaves at most {@code keep} of the debt, and sends the knights away. */
+    public static void settle(ServerPlayer p, int keep) {
+        p.getPersistentData().putInt(KEY, Math.max(0, Math.min(of(p), keep)));
         endHunt(p);
         for (KnightMoralisEntity k : p.serverLevel().getEntitiesOfClass(KnightMoralisEntity.class, new AABB(p.blockPosition()).inflate(96)))
             if (k.isHunting(p) || k.getTarget() == p) k.leave();

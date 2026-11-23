@@ -30,6 +30,34 @@ public final class Earthworks {
 
     private Earthworks() {}
 
+    public static void clearLevel(ResourceKey<Level> dim) {
+        RUBBLE.remove(dim);
+    }
+
+    public static BlockState conjured(BlockState found, BlockState fallback) {
+        if (found.getBlock() instanceof net.minecraft.world.level.block.FallingBlock) {
+            return found.is(net.minecraft.tags.BlockTags.SAND) ? Blocks.SANDSTONE.defaultBlockState() : fallback;
+        }
+        boolean plain = found.is(net.minecraft.tags.BlockTags.DIRT) || found.is(net.minecraft.tags.BlockTags.BASE_STONE_OVERWORLD)
+                || found.is(net.minecraft.tags.BlockTags.BASE_STONE_NETHER) || found.is(net.minecraft.tags.BlockTags.TERRACOTTA)
+                || found.is(Blocks.COBBLESTONE) || found.is(Blocks.SANDSTONE) || found.is(Blocks.RED_SANDSTONE) || found.is(Blocks.MUD)
+                || found.is(Blocks.PACKED_MUD) || found.is(Blocks.CLAY) || found.is(Blocks.SNOW_BLOCK) || found.is(Blocks.END_STONE);
+        return plain ? found.getBlock().defaultBlockState() : fallback;
+    }
+
+    public static boolean mayChange(ServerLevel level, BlockPos pos, java.util.UUID caster, boolean breaking) {
+        if (caster == null) return true;
+        if (level.getPlayerByUUID(caster) instanceof net.minecraft.server.level.ServerPlayer sp) {
+            if (!sp.mayBuild() || !level.mayInteract(sp, pos)) return false;
+            BlockState state = level.getBlockState(pos);
+            if (breaking) return !net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(new net.neoforged.neoforge.event.level.BlockEvent.BreakEvent(level, pos, state, sp)).isCanceled();
+            var snap = net.neoforged.neoforge.common.util.BlockSnapshot.create(level.dimension(), level, pos);
+            return !net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(new net.neoforged.neoforge.event.level.BlockEvent.EntityPlaceEvent(snap, state, sp)).isCanceled();
+        }
+        if (level.getEntity(caster) instanceof net.minecraft.world.entity.Mob) return level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_MOBGRIEFING);
+        return true;
+    }
+
     static void crush(ServerLevel level, ActiveSpell spell) {
         SpellProgram p = spell.program;
         SurfacePlane plane = spell.plane;
@@ -38,6 +66,8 @@ public final class Earthworks {
         int depth = 1 + (int) (p.power() / 8);
         double maxHardness = 1.5 + p.power() * 0.3;
         Map<BlockPos, Rubble> memory = RUBBLE.computeIfAbsent(level.dimension(), k -> new HashMap<>());
+        long now = level.getGameTime();
+        memory.values().removeIf(old -> now - old.time() < 0 || now - old.time() > MEMORY_TICKS);
         List<BlockPos> removed = new ArrayList<>();
         for (int u = (int) Math.floor(c.x() - r); u <= (int) Math.ceil(c.x() + r); u++) {
             for (int v = (int) Math.floor(c.y() - r); v <= (int) Math.ceil(c.y() + r); v++) {
@@ -49,6 +79,7 @@ public final class Earthworks {
                     BlockState s = level.getBlockState(pos);
                     float hardness = s.getDestroySpeed(level, pos);
                     if (s.isAir() || hardness < 0 || hardness > maxHardness || s.hasBlockEntity()) break;
+                    if (!mayChange(level, pos, spell.caster, true)) break;
                     level.levelEvent(2001, pos, Block.getId(s));
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
                     memory.put(pos.immutable(), new Rubble(s, level.getGameTime()));
@@ -69,7 +100,8 @@ public final class Earthworks {
         int count = 0;
         for (Iterator<Map.Entry<BlockPos, Rubble>> it = memory.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<BlockPos, Rubble> e = it.next();
-            if (now - e.getValue().time() > MEMORY_TICKS) { it.remove(); continue; }
+            long age = now - e.getValue().time();
+            if (age < 0 || age > MEMORY_TICKS) { it.remove(); continue; }
             BlockPos pos = e.getKey();
             if (pos.distToCenterSqr(origin) > range * range) continue;
             if (!level.getBlockState(pos).canBeReplaced()) continue;

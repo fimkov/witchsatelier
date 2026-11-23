@@ -79,6 +79,10 @@ final class SpellFilms {
         out.add(mixedFilm());
         out.add(wearFilm());
         out.add(sketchFilm("empty_ring", 1.4, g -> g, LENGTH, false));
+        out.add(passageStarsFilm());
+        out.add(doorknobFilm());
+        out.add(fluttergramFilm());
+        out.add(guidanceOrbFilm());
 
         VisualCheck.Shot apple = sketchFilm("apple", 1.5, g -> g.sigil(Sigil.APPLE, 1.0), 500, false);
         out.add(new VisualCheck.Shot(apple.name(), apple.delay(), apple.setup(), new Vec3(0.5, 224.6, 3.4), 180, 52, false, apple.film(), apple.during()));
@@ -108,16 +112,107 @@ final class SpellFilms {
         };
         BiConsumer<ServerLevel, Integer> during = (l, t) -> {
             if (t == CLOSE_AT) GlyphService.inscribe(l, glyph[0].plane(), glyph[0].closer(), null);
-            if (t == CLOSE_AT + 3) report(l, name);
+            if (t == CLOSE_AT + 40) report(l, name);
+            if (t == CLOSE_AT + 40 && GlyphService.activeSpells(l).isEmpty()) {
+                Pt mid = glyph[0].plane().toUV(Vec3.atCenterOf(B).add(0, 0.5, 0));
+                var near = com.fimkov.witchsatelier.glyph.storage.GlyphLevelData.get(l).near(glyph[0].plane(), mid.x(), mid.y(), 2);
+                WitchsAtelier.LOGGER.info("[visualcheck] film {} reads as: {}", name, near.isEmpty() ? "no ink"
+                        : GlyphService.describeAround(l, glyph[0].plane(), near.get(0).id()) + " states " + near.stream().map(s -> s.state().name()).distinct().toList());
+            }
             events(l, name, t);
         };
         if (name.equals("night_eye")) {
             return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 222.62, 2.6), 0, 6, false, LENGTH, during);
         }
+        if (name.equals("ring_of_fire"))
+            return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 227.2, 5.0), 180, 50, false, 260, during);
         if (name.equals("petrification"))
 
-            return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 227.0, 12.5), 180, 22, false, 260, during);
+            return new VisualCheck.Shot("film_" + name, 10, setup, new Vec3(0.5, 227.0, 12.5), 180, 22, false, 400, during);
         return film(name, setup, during, LENGTH);
+    }
+
+    private static net.minecraft.server.level.ServerPlayer filmer(ServerLevel l) {
+        return l.players().isEmpty() ? null : l.players().get(0);
+    }
+
+    private static VisualCheck.Shot passageStarsFilm() {
+        Consumer<ServerLevel> setup = l -> {
+            stage(l, true);
+            l.setWeatherParameters(12000, 0, false, false);
+        };
+        BiConsumer<ServerLevel, Integer> during = (l, t) -> {
+            if (t == 10) com.fimkov.witchsatelier.world.PassageStars.beginNow(l);
+        };
+        return new VisualCheck.Shot("film_passage_stars", 10, setup, new Vec3(0.5, 222.62, 4.5), 180, -60, false, 400, during);
+    }
+
+    private static void door(ServerLevel l, BlockPos at) {
+        var door = Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, Direction.SOUTH)
+                .setValue(net.minecraft.world.level.block.DoorBlock.OPEN, true);
+        l.setBlock(at, door.setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
+        l.setBlock(at.above(), door.setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        for (int y = 0; y < 3; y++) for (int x = -1; x <= 1; x += 2) l.setBlock(at.offset(x, y, 0), Blocks.STONE_BRICKS.defaultBlockState(), 3);
+        l.setBlock(at.above(2), Blocks.STONE_BRICKS.defaultBlockState(), 3);
+    }
+
+    private static VisualCheck.Shot doorknobFilm() {
+        BlockPos a = B.offset(-3, 1, -2), b = B.offset(3, 1, -2);
+        Pig[] pig = new Pig[1];
+        Consumer<ServerLevel> setup = l -> {
+            stage(l, false);
+            door(l, a);
+            door(l, b);
+            var p = filmer(l);
+            if (p != null) {
+                var knobs = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.DOORKNOB.get(), 2);
+                knobs.set(com.fimkov.witchsatelier.registry.ModComponents.BOND.get(), java.util.UUID.randomUUID());
+                com.fimkov.witchsatelier.item.artifact.Doorknobs.attach(l, p, a, knobs);
+                com.fimkov.witchsatelier.item.artifact.Doorknobs.attach(l, p, b, knobs);
+            }
+            pig[0] = EntityType.PIG.create(l);
+            if (pig[0] != null) {
+                pig[0].moveTo(a.getX() + 0.5, a.getY(), a.getZ() + 2.5, 180, 0);
+                pig[0].setNoAi(true);
+                l.addFreshEntity(pig[0]);
+            }
+        };
+        BiConsumer<ServerLevel, Integer> during = (l, t) -> {
+            if (pig[0] != null && pig[0].isAlive() && t >= 40 && t < 140 && pig[0].getX() < B.getX()) {
+                pig[0].setPos(pig[0].getX(), pig[0].getY(), pig[0].getZ() - 0.08);
+                pig[0].setYRot(180);
+            }
+        };
+        return new VisualCheck.Shot("film_doorknob_doors", 10, setup, new Vec3(0.5, 223.4, 2.6), 180, 12, false, 240, during);
+    }
+
+    private static VisualCheck.Shot fluttergramFilm() {
+        Consumer<ServerLevel> setup = l -> stage(l, false);
+        BiConsumer<ServerLevel, Integer> during = (l, t) -> {
+            var p = filmer(l);
+            if (p == null) return;
+            if (t == 20 || t == 60) {
+                var bird = new com.fimkov.witchsatelier.entity.FluttergramEntity(com.fimkov.witchsatelier.registry.ModEntities.FLUTTERGRAM.get(), l);
+                bird.moveTo(B.getX() + 0.5 + (t == 60 ? 1.2 : -1.2), B.getY() + 2.4, B.getZ() + 1.5);
+                bird.setDeltaMovement(t == 60 ? 0.04 : -0.04, 0.02, -0.06);
+                l.addFreshEntity(bird);
+            }
+            if (t == 140) com.fimkov.witchsatelier.entity.FluttergramEntity.arrive(l, p);
+        };
+        return new VisualCheck.Shot("film_fluttergram", 10, setup, new Vec3(0.5, 223.0, 4.5), 180, 8, false, 300, during);
+    }
+
+    private static VisualCheck.Shot guidanceOrbFilm() {
+        BlockPos target = B.offset(5, 1, -7);
+        Consumer<ServerLevel> setup = l -> {
+            stage(l, false);
+            l.setBlock(target, Blocks.LODESTONE.defaultBlockState(), 3);
+        };
+        BiConsumer<ServerLevel, Integer> during = (l, t) -> {
+            if (t >= 20 && t % 4 == 0) com.fimkov.witchsatelier.item.artifact.GuidanceOrbItem.showThread(l,
+                    new Vec3(B.getX() + 0.2, B.getY() + 2.2, B.getZ() + 2.8), Vec3.atCenterOf(target));
+        };
+        return new VisualCheck.Shot("film_guidance_orb", 10, setup, new Vec3(0.5, 223.8, 4.2), 180, 22, false, 200, during);
     }
 
     private static VisualCheck.Shot windowwayFilm() {
@@ -471,6 +566,8 @@ final class SpellFilms {
 
     private static void stage(ServerLevel l, boolean night) {
         if (ModList.get().isLoaded("sable")) SableFilm.clearShips(l);
+        for (var spell : GlyphService.activeSpells(l)) GlyphService.stop(l, spell);
+        GlyphService.eraseArea(l, Vec3.atCenterOf(B), 24);
         VisualCheck.clear(l, B, 18);
 
         for (int x = -20; x <= 20; x++) for (int z = -20; z <= 20; z++) for (int y = 15; y <= 60; y++)
@@ -561,7 +658,7 @@ final class SpellFilms {
     }
 
     private static void events(ServerLevel l, String name, int t) {
-        if (name.equals("petrification") && t == 170) {
+        if (name.equals("petrification") && t == 100000) {
             SurfacePlane floor = SurfacePlane.of(B.offset(3, 0, 2), Direction.UP);
             GlyphService.inscribe(l, floor, new GlyphSketch(floor.toUV(Vec3.atCenterOf(B.offset(3, 0, 2)).add(0, 0.5, 0)), 1.2).ring(0, 362)
                     .sigil(Sigil.EARTH, 0.8).signs(SignType.CRUSH, 4, Orientation.INWARD, 0.45, 45).strokes, null);
@@ -570,6 +667,27 @@ final class SpellFilms {
             var pigs = l.getEntitiesOfClass(Pig.class, new AABB(B).inflate(8));
             pigs.stream().filter(p -> p.distanceToSqr(Vec3.atCenterOf(B)) > 4).findFirst()
                     .ifPresent(p -> p.teleportTo(B.getX() + 0.5, B.getY() + 1, B.getZ() + 0.5));
+        }
+        if (name.equals("pyreball") && t == 70) {
+            for (int k = 0; k < 3; k++) {
+                var food = new net.minecraft.world.entity.item.ItemEntity(l, B.getX() + 0.5 + (k - 1) * 0.3, B.getY() + 3.2, B.getZ() + 0.5,
+                        new net.minecraft.world.item.ItemStack(k == 1 ? net.minecraft.world.item.Items.CHICKEN : net.minecraft.world.item.Items.BEEF));
+                food.setPickUpDelay(32767);
+                food.setDeltaMovement(0, 0, 0);
+                l.addFreshEntity(food);
+            }
+        }
+        if ((name.equals("rising_water") || name.equals("water_cage")) && t == 45) {
+            var pigs = l.getEntitiesOfClass(Pig.class, new AABB(B).inflate(8));
+            pigs.stream().findFirst().ifPresent(p -> p.teleportTo(B.getX() + 0.5, B.getY() + 1, B.getZ() + 0.8));
+        }
+        if (name.equals("seal_of_obliviation") && t == 5) {
+            var villager = EntityType.VILLAGER.create(l);
+            if (villager != null) {
+                villager.moveTo(B.getX() + 0.5, B.getY() + 1, B.getZ() + 0.2, 180, 0);
+                villager.setNoAi(true);
+                l.addFreshEntity(villager);
+            }
         }
         if (name.equals("feather_fall") && t == 60) {
             for (int k = -1; k <= 1; k += 2) {

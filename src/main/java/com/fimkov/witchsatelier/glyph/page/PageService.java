@@ -56,6 +56,15 @@ public final class PageService {
     public static final double PAGE_INK = 0.035;
     private static final double MAX_COORD = 1.08;
 
+    public static final int MAX_PAGE_STROKES = 480, MAX_PAGE_POINTS = 12000;
+
+    public static boolean pageFull(Page page, int morePoints) {
+        if (page.strokes().size() >= MAX_PAGE_STROKES) return true;
+        int n = morePoints;
+        for (PageStroke s : page.strokes()) n += s.pts().length / 2;
+        return n > MAX_PAGE_POINTS;
+    }
+
     private PageService() {}
 
     public static GlyphPages pages(ItemStack stack, PageKind kind) {
@@ -81,6 +90,11 @@ public final class PageService {
             if (!Float.isFinite(pts[i]) || !Float.isFinite(pts[i + 1]) || Math.hypot(pts[i], pts[i + 1]) > MAX_COORD * 1.42) return;
             if (i >= 2) len += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
         }
+        GlyphPages before = pages(stack, kind);
+        if (!before.pages().isEmpty() && pageFull(before.page(Math.floorMod(page, before.pages().size())), pts.length / 2)) {
+            player.displayClientMessage(Component.translatable("message.witchsatelier.page_full"), true);
+            return;
+        }
         int cost = Math.max(1, (int) Math.ceil(len * kind.scale * GlyphService.INK_PER_BLOCK));
         if (cost > supply.available()) {
             LOGGER.debug("[page] stroke rejected: needs {} ink, has {}", cost, supply.available());
@@ -102,6 +116,7 @@ public final class PageService {
         ItemStack stack = player.getItemInHand(hand);
         PageKind kind = PageKind.of(stack);
         if (kind == null || !kind.erasable || InkSupply.of(player) == null) return;
+        stack = single(player, hand, stack);
         GlyphPages gp = pages(stack, kind);
         if (gp.pages().isEmpty()) return;
         int p = Math.floorMod(page, gp.pages().size());
@@ -121,6 +136,7 @@ public final class PageService {
         if (kind == null) return;
         GlyphPages gp = pages(stack, kind);
         if (gp.pages().size() <= 1) return;
+        stack = single(player, hand, stack);
         save(stack, kind, gp.withCurrent(page));
         if (kind == PageKind.GRIMOIRE) {
             GlyphLibrary.refreshPage(stack);
@@ -175,6 +191,8 @@ public final class PageService {
                 }
                 InkSupply supply = InkSupply.of(player);
                 var ink = supply != null ? supply.ink : gp.page(p).strokes().get(0).ink();
+                if (pageFull(gp.page(p), arc.length / 2)) return;
+                stack = single(player, hand, stack);
                 gp = gp.withPage(p, gp.page(p).with(new PageStroke(arc, ink)));
                 save(stack, kind, gp);
             }
@@ -239,9 +257,10 @@ public final class PageService {
             SurfacePlane plane = SurfacePlane.of(hit.getBlockPos(), hit.getDirection());
             Vec3 at = hit.getLocation();
             program = SpellCompiler.compile(r, plane, at.add(plane.normal().scale(0.05)), kind.scale, pot / len, dur / len, mis / len);
-            GlyphService.startSpell(level, plane, program, player, false);
+            GlyphService.startSpell(level, plane, program, player, false).bloodInk = inBlood(pg, r);
         } else {
-            GlyphService.startSpell(level, null, program, player, true);
+            var spell = GlyphService.startSpell(level, null, program, player, true);
+            spell.ticksLeft = Math.min(spell.ticksLeft, HELD_TICKS);
         }
         if (program.form() == Form.PETRIFY) Taboo.add(player, 40);
         MagicTrigger.cast(player, program, "page");
@@ -318,6 +337,13 @@ public final class PageService {
         LOGGER.debug("[boots] {}", program.summary());
     }
 
+    public static boolean hasBootsGlyph(net.minecraft.world.entity.player.Player p) {
+        ItemStack boots = p.getItemBySlot(EquipmentSlot.FEET);
+        if (PageKind.of(boots) != PageKind.BOOTS) return false;
+        GlyphPages gp = boots.get(ModComponents.GLYPH_PAGES.get());
+        return gp != null && !gp.pages().isEmpty() && !gp.page(0).isEmpty();
+    }
+
     public static void washBoots(PlayerTickEvent.Post e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !p.isInWater() || p.tickCount % 5 != 0) return;
         ItemStack boots = p.getItemBySlot(EquipmentSlot.FEET);
@@ -351,10 +377,13 @@ public final class PageService {
             return;
         }
         stack.set(ModComponents.GLYPH_PAGES.get(), gp);
-        if (kind == PageKind.PAPER || kind == PageKind.BOOK || kind == PageKind.BOOTS) stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, any);
+        if (kind == PageKind.PAPER || kind == PageKind.BOOK || kind == PageKind.BOOTS) {
+            if (any) stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
+            else stack.remove(DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
+        }
     }
 
-    public static final int CARRIED_TICKS = 200;
+    public static final int CARRIED_TICKS = 200, HELD_TICKS = 1200, TREAD_WAIT_TICKS = 6000;
 
     public static ActiveSpell castOnSurface(ServerLevel level, Page pg, SurfacePlane plane,
                                                                             Vec3 at, UUID caster) {
@@ -377,12 +406,26 @@ public final class PageService {
             return null;
         }
         var spell = GlyphService.startSpell(level, plane, program, caster, false);
+        spell.bloodInk = inBlood(pg, r);
         spell.ticksLeft = Math.min(spell.ticksLeft, CARRIED_TICKS);
+        spell.expiresAt = level.getGameTime() + (program.has(SpellProgram.TREAD) ? TREAD_WAIT_TICKS : CARRIED_TICKS) + CARRIED_TICKS;
         if (program.form() == Form.PETRIFY && caster != null && level.getPlayerByUUID(caster) instanceof ServerPlayer sp) Taboo.add(sp, 40);
         int color = ElementLook.color(program.element(), program.centerSign());
         level.sendParticles(new DustParticleOptions(new Vector3f(((color >> 16) & 255) / 255f,
                 ((color >> 8) & 255) / 255f, (color & 255) / 255f), 1.2f), at.x, at.y, at.z, 16, 0.25, 0.25, 0.25, 0.02);
         return spell;
+    }
+
+    /** Whether the strokes a page's glyph was read from are mostly blood ink. */
+    static boolean inBlood(Page pg, GlyphReading r) {
+        double all = 0, blood = 0;
+        for (int i : r.usedStrokes()) {
+            PageStroke s = pg.strokes().get(i);
+            double l = Math.max(0.02, s.length());
+            all += l;
+            if (s.ink() == InkType.BLOOD) blood += l;
+        }
+        return all > 0 && blood * 2 > all;
     }
 
     public static final int TITLE_MAX = 40, NOTES_MAX = 320;
@@ -405,6 +448,10 @@ public final class PageService {
         }
         if (found == null || found.isEmpty()) {
             player.displayClientMessage(Component.translatable("message.witchsatelier.grimoire.nothing"), true);
+            return;
+        }
+        if (pageFull(found, 0)) {
+            player.displayClientMessage(Component.translatable("message.witchsatelier.page_full"), true);
             return;
         }
         book = single(player, hand, book);
@@ -456,11 +503,13 @@ public final class PageService {
     }
 
     private static ItemStack single(ServerPlayer player, InteractionHand hand, ItemStack stack) {
-        if (stack.getCount() <= 1 || stack.has(ModComponents.GLYPH_PAGES.get())) return stack;
+        if (stack.getCount() <= 1 || Awakening.wakesAsStack(stack)) return stack;
         ItemStack sheet = stack.split(1);
         ItemStack rest = stack.copy();
         player.setItemInHand(hand, sheet);
-        if (!player.getInventory().add(rest)) player.drop(rest, false);
+        int free = player.getInventory().getFreeSlot();
+        if (free >= 0) player.getInventory().setItem(free, rest);
+        else player.drop(rest, false);
         return sheet;
     }
 }

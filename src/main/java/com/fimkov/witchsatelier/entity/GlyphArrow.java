@@ -43,10 +43,13 @@ public class GlyphArrow extends AbstractArrow {
         return gp == null ? null : gp.page(0);
     }
 
+    private boolean casted;
+
     @Override
     protected void onHitBlock(BlockHitResult hit) {
         super.onHitBlock(hit);
-        if (level() instanceof ServerLevel sl && isAlive()) {
+        if (level() instanceof ServerLevel sl && !casted) {
+            casted = true;
             cast(sl, SurfacePlane.of(hit.getBlockPos(), hit.getDirection()), hit.getLocation());
             discard();
         }
@@ -54,11 +57,13 @@ public class GlyphArrow extends AbstractArrow {
 
     @Override
     protected void onHitEntity(EntityHitResult hit) {
+        var e = hit.getEntity();
+        BlockPos under = BlockPos.containing(e.getX(), e.getY() - 0.2, e.getZ());
+        Vec3 at = new Vec3(e.getX(), under.getY() + 1, e.getZ());
         super.onHitEntity(hit);
-        if (level() instanceof ServerLevel sl && !isRemoved()) {
-            var e = hit.getEntity();
-            BlockPos under = BlockPos.containing(e.getX(), e.getY() - 0.2, e.getZ());
-            cast(sl, SurfacePlane.of(under, Direction.UP), new Vec3(e.getX(), under.getY() + 1, e.getZ()));
+        if (level() instanceof ServerLevel sl && !casted) {
+            casted = true;
+            cast(sl, SurfacePlane.of(under, Direction.UP), at);
             discard();
         }
     }
