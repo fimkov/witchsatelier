@@ -45,5 +45,6 @@ repo/
 ### Python ###
 __pycache__/
 
-### Release gallery (regenerated from the dev films) ###
+### Store pages and dev tools, kept locally ###
 release/
+tools/
