@@ -10,6 +10,8 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class AppleTest {
     static final GlyphLibrary.Recipe APPLE = new GlyphLibrary.Recipe("apple", Sigil.APPLE, 0.6, List.of());
 

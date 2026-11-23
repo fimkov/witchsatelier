@@ -13,6 +13,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class RobustnessTest {
     static final double INK = 1.0 / 16;
     static final List<GlyphLibrary.Recipe> RECIPES = all();
@@ -126,8 +128,8 @@ class RobustnessTest {
         Map<String, Integer> mistakes = new TreeMap<>();
         double careful = accuracy(0.5, 6, null, null);
         double ordinary = accuracy(1.0, 6, mistakes, null);
-        org.junit.jupiter.api.Assertions.assertTrue(careful >= 0.94, "careful copies read right only " + careful);
-        org.junit.jupiter.api.Assertions.assertTrue(ordinary >= 0.80, "ordinary copies read right only " + ordinary + ": " + mistakes);
+        assertTrue(careful >= 0.94, "careful copies read right only " + careful);
+        assertTrue(ordinary >= 0.80, "ordinary copies read right only " + ordinary + ": " + mistakes);
     }
 
     @Test

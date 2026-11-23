@@ -10,6 +10,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class AwakeningGlyphsTest {
     static final List<GlyphLibrary.Recipe> GLYPHS = new ArrayList<>();
     static {

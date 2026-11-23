@@ -9,6 +9,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class BootsSplitTest {
     @Test
     void halvesOnTheTwoSolesReadAsOneGlyph() {

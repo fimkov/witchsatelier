@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class RealDrawingsTest {
     private static List<List<Pt>> load(String resource) throws Exception {
         List<List<Pt>> strokes = new ArrayList<>();
@@ -25,16 +27,16 @@ class RealDrawingsTest {
     @Test
     void columnBarsNextToTheRingDoNotOpenIt() throws Exception {
         GlyphReading r = GlyphAnalyzer.analyze(load("quire_fire_columns.txt"), 0.035);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertEquals(Sigil.FIRE, r.sigil(), r.describe());
+        assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
     @Test
     void shakyLevitationArrowsAreReadAsASet() throws Exception {
         GlyphReading r = GlyphAnalyzer.analyze(load("ice_wind_levitation.txt"), 1.0 / 16);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertTrue(r.count(SignType.LEVITATION) >= 3, r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertTrue(r.count(SignType.LEVITATION) >= 3, r.describe());
     }
 
     @Test
@@ -42,17 +44,17 @@ class RealDrawingsTest {
         var strokes = load("floor_spiral_fire_columns.txt");
 
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, Math.PI / 2);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertEquals(Sigil.FIRE, r.sigil(), r.describe());
+        assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
     @Test
     void squareAcrossACrossReadsAsWindowNotLight() throws Exception {
         for (String f : List.of("floor_window_square_cross.txt", "floor_window_offset_cross.txt")) {
             GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(load(f), 1.0 / 16, Math.PI / 2);
-            org.junit.jupiter.api.Assertions.assertTrue(r.closed(), f + ": " + r.describe());
-            org.junit.jupiter.api.Assertions.assertEquals(SignType.WINDOW, r.centerSign(), f + ": " + r.describe());
+            assertTrue(r.closed(), f + ": " + r.describe());
+            assertEquals(SignType.WINDOW, r.centerSign(), f + ": " + r.describe());
         }
     }
 
@@ -60,31 +62,31 @@ class RealDrawingsTest {
     void triangleEarthAndPupilledEyesReadAsPetrification() throws Exception {
         var strokes = load("floor_earth_four_eyes.txt");
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, 0.3);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.EARTH, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.EYE), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(0, r.count(SignType.DIAMOND), r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertEquals(Sigil.EARTH, r.sigil(), r.describe());
+        assertEquals(4, r.count(SignType.EYE), r.describe());
+        assertEquals(0, r.count(SignType.DIAMOND), r.describe());
     }
 
     @Test
     void floatingPupilsAndSigilDotsAreNotSignsOfTheirOwn() throws Exception {
         var strokes = load("floor_earth_four_round_pupils.txt");
         GlyphReading r = GlyphAnalyzer.analyzeFromAnySide(strokes, 1.0 / 16, 0.3);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.EARTH, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.signs().size(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.EYE), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(0, r.unknown(), r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertEquals(Sigil.EARTH, r.sigil(), r.describe());
+        assertEquals(4, r.signs().size(), r.describe());
+        assertEquals(4, r.count(SignType.EYE), r.describe());
+        assertEquals(0, r.unknown(), r.describe());
     }
 
     @Test
     void aSetOfColumnsKeepsItsOddOneAndRingTouchUpsAreNoSigns() throws Exception {
         var strokes = load("quire_fire_columns_crossed_bar.txt");
         GlyphReading r = GlyphAnalyzer.analyze(strokes, 0.035);
-        org.junit.jupiter.api.Assertions.assertTrue(r.closed(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.FIRE, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.signs().size(), r.describe());
-        org.junit.jupiter.api.Assertions.assertEquals(4, r.count(SignType.COLUMN), r.describe());
+        assertTrue(r.closed(), r.describe());
+        assertEquals(Sigil.FIRE, r.sigil(), r.describe());
+        assertEquals(4, r.signs().size(), r.describe());
+        assertEquals(4, r.count(SignType.COLUMN), r.describe());
     }
 
     @Test

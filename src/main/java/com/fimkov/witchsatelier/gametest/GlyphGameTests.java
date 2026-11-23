@@ -66,6 +66,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.util.RandomSource;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
@@ -1183,7 +1184,11 @@ public final class GlyphGameTests {
                     if (sd == null || !sd.program.has(SpellProgram.DRY)) h.fail("Fire beside Water should keep water out: " + (sd == null ? "no spell" : sd.program.summary()));
                     if (sr == null || !sr.program.has(SpellProgram.REPEL)) h.fail("Light beside the middle should keep beasts off: " + (sr == null ? "no spell" : sr.program.summary()));
                 })
+                .thenExecute(() -> h.setBlock(9, 1, 2, Blocks.WATER))
                 .thenWaitUntil(() -> { if (burning.isOnFire()) h.fail("the drops should put the pig out"); })
+                .thenWaitUntil(() -> {
+                    if (h.getLevel().getFluidState(h.absolutePos(new BlockPos(9, 1, 2))).is(FluidTags.WATER)) h.fail("the fire beside the water should keep water out");
+                })
                 .thenWaitUntil(() -> {
                     if (wanderer.position().distanceTo(h.absoluteVec(new Vec3(5.5, 1, 8.5))) < 2.5) h.fail("the pig should be driven out of the light");
                 })

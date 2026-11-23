@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 class ForbiddenTest {
     @Test
     void petrificationReads()  {
@@ -16,7 +18,7 @@ class ForbiddenTest {
         List<List<Pt>> strokes = new ArrayList<>();
         for (double[] d : g.strokes) { List<Pt> s = new ArrayList<>(); for (int i = 0; i + 1 < d.length; i += 2) s.add(new Pt(d[i], d[i + 1])); strokes.add(s); }
         GlyphReading r = GlyphAnalyzer.analyze(strokes, 1.0 / 16);
-        org.junit.jupiter.api.Assertions.assertEquals(Sigil.EARTH, r.sigil(), r.describe());
-        org.junit.jupiter.api.Assertions.assertTrue(r.count(SignType.EYE) >= 2, r.describe());
+        assertEquals(Sigil.EARTH, r.sigil(), r.describe());
+        assertTrue(r.count(SignType.EYE) >= 2, r.describe());
     }
 }
