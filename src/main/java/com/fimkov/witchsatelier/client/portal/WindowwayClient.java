@@ -47,6 +47,30 @@ public final class WindowwayClient {
     private WindowwayClient() {}
 
     private static final Map<Long, PortalFrame> PORTALS = new HashMap<>();
+
+    /**
+     * There are two ways to show the far side of a joined Windowway. With the plain level renderer it is drawn as a
+     * picture: the renderer runs a second time from the matching eye with its section graph swapped out. Mods that
+     * replace the level renderer keep section lists of their own, which a second pass scrambles, and a shader pack
+     * cannot run its pipeline twice a frame; with one of them installed the far side is meshed and drawn into the
+     * world itself instead (see {@link FarSide}), where the pack lights it like everything else.
+     */
+    private static final List<String> OWN_RENDERERS = List.of("sodium", "embeddium", "rubidium", "iris", "oculus", "nvidium");
+    private static Boolean inline;
+
+    /** Whether the far side is drawn into the world itself rather than as a picture from a second level pass. */
+    static boolean inline() {
+        String off = System.getProperty("witchsatelier.fxoff", "");
+        if (off.contains("forcepass")) return false;
+        if (off.contains("inline")) return true;
+        if (inline == null) {
+            String other = OWN_RENDERERS.stream().filter(net.neoforged.fml.ModList.get()::isLoaded).findFirst().orElse(null);
+            inline = other != null;
+            if (other != null) WitchsAtelier.LOGGER.info("{} draws the world itself; Windowways draw their far side into it", other);
+        }
+        return inline;
+    }
+
     private static ShaderInstance viewShader;
 
     private static final int MAX_VIEWS = 2;
@@ -63,11 +87,40 @@ public final class WindowwayClient {
 
     public static void accept(List<PortalFrame> frames) {
         PORTALS.clear();
+        if (frames.isEmpty()) FarSide.clear();
         for (PortalFrame f : frames) PORTALS.put(f.id(), f);
     }
 
     public static net.minecraft.client.renderer.SectionOcclusionGraph mainGraphDuringPass() {
         return Graph.mainDuringPass;
+    }
+
+    /** Discs whose far side was drawn into the world in the last frame. */
+    private static List<PortalFrame> openedLast = List.of();
+
+    /**
+     * Ink lying wholly inside an opened disc is on wall that is not there any more: the far side shows instead. The
+     * ring itself runs outside the opening and stays.
+     */
+    public static boolean hidesInk(com.fimkov.witchsatelier.glyph.surface.SurfacePlane plane, double[] uv, int n) {
+        if (openedLast.isEmpty() || n <= 0) return false;
+        for (PortalFrame f : openedLast) {
+            boolean all = true;
+            for (int i = 0; i < n && all; i++) {
+                Vec3 p = plane.toWorld(uv[i * 2], uv[i * 2 + 1], 0);
+                all = Math.abs(f.side(p)) < 0.1 && f.inPlane(p) < f.discRadius() * 0.97;
+            }
+            if (all) return true;
+        }
+        return false;
+    }
+
+    public static void blockChanged(net.minecraft.core.BlockPos pos) {
+        FarSide.blockChanged(pos);
+    }
+
+    public static void sectionChanged(int x, int y, int z) {
+        FarSide.sectionChanged(x, y, z);
     }
 
     public static boolean inPortalPass() {
@@ -122,9 +175,10 @@ public final class WindowwayClient {
 
     public static void onFramePre(RenderFrameEvent.Pre e) {
         Arrays.fill(VIEWING, -1);
+        FarSide.endFrame();
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || PORTALS.isEmpty() || lastProjection == null || mc.noRender) return;
-        if (System.getProperty("witchsatelier.fxoff", "").contains("portalpass")) return;
+        if (System.getProperty("witchsatelier.fxoff", "").contains("portalpass") || inline()) return;
         float pt = e.getPartialTick().getGameTimeDeltaPartialTick(true);
         var type = mc.options.getCameraType();
 
@@ -214,21 +268,104 @@ public final class WindowwayClient {
     }
 
     public static void onRenderLevel(RenderLevelStageEvent e) {
-        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES || PORTALS.isEmpty()) return;
+        boolean inline = inline();
+        if (inline && e.getStage() == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS && !FarSide.shadowPass()) {
+            try {
+                FarSide.drawTranslucent();
+            } catch (Throwable ex) {
+                WitchsAtelier.LOGGER.warn("windowway far side failed", ex);
+            }
+            return;
+        }
+        if (e.getStage() != (inline ? RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES : RenderLevelStageEvent.Stage.AFTER_ENTITIES) || PORTALS.isEmpty()) return;
+        if (inline && FarSide.shadowPass()) return;
         if (!inPortalPass) {
             lastProjection = new Matrix4f(e.getProjectionMatrix());
             lastFrustum = e.getFrustum();
         }
         Vec3 cam = e.getCamera().getPosition();
-        long time = Minecraft.getInstance().level == null ? 0 : Minecraft.getInstance().level.getGameTime();
+        Minecraft mc = Minecraft.getInstance();
+        long time = mc.level == null ? 0 : mc.level.getGameTime();
+        double t = time + e.getPartialTick().getGameTimeDeltaPartialTick(false);
+        List<PortalFrame> open = inline ? opened(mc, cam, viewFrustum(e, cam)) : List.of();
+        List<PortalFrame> drawnNow = new ArrayList<>();
+
         for (PortalFrame f : PORTALS.values()) {
             if (f.center().distanceTo(cam) > 128) continue;
             boolean front = f.side(cam) > 0;
 
             if (inPortalPass && f.id() == viewPartner) continue;
+            if (open.contains(f)) {
+                boolean drawn = false;
+                try {
+                    drawn = FarSide.draw(f, PORTALS.get(f.link()), e);
+                } catch (Throwable ex) {
+                    WitchsAtelier.LOGGER.warn("windowway far side failed", ex);
+                }
+                if (drawn) {
+                    drawnNow.add(f);
+                    rim(f, cam, t);
+                    continue;
+                }
+            }
             int k = inPortalPass || !front || viewShader == null ? -1 : pictureOf(f.id());
-            disc(f, cam, k, f.link() >= 0, time + e.getPartialTick().getGameTimeDeltaPartialTick(false));
+            disc(f, cam, k, f.link() >= 0, t);
         }
+        if (!inPortalPass) openedLast = drawnNow;
+    }
+
+    /**
+     * The view of this frame as a frustum of our own: Sodium culls with its own and leaves the level renderer's
+     * stale, so the event's frustum cannot be trusted with one installed.
+     */
+    private static Frustum viewFrustum(RenderLevelStageEvent e, Vec3 cam) {
+        Frustum f = new Frustum(e.getModelViewMatrix(), e.getProjectionMatrix());
+        f.prepare(cam.x, cam.y, cam.z);
+        return f;
+    }
+
+    /** The joined discs, nearest first, whose far side is drawn into the world this frame. */
+    private static List<PortalFrame> opened(Minecraft mc, Vec3 eye, Frustum frustum) {
+        if (mc.player == null) return List.of();
+        double reach = mc.options.getEffectiveRenderDistance() * 16 - 24;
+        List<PortalFrame> seen = new ArrayList<>();
+        for (PortalFrame f : PORTALS.values()) {
+            PortalFrame to = f.link() < 0 ? null : PORTALS.get(f.link());
+            if (to == null || f.side(eye) <= 0.01) continue;
+            if (f.center().distanceTo(eye) >= 64 || to.center().distanceTo(mc.player.position()) > reach) continue;
+            if (frustum != null && !frustum.isVisible(new AABB(f.center(), f.center()).inflate(f.radius()))) continue;
+            seen.add(f);
+        }
+        seen.sort(Comparator.comparingDouble(f -> f.center().distanceTo(eye)));
+        return seen.size() > 3 ? seen.subList(0, 3) : seen;
+    }
+
+    /** The glowing edge of an opened disc, in the colour the pair shares; drawn as light, so shader packs keep it. */
+    private static void rim(PortalFrame f, Vec3 cam, double time) {
+        if (System.getProperty("witchsatelier.fxoff", "").contains("norim")) return;
+        int seg = 96;
+        double r = f.discRadius();
+        Vec3 c = f.center().add(f.n().scale(f.side(cam) > 0 ? 0.006 : -0.006)).subtract(cam);
+        int pair = pairColour(f);
+        var buffers = Minecraft.getInstance().renderBuffers().bufferSource();
+        var b = buffers.getBuffer(net.minecraft.client.renderer.RenderType.lightning());
+        for (int i = 0; i < seg; i++) {
+            double a0 = i * Math.PI * 2 / seg, a1 = (i + 1) * Math.PI * 2 / seg;
+            double sw0 = Math.sin(time * 0.08 + i * 0.35) * 0.5 + 0.5, sw1 = Math.sin(time * 0.08 + (i + 1) * 0.35) * 0.5 + 0.5;
+            ring(b, c, f, a0, a1, r * 0.9, r * 1.0, lerp(pair, 0xFFFFFF, 0.25), (int) (40 + 70 * sw0), (int) (40 + 70 * sw1), 0);
+            ring(b, c, f, a0, a1, r * 1.0, r * 1.06, lerp(pair, 0xFFFFFF, 0.5), (int) (150 + 100 * sw0), (int) (150 + 100 * sw1), 1);
+        }
+        buffers.endBatch(net.minecraft.client.renderer.RenderType.lightning());
+    }
+
+    /** One slice of a band from radius {@code r0} to {@code r1}; the glow fades towards the inside or the outside. */
+    private static void ring(com.mojang.blaze3d.vertex.VertexConsumer b, Vec3 c, PortalFrame f, double a0, double a1, double r0, double r1, int rgb, int alpha0, int alpha1, int fadeIn) {
+        Vec3 i0 = c.add(f.u().scale(Math.cos(a0) * r0)).add(f.v().scale(Math.sin(a0) * r0));
+        Vec3 i1 = c.add(f.u().scale(Math.cos(a1) * r0)).add(f.v().scale(Math.sin(a1) * r0));
+        Vec3 o0 = c.add(f.u().scale(Math.cos(a0) * r1)).add(f.v().scale(Math.sin(a0) * r1));
+        Vec3 o1 = c.add(f.u().scale(Math.cos(a1) * r1)).add(f.v().scale(Math.sin(a1) * r1));
+        int in0 = fadeIn == 0 ? 0 : alpha0, in1 = fadeIn == 0 ? 0 : alpha1, out0 = fadeIn == 0 ? alpha0 : 0, out1 = fadeIn == 0 ? alpha1 : 0;
+        quad(b, i0, rgb, in0); quad(b, o0, rgb, out0); quad(b, o1, rgb, out1); quad(b, i1, rgb, in1);
     }
 
     static int pairColour(PortalFrame f) {
@@ -278,6 +415,10 @@ public final class WindowwayClient {
         }
         BufferUploader.drawWithShader(b.buildOrThrow());
         RenderSystem.enableCull();
+    }
+
+    private static void quad(com.mojang.blaze3d.vertex.VertexConsumer b, Vec3 p, int rgb, int a) {
+        b.addVertex((float) p.x, (float) p.y, (float) p.z).setColor((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, a);
     }
 
     private static void vtx(BufferBuilder b, Vec3 p, int rgb, int a) {

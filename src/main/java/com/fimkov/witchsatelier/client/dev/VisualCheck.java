@@ -219,6 +219,70 @@ public final class VisualCheck {
             GlyphService.inscribe(l, pb, new GlyphSketch(cb, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
         }, new Vec3(-1.5, 223.2, 0.5), 90, 5, false));
 
+        SHOTS.add(new Shot("windowway_far", 80, l -> {
+            clear(l, BASE, 18);
+            wipeFar(l, BASE.offset(72, 0, 0));
+            clear(l, BASE.offset(72, 0, 0), 8);
+            platform(l, BASE, 16);
+            platform(l, BASE.offset(72, 0, 0), 6);
+            for (int y = 1; y <= 5; y++) for (int z = -3; z <= 3; z++) {
+                l.setBlock(BASE.offset(-6, y, z), Blocks.STONE_BRICKS.defaultBlockState(), 3);
+                l.setBlock(BASE.offset(72, y, z), Blocks.MOSSY_STONE_BRICKS.defaultBlockState(), 3);
+            }
+            BlockPos far = BASE.offset(72, 0, 0);
+            for (int k = -2; k <= 2; k++) l.setBlock(far.offset(5, 1, k), Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+            l.setBlock(far.offset(5, 2, 0), Blocks.GLASS.defaultBlockState(), 3);
+            l.setBlock(far.offset(4, 1, 2), Blocks.CHEST.defaultBlockState(), 3);
+            l.setBlock(far.offset(3, 1, -2), Blocks.WATER.defaultBlockState(), 3);
+            l.setBlock(far.offset(4, 2, -1), Blocks.TORCH.defaultBlockState(), 3);
+            l.setBlock(far.offset(6, 1, 0), Blocks.OAK_LOG.defaultBlockState(), 3);
+            l.setBlock(far.offset(6, 2, 0), Blocks.OAK_LEAVES.defaultBlockState(), 3);
+            var pig = net.minecraft.world.entity.EntityType.PIG.create(l);
+            if (pig != null) {
+                pig.moveTo(far.getX() + 3.5, far.getY() + 1, far.getZ() + 1.5, 120, 0);
+                pig.setNoAi(true);
+                l.addFreshEntity(pig);
+            }
+            BlockPos a = BASE.offset(-6, 2, 0), b = BASE.offset(72, 2, 0);
+            SurfacePlane pa = SurfacePlane.of(a, Direction.EAST), pb = SurfacePlane.of(b, Direction.EAST);
+            Pt ca = pa.toUV(Vec3.atCenterOf(a).add(0.5, 0.5, 0)), cb = pb.toUV(Vec3.atCenterOf(b).add(0.5, 0.5, 0));
+            GlyphService.inscribe(l, pa, new GlyphSketch(ca, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
+            GlyphService.inscribe(l, pb, new GlyphSketch(cb, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
+        }, new Vec3(4.5, 226, 0.5), 90, 25, false));
+
+        SHOTS.add(new Shot("windowway_dense", 200, l -> {
+            clear(l, BASE, 18);
+            wipeFar(l, BASE.offset(72, 0, 0));
+            clear(l, BASE.offset(72, 0, 0), 8);
+            platform(l, BASE, 16);
+            for (int y = 1; y <= 5; y++) for (int z = -3; z <= 3; z++) l.setBlock(BASE.offset(-6, y, z), Blocks.STONE_BRICKS.defaultBlockState(), 3);
+            BlockPos far = BASE.offset(72, 0, 0);
+            var rnd = net.minecraft.util.RandomSource.create(7);
+            var kinds = List.of(Blocks.STONE, Blocks.DIRT, Blocks.GRASS_BLOCK, Blocks.COBBLESTONE, Blocks.OAK_LEAVES, Blocks.GLASS, Blocks.IRON_ORE, Blocks.SAND);
+            for (int x = -14; x <= 30; x++) for (int z = -30; z <= 30; z++) {
+                int top = 1 + (int) (6 + 5 * Math.sin(x * 0.31) * Math.cos(z * 0.23));
+                for (int y = -12; y <= top; y++) {
+                    if (x < 4 && y > 0) continue;
+                    var kind = y == top ? Blocks.GRASS_BLOCK : y > top - 3 ? Blocks.DIRT : kinds.get(rnd.nextInt(kinds.size()));
+                    l.setBlock(far.offset(x, y, z), kind.defaultBlockState(), 2);
+                }
+            }
+            for (int t = 0; t < 14; t++) {
+                int x = 6 + rnd.nextInt(23), z = -26 + rnd.nextInt(53);
+                int top = 1 + (int) (6 + 5 * Math.sin(x * 0.31) * Math.cos(z * 0.23));
+                for (int y = 1; y <= 4; y++) l.setBlock(far.offset(x, top + y, z), Blocks.OAK_LOG.defaultBlockState(), 2);
+                for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = 3; dy <= 5; dy++)
+                    if (Math.abs(dx) + Math.abs(dz) < 4 && !(dx == 0 && dz == 0 && dy < 5))
+                        l.setBlock(far.offset(x + dx, top + dy, z + dz), Blocks.OAK_LEAVES.defaultBlockState(), 2);
+            }
+            for (int y = 1; y <= 5; y++) for (int z = -3; z <= 3; z++) l.setBlock(far.offset(0, y, z), Blocks.MOSSY_STONE_BRICKS.defaultBlockState(), 3);
+            BlockPos a = BASE.offset(-6, 2, 0), b = BASE.offset(72, 2, 0);
+            SurfacePlane pa = SurfacePlane.of(a, Direction.EAST), pb = SurfacePlane.of(b, Direction.EAST);
+            Pt ca = pa.toUV(Vec3.atCenterOf(a).add(0.5, 0.5, 0)), cb = pb.toUV(Vec3.atCenterOf(b).add(0.5, 0.5, 0));
+            GlyphService.inscribe(l, pa, new GlyphSketch(ca, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
+            GlyphService.inscribe(l, pb, new GlyphSketch(cb, 2.0).ring(0, 362).centerSign(SignType.WINDOW, 1.1).strokes, null);
+        }, new Vec3(-2.5, 223.2, 0.5), 90, 5, false));
+
         SHOTS.add(new Shot("windowway_small", 40, l -> {
             clear(l, BASE, 18);
             platform(l, BASE, 16);
@@ -672,6 +736,14 @@ public final class VisualCheck {
         if (p == null && !server.getPlayerList().getPlayers().isEmpty()) p = server.getPlayerList().getPlayers().get(0);
         if (p == null) WitchsAtelier.LOGGER.warn("[visualcheck] no server player (players: {})", server.getPlayerList().getPlayerCount());
         return p;
+    }
+
+    /** Empties the ground the far Windowway shots build on, so each starts from the same sky. */
+    static void wipeFar(ServerLevel l, BlockPos far) {
+        for (int x = -16; x <= 32; x++) for (int z = -32; z <= 32; z++) for (int y = -13; y <= 16; y++) {
+            BlockPos p = far.offset(x, y, z);
+            if (!l.getBlockState(p).isAir()) l.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+        }
     }
 
     static void platform(ServerLevel l, BlockPos c, int r) {

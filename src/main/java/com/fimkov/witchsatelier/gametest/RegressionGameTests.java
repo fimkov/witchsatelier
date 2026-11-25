@@ -69,6 +69,21 @@ public final class RegressionGameTests {
         return n;
     }
 
+    /** Bows and crossbows only take ammunition tagged as arrows; glyph arrows used to work from dispensers only. */
+    @GameTest(template = "empty")
+    public static void bowsAndCrossbowsTakeGlyphArrows(GameTestHelper h) {
+        var arrows = new net.minecraft.world.item.ItemStack(com.fimkov.witchsatelier.registry.ModItems.GLYPH_ARROW.get(), 8);
+        h.assertTrue(arrows.is(net.minecraft.tags.ItemTags.ARROWS), "glyph arrows are not tagged as arrows");
+        for (var weapon : List.of(net.minecraft.world.item.Items.BOW, net.minecraft.world.item.Items.CROSSBOW)) {
+            var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+            player.getInventory().add(arrows.copy());
+            var ammo = player.getProjectile(new net.minecraft.world.item.ItemStack(weapon));
+            h.assertTrue(ammo.is(com.fimkov.witchsatelier.registry.ModItems.GLYPH_ARROW.get()),
+                    "a " + weapon + " does not take glyph arrows, it took " + ammo);
+        }
+        h.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void risingEarthDoesNotCopyPreciousBlocks(GameTestHelper h) {
         floor(h);

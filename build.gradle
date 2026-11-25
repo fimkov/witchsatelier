@@ -62,6 +62,16 @@ neoForge {
             programArguments.addAll '--width', '1920', '--height', '1200'
         }
 
+        // The visual check again, in run-shaders, where Sodium, Iris and a shader pack sit in mods/ and shaderpacks/.
+        shaderCheck {
+            client()
+            gameDirectory = project.file('run-shaders')
+            systemProperty 'witchsatelier.visualcheck', project.findProperty('shots') ?: 'all'
+            systemProperty 'witchsatelier.fxoff', project.findProperty('fxoff') ?: ''
+            programArguments.addAll '--quickPlaySingleplayer', project.findProperty('world') ?: 'WitchcraftVisualTest'
+            programArguments.addAll '--width', '1920', '--height', '1200'
+        }
+
         smokeServer {
             server()
             gameDirectory = project.file('run-smoke')

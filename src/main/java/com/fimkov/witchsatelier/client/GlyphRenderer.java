@@ -52,6 +52,7 @@ public final class GlyphRenderer {
             SurfacePlane plane = en.plane();
             double[] uv = en.abs();
             if (seen(plane, uv[0], uv[1], 0).distanceToSqr(cam) > MAX_DIST_SQR) continue;
+            if (com.fimkov.witchsatelier.client.portal.WindowwayClient.hidesInk(plane, uv, s.size())) continue;
             byte[] worn = ClientGlyphs.INSTANCE.wear(s.id());
             if (worn != null && worn.length != s.size()) worn = null;
             switch (s.state()) {
