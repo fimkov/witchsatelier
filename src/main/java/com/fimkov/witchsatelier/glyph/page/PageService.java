@@ -406,6 +406,8 @@ public final class PageService {
             return null;
         }
         var spell = GlyphService.startSpell(level, plane, program, caster, false);
+        spell.windowMark = com.fimkov.witchsatelier.windowway.WindowMark.of(r);
+        spell.fromPage = true;
         spell.bloodInk = inBlood(pg, r);
         spell.ticksLeft = Math.min(spell.ticksLeft, CARRIED_TICKS);
         spell.expiresAt = level.getGameTime() + (program.has(SpellProgram.TREAD) ? TREAD_WAIT_TICKS : CARRIED_TICKS) + CARRIED_TICKS;

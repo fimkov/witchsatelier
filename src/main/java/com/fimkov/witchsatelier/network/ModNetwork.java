@@ -24,6 +24,8 @@ public final class ModNetwork {
 
         void pennantFx(Payloads.PennantFx p);
         void windowways(Payloads.WindowwaySync p);
+        void windowwayLink(Payloads.WindowwayLink p);
+        void windowwayRefuse(Payloads.WindowwayRefuse p);
         void techniques(Payloads.Techniques p);
         void badApple(Payloads.BadApple p);
     }
@@ -71,8 +73,10 @@ public final class ModNetwork {
         r.playToClient(Payloads.Techniques.TYPE, Payloads.Techniques.CODEC, (p, ctx) -> { if (client != null) client.techniques(p); });
         r.playToClient(Payloads.StarShower.TYPE, Payloads.StarShower.CODEC, (p, ctx) -> com.fimkov.witchsatelier.world.PassageStars.toClient(p));
         r.playToClient(Payloads.WindowwaySync.TYPE, Payloads.WindowwaySync.CODEC, (p, ctx) -> { if (client != null) client.windowways(p); });
+        r.playToClient(Payloads.WindowwayLink.TYPE, Payloads.WindowwayLink.CODEC, (p, ctx) -> { if (client != null) client.windowwayLink(p); });
+        r.playToClient(Payloads.WindowwayRefuse.TYPE, Payloads.WindowwayRefuse.CODEC, (p, ctx) -> { if (client != null) client.windowwayRefuse(p); });
         r.playToServer(Payloads.PortalCross.TYPE, Payloads.PortalCross.CODEC, (p, ctx) -> {
-            if (ctx.player() instanceof ServerPlayer sp) WindowwayService.handleCross(sp, p.id());
+            if (ctx.player() instanceof ServerPlayer sp) WindowwayService.handleCross(sp, p.id(), p.expectedLink(), p.carried());
         });
         r.playToServer(Payloads.BootsJoin.TYPE, Payloads.BootsJoin.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer sp) PageService.handleBootsJoin(sp);

@@ -22,6 +22,8 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> SEAL_RESTORE = sound("seal_restore");
     public static final DeferredHolder<SoundEvent, SoundEvent> WATER_RUSH = sound("water_rush");
     public static final DeferredHolder<SoundEvent, SoundEvent> WINDOWWAY = sound("windowway");
+    public static final DeferredHolder<SoundEvent, SoundEvent> WINDOWWAY_TUNE = sound("windowway_tune");
+    public static final DeferredHolder<SoundEvent, SoundEvent> WINDOWWAY_REFUSE = sound("windowway_refuse");
     public static final DeferredHolder<SoundEvent, SoundEvent> ELEMENT_FIRE = sound("element_fire");
     public static final DeferredHolder<SoundEvent, SoundEvent> ELEMENT_WATER = sound("element_water");
     public static final DeferredHolder<SoundEvent, SoundEvent> ELEMENT_EARTH = sound("element_earth");

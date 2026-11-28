@@ -77,6 +77,7 @@ public final class WitchsAtelier {
         ServerEvents.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(StrangerSpawner::onLevelTick);
         com.fimkov.witchsatelier.world.PassageStars.register(modBus, NeoForge.EVENT_BUS);
+        com.fimkov.witchsatelier.windowway.WindowwayService.register(modBus);
         com.fimkov.witchsatelier.advancement.Feats.register(NeoForge.EVENT_BUS);
         NeoForge.EVENT_BUS.addListener(DormantEvents::onUseItem);
         NeoForge.EVENT_BUS.addListener(Starfall::onPlayerTick);

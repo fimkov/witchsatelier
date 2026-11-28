@@ -75,6 +75,8 @@ public final class GlyphLibrary {
             new Recipe("lantern", Sigil.LIGHT, 0.6, List.of()),
             new Recipe("water_jet", Sigil.WATER, 0.55, List.of(new Signs(SignType.COLUMN, 4, 45, 0.28))),
             new Recipe("windowway", null, SignType.WINDOW, 0.6, List.of(), null),
+            new Recipe("waymark_window", null, SignType.WINDOW, 0.5, List.of(new Signs(SignType.EYE, 1, 90, 0.28),
+                    new Signs(SignType.BIRD, 1, 210, 0.28), new Signs(SignType.BIRD, 1, 330, 0.28)), null),
             new Recipe("bed_of_sand", Sigil.EARTH, null, 0.55, List.of(new Signs(SignType.CRUSH, 4, 45, 0.28)),
                     new Band(null, List.of(new Signs(SignType.BILLOWING, 4, 0, 0.14)))),
             new Recipe("everburning_pillar", Sigil.FIRE, null, 0.55, List.of(new Signs(SignType.COLUMN, 4, 45, 0.28)),
@@ -366,7 +368,7 @@ public final class GlyphLibrary {
             new Volume("wind", List.of("wind_underfoot", "gathering_wind", "gathering_breeze", "feather_fall", "sylph_step", "floating_drops", "wall_of_wind")),
             new Volume("light", List.of("great_lantern", "rain_of_light", "sunlit_spill", "lance_of_light", "beacon_of_birds", "floatglow_lamp")),
             new Volume("rings_within_rings", List.of("everburning_pillar", "sentinel_bolts", "pillar_and_volley", "crystal_ward", "binding_threads")),
-            new Volume("odd_signs", List.of("windowway", "night_eye", "veil_of_unseeing", "puppet_dance")));
+            new Volume("odd_signs", List.of("windowway", "waymark_window", "page_held_up", "night_eye", "veil_of_unseeing", "puppet_dance")));
 
     public static ItemStack volumeBook(Volume v, RandomSource rnd) {
         List<Page> pages = new ArrayList<>();

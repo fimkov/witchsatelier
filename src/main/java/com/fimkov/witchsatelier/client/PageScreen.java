@@ -4,6 +4,7 @@ import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.ink.InkType;
 import com.fimkov.witchsatelier.glyph.page.GlyphLibrary;
 import com.fimkov.witchsatelier.glyph.page.GlyphPages;
+import com.fimkov.witchsatelier.glyph.page.PageFlow;
 import com.fimkov.witchsatelier.glyph.page.PageKind;
 import com.fimkov.witchsatelier.glyph.page.PageService;
 import com.fimkov.witchsatelier.glyph.recognize.ImaginedRing;
@@ -22,8 +23,12 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.locale.Language;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -46,6 +51,8 @@ public class PageScreen extends Screen {
 
     private final InteractionHand hand;
     private int page;
+    /** Which spread of the current entry's text is open, when the text runs on past one page. */
+    private int part;
     private float[] cur = new float[512];
     private int count;
     private boolean drawing, erasing;
@@ -205,7 +212,7 @@ public class PageScreen extends Screen {
         GlyphPages gp = stack().get(ModComponents.GLYPH_PAGES.get());
         if (gp != null) {
             for (GlyphPages.PageStroke s : gp.page(page).strokes()) {
-                line(vc, m, s.pts(), s.pts().length / 2, cx, cy, r, w, s.ink().invisible ? 0x70503A90 : s.ink().color | 0xFF000000);
+                line(vc, m, s.pts(), s.pts().length / 2, cx, cy, r, w, faded(s.ink().invisible ? 0x70503A90 : s.ink().color | 0xFF000000));
             }
         }
         if (count > 0 && imagining) {
@@ -300,7 +307,7 @@ public class PageScreen extends Screen {
             inked[i * 2] = (float) (Math.cos(a) * rr);
             inked[i * 2 + 1] = (float) (Math.sin(a) * rr - 0.04f);
         }
-        line(vc, m, inked, n + 1, cx, cy, r, w, 0xFF2A1E3A);
+        line(vc, m, inked, n + 1, cx, cy, r, w, faded(0xFF2A1E3A));
 
         for (int lap = 0; lap < 2; lap++) {
             float lr = rr * (lap == 0 ? 1.04f : 0.97f), ly = lift * (lap == 0 ? 1.5f : 1f);
@@ -311,12 +318,17 @@ public class PageScreen extends Screen {
                     dash[k * 2] = (float) (Math.cos(a) * lr);
                     dash[k * 2 + 1] = (float) (Math.sin(a) * lr + ly);
                 }
-                line(vc, m, dash, 4, cx, cy, r, w * 0.6f, lap == 0 ? 0x808A6AE8 : 0xB08A6AE8);
+                line(vc, m, dash, 4, cx, cy, r, w * 0.6f, faded(lap == 0 ? 0x808A6AE8 : 0xB08A6AE8));
             }
         }
         g.flush();
-        int ink = 0xFF5A3A2A;
-        label(g, cx, cy, r, -rr * 0.74f, -rr * 0.74f + lift * 1.5f, -0.84f, -0.8f, "glyph.witchsatelier.part.imagined", ink);
+        int ink = faded(0xFF5A3A2A);
+        // The two labels under the ring share a line; on a small page they would run into each other,
+        // so the left one then sits a line higher.
+        int both = font.width(Component.translatable("glyph.witchsatelier.part.imagined"))
+                + font.width(Component.translatable("glyph.witchsatelier.part.inked")) + 6;
+        float low = both > Math.round(cx + 0.84f * r) - Math.round(cx - 0.84f * r) ? -0.8f + (font.lineHeight + 3) / r : -0.8f;
+        label(g, cx, cy, r, -rr * 0.74f, -rr * 0.74f + lift * 1.5f, -0.84f, low, "glyph.witchsatelier.part.imagined", ink);
         label(g, cx, cy, r, (float) Math.cos(a0 - gap / 2) * rr, (float) Math.sin(a0 - gap / 2) * rr - 0.04f, 0.84f, 0.8f, "glyph.witchsatelier.part.gap", ink);
         label(g, cx, cy, r, rr * 0.71f, -rr * 0.71f - 0.04f, 0.84f, -0.8f, "glyph.witchsatelier.part.inked", ink);
     }
@@ -331,10 +343,10 @@ public class PageScreen extends Screen {
         for (GlyphPages.PageStroke st : anatomy.strokes()) {
             float[] p = st.pts().clone();
             for (int i = 0; i < p.length; i++) p[i] *= s;
-            line(vc, m, p, p.length / 2, cx, cy, r, w, 0xFF2A1E3A);
+            line(vc, m, p, p.length / 2, cx, cy, r, w, faded(0xFF2A1E3A));
         }
         g.flush();
-        int ink = 0xFF5A3A2A;
+        int ink = faded(0xFF5A3A2A);
 
         label(g, cx, cy, r, -0.85f * s * 0.71f, 0.85f * s * 0.71f, -0.84f, 0.8f, "glyph.witchsatelier.part.ring", ink);
         label(g, cx, cy, r, 0.0f, -0.12f * s, -0.84f, -0.8f, "glyph.witchsatelier.part.sigil", ink);
@@ -430,21 +442,140 @@ public class PageScreen extends Screen {
         }
         String entry = names == null || page >= names.size() ? "" : names.get(page);
         if (entry.isEmpty()) return;
+        Flow flow = flow(entry);
+        int parts = Math.max(1, flow.parts().size());
+        part = Math.min(part, parts - 1);
+        int[] span = flow.parts().isEmpty() ? new int[]{0, 0} : flow.parts().get(part);
+        boolean more = part < parts - 1;
         int x0 = Math.round(cx - r * 0.8f), w = Math.round(r * 1.6f);
         int y = Math.round(cy - r * 0.8f);
         Component title = Component.translatable("glyph.witchsatelier." + entry);
-        g.pose().pushPose();
-        g.pose().translate(x0, y, 0);
-        g.pose().scale(1.35f, 1.35f, 1);
-        g.drawString(font, title, 0, 0, 0xFF4A2414, false);
-        g.pose().popPose();
-        y += Math.round(font.lineHeight * 1.35f) + 6;
-        g.fill(x0, y - 3, x0 + w, y - 2, 0x553A2A1A);
-        for (var line : font.split(Component.translatable("glyph.witchsatelier." + entry + ".desc"), w)) {
-            if (y > cy + r * 0.86f) break;
-            g.drawString(font, line, x0, y, 0xFF3B2A1E, false);
-            y += font.lineHeight + 1;
+        List<FormattedCharSequence> head = heading(title, w, part == 0);
+        if (part == 0) {
+            g.pose().pushPose();
+            g.pose().translate(x0, y, 0);
+            g.pose().scale(TITLE_SCALE, TITLE_SCALE, 1);
+            for (int i = 0; i < head.size(); i++) g.drawString(font, head.get(i), 0, i * font.lineHeight, 0xFF4A2414, false);
+            g.pose().popPose();
+        } else {
+            for (int i = 0; i < head.size(); i++) g.drawString(font, head.get(i), x0, y + i * font.lineHeight, 0x904A2414, false);
+            int lastW = head.isEmpty() ? 0 : font.width(head.get(head.size() - 1));
+            if (lastW + 17 <= w) continuedMark(g, x0 + lastW + 17, y + (Math.max(1, head.size()) - 1) * font.lineHeight + font.lineHeight / 2f, r, 0);
         }
+        y += headingHeight(head.size(), part == 0);
+        g.fill(x0, y - 3, x0 + w, y - 2, 0x553A2A1A);
+        int top = y, step = font.lineHeight + 1;
+        for (int i = span[0]; i < span[1]; i++) {
+            if (y > cy + r * 0.86f) break;
+            g.drawString(font, Language.getInstance().getVisualOrder(flow.lines().get(i)), x0, y, 0xFF3B2A1E, false);
+            y += step;
+        }
+        if (more) {
+            int slot = top + (Math.max(1, part == 0 ? flow.first() : flow.rest()) - 1) * step;
+            continuedMark(g, x0 + w, slot + font.lineHeight / 2f, r, 1);
+        }
+    }
+
+    /** An entry's text wrapped to the page, with the spreads it is laid out over. */
+    private record Flow(List<FormattedText> lines, List<int[]> parts, int first, int rest) {}
+
+    private float bookRadius() {
+        return Math.min(radius(), width / 4.5f);
+    }
+
+    private static final float TITLE_SCALE = 1.35f;
+
+    /**
+     * An entry's title wrapped to the page: large on its first spread, as a small running head on the
+     * ones after. A title too long for one line goes on to a second rather than past the page edge.
+     */
+    private List<FormattedCharSequence> heading(Component title, int w, boolean first) {
+        return font.split(title, Math.max(1, (int) (w / (first ? TITLE_SCALE : 1f))));
+    }
+
+    private int headingHeight(int lines, boolean first) {
+        return Math.round(font.lineHeight * (first ? TITLE_SCALE : 1f) * Math.max(1, lines)) + 6;
+    }
+
+    private static int linesBetween(int y0, float limit, int step) {
+        return y0 > limit ? 0 : (int) ((limit - y0) / step) + 1;
+    }
+
+    /** Wraps an entry's text with the real font at the current page size; called every frame, so a resize or a new GUI scale or language lays it out again. */
+    private Flow flow(String entry) {
+        float r = bookRadius(), cy = height / 2f, limit = cy + r * 0.86f;
+        int w = Math.round(r * 1.6f), top = Math.round(cy - r * 0.8f), step = font.lineHeight + 1;
+        Component title = Component.translatable("glyph.witchsatelier." + entry);
+        int first = linesBetween(top + headingHeight(heading(title, w, true).size(), true), limit, step);
+        int rest = linesBetween(top + headingHeight(heading(title, w, false).size(), false), limit, step);
+        List<FormattedText> lines = new ArrayList<>();
+        List<Boolean> hard = new ArrayList<>();
+        font.getSplitter().splitLines(Component.translatable("glyph.witchsatelier." + entry + ".desc"), w, Style.EMPTY, (t, wrapped) -> {
+            lines.add(t);
+            hard.add(!wrapped);
+        });
+        boolean[] blank = new boolean[lines.size()], para = new boolean[lines.size()];
+        for (int i = 0; i < blank.length; i++) {
+            blank[i] = lines.get(i).getString().isBlank();
+            para[i] = hard.get(i);
+        }
+        return new Flow(lines, PageFlow.parts(blank, para, first, rest), first, rest);
+    }
+
+    private int partsOf(int at) {
+        if (kind() != PageKind.GRIMOIRE) return 1;
+        List<String> names = stack().get(ModComponents.GRIMOIRE_ENTRIES.get());
+        String entry = names == null || at < 0 || at >= names.size() ? "" : names.get(at);
+        return entry.isEmpty() ? 1 : Math.max(1, flow(entry).parts().size());
+    }
+
+    private boolean continuation() {
+        return part > 0 && !contents && kind() == PageKind.GRIMOIRE;
+    }
+
+    /**
+     * Ink on the drawing side, a little paler while the text beside it is a continuation. The colour
+     * moves toward the paper rather than losing alpha, so overlapping stroke pieces do not show as beads.
+     */
+    private int faded(int argb) {
+        if (!continuation()) return argb;
+        int out = argb & 0xFF000000;
+        for (int sh = 0; sh <= 16; sh += 8) {
+            int c = argb >> sh & 0xFF, p = PAPER >> sh & 0xFF;
+            out |= Math.round(c + (p - c) * 0.42f) << sh;
+        }
+        return out;
+    }
+
+    /**
+     * A quill flourish with its point at (tx, ty): a wavy tail with an arrowhead pointing right
+     * ({@code dir} 1, the text goes on) or left ({@code dir} -1, back to the rows before), or with no
+     * head ({@code dir} 0, after a running head, to the left of the point).
+     */
+    private void continuedMark(GuiGraphics g, float tx, float ty, float r, int dir) {
+        boolean head = dir != 0;
+        int back = dir < 0 ? -1 : 1;
+        float len = head ? 18 : 12;
+        float wid = Math.max(1.1f, r * 0.012f);
+        int ink = head ? 0xC05A3A2A : 0x805A3A2A;
+        int n = 14;
+        float[] tail = new float[n * 2];
+        for (int i = 0; i < n; i++) {
+            float t = i / (n - 1f);
+            tail[i * 2] = tx - back * (len - t * (len - (head ? 1 : 0)));
+            tail[i * 2 + 1] = -(ty + (float) Math.sin(t * Math.PI * 2.2) * 1.4f * (1 - t * 0.6f));
+        }
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 50);
+        Matrix4f m = g.pose().last().pose();
+        VertexConsumer vc = g.bufferSource().getBuffer(RenderType.gui());
+        line(vc, m, tail, n, 0, 0, 1, wid, ink);
+        if (head) {
+            float hx = tx - back * 4.5f;
+            line(vc, m, new float[]{hx, -(ty - 3), tx, -ty, hx, -(ty + 3)}, 3, 0, 0, 1, wid, ink);
+        }
+        g.flush();
+        g.pose().popPose();
     }
 
     private boolean contents;
@@ -466,10 +597,19 @@ public class PageScreen extends Screen {
         tabRect = new int[]{x0, y0, x0 + w, y1};
     }
 
+    private int contentsChunk = -1, shownChunk;
+    private int[] contentsPrev, contentsNext;
+
+    /**
+     * The contents list; when it is longer than the page holds it is shown a page of rows at a time,
+     * the one with the open entry first, with quill marks to leaf to the rows before and after.
+     */
     private void renderContents(GuiGraphics g, float cx, float cy, float r, List<Component> names) {
         contentRows.clear();
+        contentsPrev = contentsNext = null;
         int x0 = Math.round(cx - r * 0.8f), x1 = Math.round(cx + r * 0.8f);
         int y = Math.round(cy - r * 0.8f);
+        int headY = y;
         g.pose().pushPose();
         g.pose().translate(x0, y, 0);
         g.pose().scale(1.35f, 1.35f, 1);
@@ -477,7 +617,31 @@ public class PageScreen extends Screen {
         g.pose().popPose();
         y += Math.round(font.lineHeight * 1.35f) + 6;
         g.fill(x0, y - 3, x1, y - 2, 0x553A2A1A);
-        for (int i = 0; i < names.size(); i++) {
+        int rowStep = font.lineHeight + 3, top = y;
+        int cap = Math.max(1, linesBetween(y, cy + r * 0.86f, rowStep));
+        List<Integer> listed = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) if (names.get(i) != null) listed.add(i);
+        int per = listed.size() <= cap ? cap : Math.max(1, cap - 1);
+        int chunks = Math.max(1, (listed.size() + per - 1) / per);
+        // The open page's place among the listed rows; a page that is not listed (an untitled, empty
+        // page of the Witch Grimoire) counts as where it would stand, so the rows around it are shown.
+        int here = 0;
+        while (here < listed.size() && listed.get(here) < page) here++;
+        here = Math.min(here, Math.max(0, listed.size() - 1));
+        shownChunk = Math.min(chunks - 1, contentsChunk >= 0 ? contentsChunk : here / per);
+        int from = listed.isEmpty() ? 0 : listed.get(shownChunk * per);
+        int to = shownChunk * per + per >= listed.size() ? names.size() : listed.get(shownChunk * per + per);
+        if (shownChunk > 0) {
+            float my = headY + font.lineHeight * 1.35f / 2f;
+            continuedMark(g, x1 - 24, my, r, -1);
+            contentsPrev = new int[]{x1 - 28, Math.round(my) - 6, x1 - 2, Math.round(my) + 6};
+        }
+        if (shownChunk < chunks - 1) {
+            float my = top + (cap - 1) * rowStep + font.lineHeight / 2f;
+            continuedMark(g, x1, my, r, 1);
+            contentsNext = new int[]{x1 - 22, Math.round(my) - 6, x1 + 2, Math.round(my) + 6};
+        }
+        for (int i = from; i < to; i++) {
             if (names.get(i) == null) continue;
             if (y > cy + r * 0.86f) break;
             int rowH = font.lineHeight + 3;
@@ -541,14 +705,24 @@ public class PageScreen extends Screen {
         if (button == 0 && kind() != null && kind().book()) {
             if (x >= tabRect[0] && x < tabRect[2] && y >= tabRect[1] && y < tabRect[3]) {
                 contents = !contents;
+                contentsChunk = -1;
                 Minecraft.getInstance().player.playNotifySound(SoundEvents.BOOK_PAGE_TURN, SoundSource.PLAYERS, 0.6f, 1.4f);
                 return true;
             }
             if (contents) {
+                for (int s = 0; s < 2; s++) {
+                    int[] mark = s == 0 ? contentsPrev : contentsNext;
+                    if (mark != null && x >= mark[0] && x < mark[2] && y >= mark[1] && y < mark[3]) {
+                        contentsChunk = Math.max(0, shownChunk + (s == 0 ? -1 : 1));
+                        Minecraft.getInstance().player.playNotifySound(SoundEvents.BOOK_PAGE_TURN, SoundSource.PLAYERS, 0.5f, 1.2f);
+                        return true;
+                    }
+                }
                 for (int[] row : contentRows) {
                     if (x >= row[0] && x < row[2] && y >= row[1] && y < row[3]) {
                         contents = false;
-                        if (row[4] != page) turn(row[4] - page);
+                        if (row[4] != page) jump(row[4]);
+                        else part = 0;
                         return true;
                     }
                 }
@@ -656,17 +830,87 @@ public class PageScreen extends Screen {
         turn(d);
     }
 
+    /** Opens one spread of the current entry's text, for the visual check; false when the entry has no such spread. */
+    public boolean debugPart(int p) {
+        if (p < 0 || p >= partsOf(page)) return false;
+        part = p;
+        flipDir = 0;
+        return true;
+    }
+
+    /** Shows the contents, for the visual check. */
+    public void debugContents() {
+        contents = true;
+        contentsChunk = -1;
+    }
+
+    public int debugPage() {
+        return page;
+    }
+
+    public int debugPart() {
+        return part;
+    }
+
+    public int debugParts() {
+        return partsOf(page);
+    }
+
+    /**
+     * One step back or forth. A grimoire entry whose text runs over several spreads is read through
+     * them first: forward from its last spread opens the next entry, back from an entry's first spread
+     * opens the last spread of the one before. Only the entry is the book's page (sent to the server
+     * and kept on the item); the spread is the screen's own and starts at the first one on reopening.
+     */
     private void turn(int d) {
+        if (Math.abs(d) != 1) {
+            jump(Math.floorMod(page + d, Math.max(1, pageCount())));
+            return;
+        }
+        boolean flowing = kind() == PageKind.GRIMOIRE && !contents;
+        if (flowing && d > 0 && part + 1 < partsOf(page)) {
+            part++;
+            flip(d);
+            return;
+        }
+        if (flowing && d < 0 && part > 0) {
+            part--;
+            flip(d);
+            return;
+        }
         int n = pageCount();
         if (n <= 1) return;
         flushNotes();
         page = Math.floorMod(page + d, n);
+        part = flowing && d < 0 ? partsOf(page) - 1 : 0;
+        contentsChunk = -1;
+        flip(d);
+        PacketDistributor.sendToServer(new Payloads.PageTurn(hand, page));
+        loadNotes();
+    }
+
+    /** Opens an entry at its first spread, as the contents do. */
+    private void jump(int to) {
+        int n = pageCount();
+        if (n <= 0 || to == page) {
+            part = 0;
+            return;
+        }
+        flushNotes();
+        int d = to > page ? 1 : -1;
+        page = Math.floorMod(to, n);
+        part = 0;
+        contentsChunk = -1;
+        flip(d);
+        PacketDistributor.sendToServer(new Payloads.PageTurn(hand, page));
+        loadNotes();
+    }
+
+    private void flip(int d) {
         flipStart = Util.getMillis();
         flipDir = d;
         var pl = Minecraft.getInstance().player;
         if (pl != null) pl.playNotifySound(SoundEvents.BOOK_PAGE_TURN, SoundSource.PLAYERS, 0.5f, 0.9f + pl.getRandom().nextFloat() * 0.25f);
-        PacketDistributor.sendToServer(new Payloads.PageTurn(hand, page));
-        loadNotes();
     }
 
     private InkNotesField titleBox;

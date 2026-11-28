@@ -105,18 +105,24 @@ final class FarSide {
         return IrisHook.shadowPass();
     }
 
+    /** Whether a shader pack is drawing the level right now. */
+    static boolean packActive() {
+        return IrisHook.packActive();
+    }
+
     // ---- per frame --------------------------------------------------------------------------------------------
 
     /**
-     * Draws the far side of {@code near} (whose partner is {@code far}) into the current frame. Returns false when
-     * nothing could be drawn yet, so the caller falls back to the plain disc.
+     * Draws the far side of {@code near} (whose partner is {@code far}) into the current frame, through an opening
+     * {@code open} of the disc wide: while a window turns, its iris narrows the hole and the wall closes in round it.
+     * Returns false when nothing could be drawn yet, so the caller falls back to the plain disc.
      */
-    static boolean draw(PortalFrame near, PortalFrame far, RenderLevelStageEvent e) {
+    static boolean draw(PortalFrame near, PortalFrame far, RenderLevelStageEvent e, double open) {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return false;
         View view = VIEWS.get(near.id());
-        if (view == null || !view.near.equals(near) || !view.far.equals(far)) {
+        if (view == null || !view.near.samePlace(near) || !view.far.samePlace(far)) {
             view = new View(near, far);
             VIEWS.put(near.id(), view);
         }
@@ -127,12 +133,13 @@ final class FarSide {
         long started = System.nanoTime();
         Vec3 cam = e.getCamera().getPosition();
         Vec3 c = near.center().subtract(cam);
-        Cone cone = new Cone(near, c);
+        double r = near.discRadius() * Math.max(0.02, Math.min(1, open));
+        Cone cone = new Cone(near, c, r);
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         // a shader pack holds block entities and creatures back and draws them in one go later; whatever stands in
         // front of the opening (the wall's own stand-in blocks among it) has to be in the depth buffer first
         buffers.endBatch();
-        punch(near, cam, mc);
+        punch(near, cam, mc, r);
 
         float ox = (float) c.x, oy = (float) c.y, oz = (float) c.z;
         int[] budget = {MAX_QUADS};
@@ -306,7 +313,7 @@ final class FarSide {
      * every shader it does not know, and it draws the level into its own targets, so the pass binds the target the
      * pack draws blocks into, draws, and hands the main target back the way the pack itself does.</p>
      */
-    private static void punch(PortalFrame f, Vec3 cam, Minecraft mc) {
+    private static void punch(PortalFrame f, Vec3 cam, Minecraft mc, double r) {
         if (!PunchProgram.ready()) return;
         boolean packTarget = IrisHook.bindBlockTarget();
 
@@ -333,7 +340,6 @@ final class FarSide {
         Vec3 sky = mc.level.getSkyColor(cam, 1f);
         float[] fog = RenderSystem.getShaderFogColor();
         Vec3 c = f.center().add(f.n().scale(f.side(cam) > 0 ? 0.004 : -0.004)).subtract(cam);
-        double r = f.discRadius();
         int seg = 48;
         float[] verts = new float[seg * 3 * 7];
         int k = 0;
@@ -481,11 +487,10 @@ final class FarSide {
         final float[] nx, ny, nz, d;
         final int count;
 
-        Cone(PortalFrame f, Vec3 c) {
+        Cone(PortalFrame f, Vec3 c, double r) {
             int seg = RIM_SEGMENTS;
             count = seg + 1;
             nx = new float[count]; ny = new float[count]; nz = new float[count]; d = new float[count];
-            double r = f.discRadius();
             Vec3[] p = new Vec3[seg];
             for (int i = 0; i < seg; i++) {
                 double a = (i + 0.5) * Math.PI * 2 / seg;

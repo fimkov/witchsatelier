@@ -130,6 +130,8 @@ public final class SpellCompiler {
         boolean gentle = r.has(SignType.RADIAL);
         boolean hidden = r.has(SignType.EYE) || r.has(SignType.BEND);
         int birds = (int) r.count(SignType.BIRD) + (r.centerSign() == SignType.BIRD ? 1 : 0);
+        // Birds around a Window are part of its name, and a name sends nothing flying
+        if (!com.fimkov.witchsatelier.windowway.WindowMark.of(r).isEmpty()) birds = 0;
 
         SpellProgram main = new SpellProgram(element, center, form, inverted, origin, normal, dir, radius, power, duration,
                 focused, gentle, spread, vortex, bolts, misfire, hidden, birds).withMods(mods(r));

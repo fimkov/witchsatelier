@@ -1,0 +1,6 @@
+{
+  "values": [
+    "#minecraft:snow",
+    {"id": "#snowrealmagic:snow", "required": false}
+  ]
+}

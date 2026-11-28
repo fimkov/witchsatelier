@@ -334,6 +334,7 @@ public final class VisualCheck {
             platform(l, BASE, 10);
         }, new Vec3(0.5, 222.62, 0.5), 180, 30, true));
         grimoireShots();
+        longPageShots();
         pennantShots();
         bookHandShots();
         locateShot();
@@ -398,6 +399,7 @@ public final class VisualCheck {
             }, new Vec3(0.5, 222.62, 0.5), 180, 0, true));
         }
         SHOTS.addAll(SpellFilms.shots());
+        SHOTS.addAll(WaymarkShots.shots());
         walkingShot();
         traceShot();
     }
@@ -556,6 +558,90 @@ public final class VisualCheck {
         }
     }
 
+    /**
+     * Grimoire entries whose text runs past one page at GUI scale 4, and rising_water, whose title is too
+     * long for one line on a small page: each is opened and read through every spread.
+     */
+    static final String[] LONG_PAGES = {"basics", "waymark_window", "page_held_up", "seal_of_obliviation", "petrification",
+            "snare_of_flame", "imagined_ring", "forbidden_magic", "wind_underfoot", "rising_water"};
+
+    static GlyphLibrary.Volume volumeWith(String entry) {
+        List<GlyphLibrary.Volume> all = new ArrayList<>(List.of(GlyphLibrary.PRIMER, GlyphLibrary.RING_NOTES, GlyphLibrary.FORBIDDEN_BOOK));
+        all.addAll(GlyphLibrary.VOLUMES);
+        return all.stream().filter(v -> v.entries().contains(entry)).findFirst().orElseThrow();
+    }
+
+    private static void longPageShots() {
+        for (String entry : LONG_PAGES) {
+            SHOTS.add(new Shot("longpage_" + entry, 30, l -> {
+                ServerPlayer p = player(l.getServer());
+                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.volumeBook(volumeWith(entry), RandomSource.create(3)));
+            }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
+        }
+        for (int at : new int[]{0, GlyphLibrary.CONTRAPTIONS.size() - 1}) {
+            SHOTS.add(new Shot("longpage_contents_" + at, 30, l -> {
+                ServerPlayer p = player(l.getServer());
+                if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.contraptionsBook());
+            }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
+        }
+        SHOTS.add(new Shot("longpage_nav", 60, l -> {
+            ServerPlayer p = player(l.getServer());
+            if (p != null) p.setItemSlot(EquipmentSlot.MAINHAND, GlyphLibrary.volumeBook(volumeWith("waymark_window"), RandomSource.create(3)));
+        }, new Vec3(0.5, 222.6, 0.5), 180, 10, true));
+    }
+
+    private static final int[] NAV_MOVES = {-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+    /** Steps the long-page shots: one screenshot per spread, and for the navigation shot a log line per page turn. True when it took over this tick. */
+    private static boolean longPageTick(Minecraft mc, MinecraftServer server, Shot now) {
+        String name = now.name();
+        if (!name.startsWith("longpage_")) return false;
+        boolean nav = name.equals("longpage_nav");
+        if (name.startsWith("longpage_contents_")) {
+            if (timer == 30 && !(mc.screen instanceof PageScreen)) {
+                var ps = new PageScreen(InteractionHand.MAIN_HAND, Integer.parseInt(name.substring("longpage_contents_".length())));
+                mc.setScreen(ps);
+                ps.debugContents();
+            }
+            return false;
+        }
+        if (timer == (nav ? 60 : 30) && !(mc.screen instanceof PageScreen)) {
+            String entry = nav ? "windowway" : name.substring("longpage_".length());
+            mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND, volumeWith(entry).entries().indexOf(entry)));
+            return false;
+        }
+        if (!(mc.screen instanceof PageScreen ps)) return false;
+        if (nav) {
+            int step = (60 - timer) / 2 - 1;
+            if (timer < 60 && timer % 2 == 0 && step >= 0 && step < NAV_MOVES.length) {
+                ps.debugTurn(NAV_MOVES[step]);
+                WitchsAtelier.LOGGER.info("[visualcheck] nav {} -> entry {} spread {}/{}", NAV_MOVES[step] > 0 ? "forward" : "back",
+                        ps.debugPage(), ps.debugPart() + 1, ps.debugParts());
+            }
+            return false;
+        }
+        if (timer != 1) return false;
+        var win = mc.getWindow();
+        String file = name + "_" + (ps.debugPart() + 1) + "of" + ps.debugParts() + "_s" + (int) win.getGuiScale() + "_"
+                + mc.options.languageCode + "_" + win.getWidth() + "x" + win.getHeight();
+        Screenshot.grab(mc.gameDirectory, "witchsatelier_" + file + ".png", mc.getMainRenderTarget(), msg -> WitchsAtelier.LOGGER.info("[visualcheck] {}", msg.getString()));
+        if (ps.debugPart(ps.debugPart() + 1)) {
+            timer = 14;
+        } else {
+            next(mc, server);
+        }
+        return true;
+    }
+
+    /** WITCHSATELIER_WINDOW=1280x720 shrinks the window before the shots, to see the pages at a small size. */
+    private static void windowFromEnv(Minecraft mc) {
+        String want = System.getenv("WITCHSATELIER_WINDOW");
+        if (want == null || !want.matches("\\d+x\\d+")) return;
+        String[] wh = want.split("x");
+        mc.getWindow().setWindowed(Integer.parseInt(wh[0]), Integer.parseInt(wh[1]));
+        WitchsAtelier.LOGGER.info("[visualcheck] window set to {}", want);
+    }
+
     private static void filter() {
         String want = System.getProperty("witchsatelier.visualcheck", "all");
         if (want.equals("all")) {
@@ -591,6 +677,7 @@ public final class VisualCheck {
         if (index >= Integer.MAX_VALUE / 2) return;
         if (index < 0) {
             filter();
+            windowFromEnv(mc);
             mc.options.hideGui = true;
             server.execute(() -> {
                 ServerLevel l = server.overworld();
@@ -611,6 +698,7 @@ public final class VisualCheck {
         }
         if (!sceneReady) return;
         Shot now = SHOTS.get(index);
+        if (longPageTick(mc, server, now)) return;
         if (timer == 30 && now.name().startsWith("grimoire_") && !(mc.screen instanceof PageScreen)) {
             mc.setScreen(new PageScreen(InteractionHand.MAIN_HAND,
                     Integer.parseInt(now.name().substring("grimoire_".length()))));
@@ -653,6 +741,7 @@ public final class VisualCheck {
             }
             ClientDrawing.debugImagine(floor, uv);
         }
+        if (WaymarkShots.owns(now)) WaymarkShots.clientTick(mc, now, recorder != null ? filmTick : -1);
         if (recorder != null) {
             int t = ++filmTick;
             if (now.during() != null) server.execute(() -> now.during().accept(server.overworld(), t));
@@ -666,7 +755,8 @@ public final class VisualCheck {
         if (--timer == 0) {
             Shot s = SHOTS.get(index);
             if (s.film() > 0) {
-                recorder = FilmRecorder.start(new File(mc.gameDirectory, "films/" + s.name().substring("film_".length()) + ".mp4"));
+                String film = s.name().startsWith("film_") ? s.name().substring("film_".length()) : s.name();
+                recorder = FilmRecorder.start(new File(mc.gameDirectory, "films/" + film + ".mp4"));
                 filmTick = 0;
                 return;
             }
@@ -708,6 +798,7 @@ public final class VisualCheck {
         sceneReady = false;
         if (mc.screen instanceof PageScreen) mc.setScreen(null);
         mc.options.setCameraType(CameraType.FIRST_PERSON);
+        WaymarkShots.finish(mc);
         mc.options.hideGui = !s.firstPerson();
         server.execute(() -> {
             ServerLevel l = server.overworld();

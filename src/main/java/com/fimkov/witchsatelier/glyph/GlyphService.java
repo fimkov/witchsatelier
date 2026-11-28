@@ -1,5 +1,6 @@
 package com.fimkov.witchsatelier.glyph;
 
+import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.advancement.MagicTrigger;
 import com.fimkov.witchsatelier.block.ArcaneLensBlock;
 import com.fimkov.witchsatelier.block.Starfall;
@@ -16,6 +17,8 @@ import com.fimkov.witchsatelier.glyph.recognize.GlyphReading;
 import com.fimkov.witchsatelier.glyph.recognize.Pt;
 import com.fimkov.witchsatelier.glyph.recognize.RingFinder;
 import com.fimkov.witchsatelier.glyph.storage.GlyphLevelData;
+import com.fimkov.witchsatelier.windowway.WindowMark;
+import com.fimkov.witchsatelier.windowway.WindowwayService;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
 import com.fimkov.witchsatelier.glyph.surface.StrokeState;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
@@ -35,20 +38,25 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -729,7 +737,7 @@ public final class GlyphService {
         List<Integer> inked = r.usedStrokes();
         Tracing.Result copy = Tracing.traced(player, plane, f.strokes(), r, INK_WIDTH);
         if (copy.waiting()) {
-            if (running != null) stopSpell(level, running, false);
+            if (running != null) stopSpell(level, running, false, WindowwayService.Reason.RECAST);
             return null;
         }
         if (copy.reading() != null) {
@@ -784,24 +792,34 @@ public final class GlyphService {
             return null;
         }
         if (running != null && (running.program.form() != program.form() || running.program.has(SpellProgram.TREAD) != program.has(SpellProgram.TREAD))) {
-            stopSpell(level, running, false);
+            // a window that only gained or lost its Tread is the same window read again, and keeps its place
+            boolean stillWindow = running.program.form() == program.form()
+                    && running.program.centerSign() == SignType.WINDOW && program.centerSign() == SignType.WINDOW;
+            stopSpell(level, running, false, stillWindow ? WindowwayService.Reason.RECAST : WindowwayService.Reason.ERASED);
             running = null;
         }
         if (running != null && running.ringRadius > 0 && r.ring().radius() < running.ringRadius * 0.6) {
-            stopSpell(level, running, false);
+            stopSpell(level, running, false, WindowwayService.Reason.RECAST);
             return null;
+        }
+        String mark = WindowMark.of(r);
+        if (running != null && program.centerSign() == SignType.WINDOW && !mark.equals(running.windowMark)) {
+            stopSpell(level, running, false);
+            running = null;
         }
         ActiveSpell result;
         if (running != null) {
             running.ringRadius = Math.max(running.ringRadius, r.ring().radius());
             running.program = program;
             running.strokes.addAll(ids);
+            WindowwayService.restrung(level, running);
             harden(running, r, ink);
             setStates(level, running.strokes, StrokeState.ACTIVE, ElementLook.color(program.element(), program.centerSign()), running.ticksLeft);
             result = running;
         } else {
             UUID who = player != null ? player.getUUID() : authorOf(focus);
             ActiveSpell spell = new ActiveSpell(nextSpellId++, plane, ids, who, program);
+            spell.windowMark = mark;
             spell.quiet = quiet;
             spell.ringRadius = r.ring().radius();
             harden(spell, r, ink);
@@ -1082,6 +1100,10 @@ public final class GlyphService {
         });
     }
 
+    /**
+     * Rain and standing water wear a woken glyph's ink away: each turn one stroke that is out in the wet loses a little
+     * of itself. Snow does not wear ink, and ink a snow layer lies on is out of the rain as well.
+     */
     private static void rainWear(ServerLevel level, GlyphLevelData data, ActiveSpell s, Map<Long, byte[]> worn) {
         if (level.random.nextDouble() > 0.6) return;
         List<InkStroke> wet = new ArrayList<>();
@@ -1089,7 +1111,8 @@ public final class GlyphService {
             InkStroke st = data.get(id);
             if (st == null || st.ink().waterproof || st.size() == 0) continue;
             BlockPos front = s.plane.blockAt(st.u(st.size() / 2), st.v(st.size() / 2)).relative(s.plane.face());
-            if (level.isRainingAt(front) || level.getFluidState(front).is(FluidTags.WATER)) wet.add(st);
+            if (level.getFluidState(front).is(FluidTags.WATER)
+                    || (level.isRainingAt(front) && !buried(level, s.plane, front))) wet.add(st);
         }
         if (wet.isEmpty()) return;
         InkStroke st = wet.get(level.random.nextInt(wet.size()));
@@ -1109,6 +1132,23 @@ public final class GlyphService {
             Vec3 p = s.plane.toWorld(st.u(at), st.v(at), 0.05);
             level.sendParticles(ParticleTypes.SPLASH, p.x, p.y, p.z, 4, 0.1, 0.02, 0.1, 0.02);
         }
+    }
+
+    /** Blocks that lie on ink and keep the weather off it, as snow does. Packs may add their own snow to it. */
+    public static final TagKey<Block> BURIES_INK = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(WitchsAtelier.MODID, "buries_ink"));
+
+    /**
+     * Whether the ink behind {@code front} lies under snow: a snow layer, vanilla's or a mod's, on a floor glyph, or snow
+     * filling the whole block in front of a wall or ceiling. The open sky test lets weather through a thin snow layer,
+     * so without this a glyph buried in snow would count as out in the open.
+     */
+    public static boolean buried(Level level, SurfacePlane plane, BlockPos front) {
+        BlockState st = level.getBlockState(front);
+        boolean layer = st.getBlock() instanceof SnowLayerBlock;
+        if (!layer && !st.is(BURIES_INK)) return false;
+        if (plane.face() == Direction.UP || !layer || !st.hasProperty(SnowLayerBlock.LAYERS)) return true;
+        return st.getValue(SnowLayerBlock.LAYERS) >= SnowLayerBlock.MAX_HEIGHT;
     }
 
     public static double wearBoost = 1;
@@ -1193,7 +1233,7 @@ public final class GlyphService {
         BlockState f = level.getBlockState(front);
         if (!ink.fireproof && (f.getFluidState().is(FluidTags.LAVA) || f.is(BlockTags.FIRE))) return true;
         if (waterproof) return false;
-        return f.getFluidState().is(FluidTags.WATER) || level.isRainingAt(front);
+        return f.getFluidState().is(FluidTags.WATER) || (level.isRainingAt(front) && !buried(level, plane, front));
     }
 
     public static void washArea(ServerLevel level, Vec3 center, double radius, Set<Long> keep) {
@@ -1251,13 +1291,22 @@ public final class GlyphService {
     }
 
     private static void stopSpell(ServerLevel level, ActiveSpell spell, boolean spent) {
+        stopSpell(level, spell, spent, WindowwayService.Reason.ERASED);
+    }
+
+    /**
+     * Ends a spell and dims its ink. {@code reason} tells a Windowway whether its ink is gone ({@code ERASED}: rubbed
+     * out, its ring broken, spent, or no longer a window) or only being read again with the ink untouched
+     * ({@code RECAST}), which keeps its place in the network.
+     */
+    private static void stopSpell(ServerLevel level, ActiveSpell spell, boolean spent, WindowwayService.Reason reason) {
         Map<Long, ActiveSpell> spells = ACTIVE.get(level.dimension());
         if (spells != null && spells.remove(spell.id) != null) sendFx(level, spell, 0);
-        spell.stop(level);
         GlyphLevelData data = GlyphLevelData.get(level);
         List<Long> still = new ArrayList<>();
         for (long id : spell.strokes) if (data.get(id) != null) still.add(id);
         setStates(level, still, spent ? StrokeState.SPENT : StrokeState.IDLE, 0);
+        spell.stop(level, reason);
     }
 
     private static ActiveSpell spellUsing(ServerLevel level, Collection<Long> ids) {
@@ -1347,7 +1396,7 @@ public final class GlyphService {
         if (spells == null) return;
         for (ActiveSpell s : spells.values()) {
             try {
-                s.stop(level);
+                s.stop(level, WindowwayService.Reason.SHUTDOWN);
             } catch (RuntimeException e) {
                 LOGGER.error("[glyph] stopping spell {} failed", s.id, e);
             }

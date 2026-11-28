@@ -167,6 +167,12 @@ public final class ActiveSpell {
     public boolean quiet;
     public double ringRadius;
 
+    /** The name drawn around a Window in signs (see {@link com.fimkov.witchsatelier.windowway.WindowMark}); empty for a plain Window. */
+    public String windowMark = "";
+
+    /** Set for glyphs cast from a page laid on a surface rather than drawn there: such a window only ever visits. */
+    public boolean fromPage;
+
     /** Set for glyphs cast from a page drawn mostly in blood ink; glyphs on a surface are judged by their own strokes. */
     public boolean bloodInk;
 
@@ -292,7 +298,7 @@ public final class ActiveSpell {
     }
 
     public void pause(ServerLevel level) {
-        WindowwayService.close(level, id);
+        WindowwayService.close(level, id, WindowwayService.Reason.PAUSED);
         for (TempBlock t : temps) {
             if (level.getBlockState(t.pos()) == t.placed()) level.setBlock(t.pos(), Blocks.AIR.defaultBlockState(), 3);
         }
@@ -429,10 +435,14 @@ public final class ActiveSpell {
         return best == null ? look : best.getBoundingBox().getCenter().subtract(origin).normalize();
     }
 
-    public void stop(ServerLevel level) {
+    /**
+     * Ends the spell. A Windowway forgets its place in the network only when {@code reason} says its ink is gone: a
+     * world that stops with the ink still lit, or a window read again, keeps every window where it was.
+     */
+    public void stop(ServerLevel level, WindowwayService.Reason reason) {
         stopped = true;
         if (steed != null && level.getEntity(steed) instanceof com.fimkov.witchsatelier.entity.WaterHorseEntity w) w.splash();
-        WindowwayService.close(level, id);
+        WindowwayService.close(level, id, reason);
 
         for (TempBlock t : temps) {
             for (LivingEntity le : level.getEntitiesOfClass(LivingEntity.class, new AABB(t.pos().above()).inflate(0.2, 1, 0.2))) {
