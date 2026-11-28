@@ -86,7 +86,7 @@ public final class ClientGlyphs implements ModNetwork.ClientHandlers {
         SpellFxClient.clear();
         PennantRibbons.clear();
         BadAppleShow.clear();
-        WindowwayClient.accept(List.of());
+        WindowwayClient.accept(List.of(), List.of());
         TraceGuide.reset();
     }
 
@@ -102,7 +102,17 @@ public final class ClientGlyphs implements ModNetwork.ClientHandlers {
 
     @Override
     public void windowways(Payloads.WindowwaySync p) {
-        WindowwayClient.accept(p.frames());
+        WindowwayClient.accept(p.frames(), p.far());
+    }
+
+    @Override
+    public void windowwayLink(Payloads.WindowwayLink p) {
+        WindowwayClient.link(p);
+    }
+
+    @Override
+    public void windowwayRefuse(Payloads.WindowwayRefuse p) {
+        WindowwayClient.refused(p.id());
     }
 
     @Override

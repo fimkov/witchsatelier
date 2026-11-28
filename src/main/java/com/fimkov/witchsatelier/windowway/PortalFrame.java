@@ -8,7 +8,20 @@ import org.joml.Matrix3f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-public record PortalFrame(long id, Vec3 center, Vec3 u, Vec3 v, Vec3 n, double radius, long link) {
+/**
+ * Where a Windowway lies and where it looks. {@code tint} and {@code flags} are only what a client is told about it:
+ * the colour its rim shows (-1 for a plain window, which shows its pair's colour) and what kind of window it is.
+ */
+public record PortalFrame(long id, Vec3 center, Vec3 u, Vec3 v, Vec3 n, double radius, long link, int tint, byte flags) {
+    /** A lasting window of the network: a Sill, a Kin, or a quiet one over its witch's count. */
+    public static final int STATION = 1;
+    /** A window that only visits its mark's Sill. */
+    public static final int VISITOR = 2;
+    /** It looks somewhere, but that place would take no one in now. */
+    public static final int SHUT = 4;
+    /** Held toward another Sill by a page. */
+    public static final int TUNED = 8;
+
     public static final StreamCodec<ByteBuf, PortalFrame> CODEC = StreamCodec.of((buf, f) -> {
         buf.writeLong(f.id);
         buf.writeDouble(f.center.x); buf.writeDouble(f.center.y); buf.writeDouble(f.center.z);
@@ -16,21 +29,42 @@ public record PortalFrame(long id, Vec3 center, Vec3 u, Vec3 v, Vec3 n, double r
         buf.writeFloat((float) f.n.x); buf.writeFloat((float) f.n.y); buf.writeFloat((float) f.n.z);
         buf.writeFloat((float) f.radius);
         buf.writeLong(f.link);
+        buf.writeInt(f.tint);
+        buf.writeByte(f.flags);
     }, buf -> {
         long id = buf.readLong();
         Vec3 c = new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble());
         Vec3 v = new Vec3(buf.readFloat(), buf.readFloat(), buf.readFloat());
         Vec3 n = new Vec3(buf.readFloat(), buf.readFloat(), buf.readFloat());
-        return of(id, c, v, n, buf.readFloat(), buf.readLong());
+        PortalFrame f = of(id, c, v, n, buf.readFloat(), buf.readLong());
+        return f.withLook(buf.readInt(), buf.readByte());
     });
 
     public static PortalFrame of(long id, Vec3 center, Vec3 up, Vec3 n, double radius, long link) {
         Vec3 nn = n.normalize(), vv = up.normalize();
-        return new PortalFrame(id, center, vv.cross(nn).normalize(), vv, nn, radius, link);
+        return new PortalFrame(id, center, vv.cross(nn).normalize(), vv, nn, radius, link, -1, (byte) 0);
     }
 
     public PortalFrame withLink(long link) {
-        return new PortalFrame(id, center, u, v, n, radius, link);
+        return new PortalFrame(id, center, u, v, n, radius, link, tint, flags);
+    }
+
+    public PortalFrame withLook(int tint, int flags) {
+        return new PortalFrame(id, center, u, v, n, radius, link, tint, (byte) flags);
+    }
+
+    public boolean has(int flag) {
+        return (flags & flag) != 0;
+    }
+
+    /** Whether this is a window named by a mark, which shows its mark's colour and turns with an iris. */
+    public boolean marked() {
+        return tint >= 0;
+    }
+
+    /** The same window in the same place, whatever it looks at now. */
+    public boolean samePlace(PortalFrame o) {
+        return o != null && id == o.id && center.equals(o.center) && n.equals(o.n) && v.equals(o.v) && radius == o.radius;
     }
 
     public double side(Vec3 p) {

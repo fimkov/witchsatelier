@@ -34,6 +34,12 @@ final class Graph {
         }
     }
 
+    /** The slot now shows another place: forget what was seen from the last one and look afresh. */
+    void reset() {
+        graph.invalidate();
+        for (int i = 0; i < 5; i++) doubles[i] = Double.MIN_VALUE;
+    }
+
     @SuppressWarnings("unchecked")
     void swapIn(LevelRenderer lr) throws IllegalAccessException {
         ViewArea now = (ViewArea) VIEW_AREA.get(lr);

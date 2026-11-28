@@ -618,8 +618,11 @@ public final class GlyphGameTests {
 
                     Vec3 low = h.absoluteVec(new Vec3(2.0, 1.2, 5.5));
                     if (!west.inOpening(low)) h.fail("the opening's lower block should be a way through");
-                    for (var sp : spellsOn(h, pa)) GlyphService.stop(h.getLevel(), sp);
-                    for (var sp : spellsOn(h, pb)) GlyphService.stop(h.getLevel(), sp);
+                    // by plane alone: the east window sits off centre, beyond spellsOn's reach, and left lit it would
+                    // wait for the next plain window anyone draws
+                    for (var sp : GlyphService.activeSpells(h.getLevel())) {
+                        if (pa.equals(sp.plane) || pb.equals(sp.plane)) GlyphService.stop(h.getLevel(), sp);
+                    }
                 })
                 .thenSucceed();
     }
@@ -642,7 +645,15 @@ public final class GlyphGameTests {
                     var mine = WindowwayService.frames(h.getLevel()).stream()
                             .filter(f -> f.center().distanceTo(Vec3.atCenterOf(a)) < 3 || f.center().distanceTo(Vec3.atCenterOf(b)) < 3).toList();
                     if (mine.size() != 2) h.fail("expected two windows, got " + mine.size() + " (" + spellsOn(h, pa).size() + " spells on A)");
-                    if (mine.stream().anyMatch(f -> f.link() < 0)) h.fail("the two windows should join");
+                    if (mine.stream().anyMatch(f -> f.link() < 0)) {
+                        StringBuilder others = new StringBuilder();
+                        for (var s : GlyphService.activeSpells(h.getLevel())) {
+                            var f = WindowwayService.frameOf(s);
+                            if (f != null) others.append(" [").append(f.id()).append(" at ").append(h.relativeVec(f.center()))
+                                    .append(" link ").append(f.link()).append(" by ").append(s.caster).append(": ").append(s.program.summary()).append("]");
+                        }
+                        h.fail("the two windows should join; open windows:" + others);
+                    }
                     h.assertBlockPresent(ModBlocks.WINDOWWAY_GAP.get(), new BlockPos(1, 2, 5));
                     h.assertBlockPresent(ModBlocks.WINDOWWAY_GAP.get(), new BlockPos(1, 1, 5));
 

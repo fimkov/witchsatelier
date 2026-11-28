@@ -33,7 +33,7 @@ public final class GlyphRenderer {
         ClientDrawing.sample(pt);
 
         Minecraft mc = Minecraft.getInstance();
-        Vec3 cam = e.getCamera().getPosition();
+        Vec3 cam = com.fimkov.witchsatelier.client.portal.WindowwayClient.eye(e.getCamera());
         PoseStack ps = e.getPoseStack();
         ps.pushPose();
         Matrix4f pose = ps.last().pose();

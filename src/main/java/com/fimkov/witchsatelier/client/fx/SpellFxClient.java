@@ -187,7 +187,9 @@ public final class SpellFxClient {
             double spin = time * 0.02;
             if (!OFF.contains("rings")) {
                 ring(vc, m, ringAt, ab, radius, radius * 0.035, color, 0.55 * life * fade, 4, spin);
-                ring(vc, m, ringAt, ab, radius * 0.82, radius * 0.025, color, 0.4 * life * fade, 6, -spin * 1.4);
+                // over an open Windowway the inner ring would lie across the far side, as if on glass: it stays off
+                if (!com.fimkov.witchsatelier.client.portal.WindowwayClient.openedAt(o))
+                    ring(vc, m, ringAt, ab, radius * 0.82, radius * 0.025, color, 0.4 * life * fade, 6, -spin * 1.4);
             }
 
             Form form = FORMS[Math.floorMod(p.form() & 15, FORMS.length)];

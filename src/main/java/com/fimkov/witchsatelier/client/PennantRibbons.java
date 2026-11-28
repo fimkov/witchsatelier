@@ -50,7 +50,7 @@ public final class PennantRibbons {
         if (mc.level == null) { RIBBONS.clear(); return; }
         float pt = e.getPartialTick().getGameTimeDeltaPartialTick(false);
         double now = mc.level.getGameTime() + pt;
-        Vec3 cam = e.getCamera().getPosition();
+        Vec3 cam = com.fimkov.witchsatelier.client.portal.WindowwayClient.eye(e.getCamera());
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         RenderType type = RenderType.entityTranslucent(SILK);
         VertexConsumer vc = buffers.getBuffer(type);

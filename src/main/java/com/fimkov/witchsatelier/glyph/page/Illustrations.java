@@ -13,7 +13,7 @@ public final class Illustrations {
 
     public static Page of(String entry, RandomSource rnd) {
         List<PageStroke> out = new ArrayList<>();
-        Pen p = new Pen(out, rnd, InkType.BLOOD);
+        Pen p = new Pen(out, rnd, GlyphLibrary.FORBIDDEN_BOOK.entries().contains(entry) ? InkType.BLOOD : InkType.LASTING);
         switch (entry) {
             case "forbidden_magic" -> {
                 p.arc(0, 0, 0.85, 0, 360);
@@ -50,6 +50,32 @@ public final class Illustrations {
                 p.poly(-0.55, 0.78, -0.1, 0.66, 0.3, 0.6, 0.82, 0.46, 0.3, 0.38, -0.1, 0.32, -0.55, 0.22);
                 p.arc(-0.15, 0.5, 0.12, 0, 360);
                 p.line(-0.55, 0.86, -0.48, 0.92);
+            }
+            case "page_held_up" -> {
+                // a window in a wall, and through it another window far away
+                p.line(0.05, -0.75, 0.05, 0.15);
+                p.arc(0.45, 0.15, 0.4, 0, 180);
+                p.line(0.85, 0.15, 0.85, -0.75);
+                p.line(0.0, -0.8, 0.9, -0.8);
+                p.line(0.13, -0.45, 0.77, -0.45);
+                p.line(0.36, -0.45, 0.36, -0.12);
+                p.arc(0.45, -0.12, 0.09, 0, 180);
+                p.line(0.54, -0.12, 0.54, -0.45);
+                // a page held up before it, with a little window drawn on it
+                p.poly(-0.88, -0.25, -0.42, -0.18, -0.36, 0.42, -0.82, 0.35, -0.88, -0.25);
+                p.arc(-0.62, 0.09, 0.15, 30, 330);
+                p.line(-0.66, 0.02, -0.66, 0.1);
+                p.arc(-0.62, 0.1, 0.04, 0, 180);
+                p.line(-0.58, 0.1, -0.58, 0.02);
+                // the hand that holds it
+                p.arc(-0.55, -0.36, 0.13, 200, 340);
+                p.poly(-0.49, -0.42, -0.46, -0.27, -0.5, -0.17);
+                p.line(-0.67, -0.4, -0.72, -0.95);
+                p.line(-0.43, -0.4, -0.4, -0.95);
+                // and the look that passes from one to the other
+                p.line(-0.3, 0.14, -0.24, 0.13);
+                p.line(-0.19, 0.12, -0.13, 0.11);
+                p.line(-0.08, 0.1, -0.02, 0.09);
             }
             default -> {
                 return null;

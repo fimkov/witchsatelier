@@ -114,6 +114,36 @@
       }
     ]
   },
+  "windowway_tune": {
+    "subtitle": "subtitles.witchsatelier.windowway_tune",
+    "sounds": [
+      {
+        "name": "witchsatelier:ring_ignite_0",
+        "pitch": 1.6,
+        "volume": 0.45
+      },
+      {
+        "name": "witchsatelier:ring_ignite_1",
+        "pitch": 1.6,
+        "volume": 0.45
+      },
+      {
+        "name": "witchsatelier:ring_ignite_2",
+        "pitch": 1.6,
+        "volume": 0.45
+      }
+    ]
+  },
+  "windowway_refuse": {
+    "subtitle": "subtitles.witchsatelier.windowway_refuse",
+    "sounds": [
+      {
+        "name": "witchsatelier:petrify",
+        "pitch": 0.55,
+        "volume": 0.5
+      }
+    ]
+  },
   "element_fire": {
     "subtitle": "subtitles.witchsatelier.element_fire",
     "sounds": [

@@ -66,6 +66,7 @@ public final class GlyphLevelData extends SavedData {
         if (m.isEmpty()) cells.remove(c);
         wear.remove(id);
         keys.remove(id);
+        windowIds.remove(id);
         setDirty();
         return s;
     }
@@ -131,6 +132,29 @@ public final class GlyphLevelData extends SavedData {
         return null;
     }
 
+    /**
+     * The lasting name of the Windowway drawn with these strokes. A window is cast anew every time the world wakes,
+     * so the name lives on its ink: the same window is the same place after any restart, in any order of waking.
+     */
+    private final Map<Long, java.util.UUID> windowIds = new HashMap<>();
+
+    public void setWindowId(Collection<Long> strokeIds, java.util.UUID wid) {
+        for (long id : strokeIds) {
+            if (!index.containsKey(id)) continue;
+            if (wid == null) windowIds.remove(id);
+            else windowIds.put(id, wid);
+        }
+        setDirty();
+    }
+
+    public java.util.UUID windowIdOf(Collection<Long> strokeIds) {
+        for (long id : strokeIds) {
+            java.util.UUID w = windowIds.get(id);
+            if (w != null) return w;
+        }
+        return null;
+    }
+
     public Collection<Long> ids() {
         return index.keySet();
     }
@@ -148,6 +172,8 @@ public final class GlyphLevelData extends SavedData {
                 if (w != null) st.putByteArray("wear", w);
                 java.util.UUID key = keys.get(s.id());
                 if (key != null) st.putUUID("key", key);
+                java.util.UUID wid = windowIds.get(s.id());
+                if (wid != null) st.putUUID("window", wid);
                 strokes.add(st);
             }
             p.put("strokes", strokes);
@@ -173,6 +199,7 @@ public final class GlyphLevelData extends SavedData {
                 byte[] w = st.getByteArray("wear");
                 if (w.length == s.size()) d.wear.put(s.id(), w);
                 if (st.hasUUID("key")) d.keys.put(s.id(), st.getUUID("key"));
+                if (st.hasUUID("window")) d.windowIds.put(s.id(), st.getUUID("window"));
             }
         }
         d.nextId = Math.max(d.nextId, d.index.keySet().stream().mapToLong(Long::longValue).max().orElse(0) + 1);

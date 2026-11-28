@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+- Waymarked Windowways: signs drawn around a Window give it a mark, the name of a place. The first window with a mark is its Sill, its witch's second one is its Kin and opens both ways, and every other window with the mark is a Visitor that opens onto the Sill. Hold a page with another mark before any marked window and it turns, for a while, toward that mark's Sill, however far away and in whichever dimension.
+- Someone else's Sill answers your page, and opens to the Visitors you draw with its mark, once you have stood by it or come out of it; a Sill in blood ink lets only its witch through; a Tread keeps a marked window shut; a Sill with no link of its own looks back the way you came for ten seconds.
+- Arrivals are checked for room to stand, and a refused crossing is a thunk and a flicker, never text. Marked windows keep their roles, links and colours through restarts and are reached while their chunks are unloaded.
+- Two new grimoire pages in Of Uncommon Signs, "Waymarks" and "A Page Held Up", and an advancement, Through a far window.
+- Gamerules `witchsatelierWindowwaysAcrossDimensions` and `witchsatelierWindowwayDiscovery`, and the entity tag `witchsatelier:windowway_blocked` (the Ender Dragon, the Wither and the Warden by default).
+- A window that turns someone away is a wall to them from both sides: whoever walks, falls or flies into it is set back out on the side they came from, in front or behind the wall, whole, never left half way in the hole or let through. This holds on floor and ceiling windows as on walls, and for riders: a mount or a boat carrying someone the window turns away is turned away with them, and a seat it cannot hold back drops its rider on the side they came from. Thrown things glance off either side.
+- Grimoire pages that run long go on to the next spread, with a mark at the foot that the text continues and the title as a small running head; a cut never splits a word or leaves a line or two of a paragraph behind. Long titles wrap onto a second line instead of running off the page, and a contents list too long for one page is shown a page of rows at a time.
+- Fixes: Windowways in unloaded chunks no longer tick.
+
 ## 1.2.1
 
 - Windowways work with Sodium, Embeddium and Iris. With one of them installed the far side is drawn into the world itself, so the ground around a Windowway no longer tears open, and under a shader pack the far side is lit, shadowed and fogged by the pack like everything else: blocks, water and glass, creatures and chests, up to 30 blocks beyond the far disc.

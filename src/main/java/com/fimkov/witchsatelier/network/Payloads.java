@@ -3,6 +3,7 @@ package com.fimkov.witchsatelier.network;
 import com.fimkov.witchsatelier.WitchsAtelier;
 import com.fimkov.witchsatelier.glyph.surface.InkStroke;
 import com.fimkov.witchsatelier.glyph.surface.SurfacePlane;
+import com.fimkov.witchsatelier.windowway.FarFrame;
 import com.fimkov.witchsatelier.windowway.PortalFrame;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -13,6 +14,7 @@ import net.minecraft.world.InteractionHand;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public final class Payloads {
@@ -280,18 +282,52 @@ public final class Payloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    public record WindowwaySync(List<PortalFrame> frames) implements CustomPacketPayload {
+    /** Every window of the receiver's dimension, and the far ends of those that look somewhere she cannot see. */
+    public record WindowwaySync(List<PortalFrame> frames, List<FarFrame> far) implements CustomPacketPayload {
         public static final Type<WindowwaySync> TYPE = typeOf("windowway_sync");
-        public static final StreamCodec<ByteBuf, WindowwaySync> CODEC = PortalFrame.CODEC
-                .apply(ByteBufCodecs.list(8192)).map(WindowwaySync::new, WindowwaySync::frames);
+        public static final StreamCodec<ByteBuf, WindowwaySync> CODEC = StreamCodec.composite(
+                PortalFrame.CODEC.apply(ByteBufCodecs.list(8192)), WindowwaySync::frames,
+                FarFrame.CODEC.apply(ByteBufCodecs.list(8192)), WindowwaySync::far,
+                WindowwaySync::new);
 
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    public record PortalCross(long id) implements CustomPacketPayload {
+    /**
+     * Window {@code id} turned to look at {@code link}, {@code age} ticks ago; {@code far} is where that is when it is
+     * not among the receiver's windows. Sent to those near the window only.
+     */
+    public record WindowwayLink(long id, long link, int flags, Optional<FarFrame> far, int age) implements CustomPacketPayload {
+        public static final Type<WindowwayLink> TYPE = typeOf("windowway_link");
+        public static final StreamCodec<ByteBuf, WindowwayLink> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_LONG, WindowwayLink::id,
+                ByteBufCodecs.VAR_LONG, WindowwayLink::link,
+                ByteBufCodecs.VAR_INT, WindowwayLink::flags,
+                ByteBufCodecs.optional(FarFrame.CODEC), WindowwayLink::far,
+                ByteBufCodecs.VAR_INT, WindowwayLink::age,
+                WindowwayLink::new);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Window {@code id} would not take someone: its picture flickers and dims for a moment. */
+    public record WindowwayRefuse(long id) implements CustomPacketPayload {
+        public static final Type<WindowwayRefuse> TYPE = typeOf("windowway_refuse");
+        public static final StreamCodec<ByteBuf, WindowwayRefuse> CODEC = ByteBufCodecs.VAR_LONG.map(WindowwayRefuse::new, WindowwayRefuse::id);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** A player went through window {@code id} while, on her screen, it looked at {@code expectedLink}. */
+    /** A client went through window {@code id} looking at {@code expectedLink}; {@code carried} if it set its player down on the far side itself. */
+    public record PortalCross(long id, long expectedLink, boolean carried) implements CustomPacketPayload {
         public static final Type<PortalCross> TYPE = typeOf("portal_cross");
-        public static final StreamCodec<ByteBuf, PortalCross> CODEC = ByteBufCodecs.VAR_LONG.map(PortalCross::new, PortalCross::id);
+        public static final StreamCodec<ByteBuf, PortalCross> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_LONG, PortalCross::id, ByteBufCodecs.VAR_LONG, PortalCross::expectedLink,
+                ByteBufCodecs.BOOL, PortalCross::carried, PortalCross::new);
 
         @Override
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
