@@ -37,6 +37,7 @@ run/
 run-gametest/
 run-smoke/
 run-smoke-client/
+run-shaders/
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+- Windowways work with Sodium, Embeddium and Iris. With one of them installed the far side is drawn into the world itself, so the ground around a Windowway no longer tears open, and under a shader pack the far side is lit, shadowed and fogged by the pack like everything else: blocks, water and glass, creatures and chests, up to 30 blocks beyond the far disc.
+- Glyph arrows can be shot from bows and crossbows, not only from dispensers.
+
 ## 1.2.0
 
 - New spells from the manga: Pyreball Seal, Floatglow Lamp, Rising Platform of Water, Water Cage, Wall of Wind, Wall Bend, Water Horse, Ring of Fire, and the Seal of Obliviation.
